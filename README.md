@@ -27,7 +27,7 @@ Built with **NestJS + Prisma + Postgres + Redis** on the backend and **React + V
 
 ## Features
 
-* **Online booking** with 4 steps (Service → Vehicle → Price → Date/Time → Confirm)
+* **Online booking** with 5 steps (Service → Vehicle → Price → Date/Time → Confirm)
 
   * Live **catalog** and **tiered pricing** (Small/Medium/Large/XL)
   * **Availability** grid backed by Redis **holds** (with countdown)
