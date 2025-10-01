@@ -32,6 +32,7 @@ export class VehiclesService {
   private readonly vehicleCacheTtlMs = 5 * 60 * 1000;
   private engineTierCache: { expiresAt: number; tiers: EngineTier[] } | null = null;
   private readonly engineTierCacheTtlMs = 10 * 60 * 1000;
+  private readonly dvlaFetchTimeoutMs = 9_000;
 
   constructor(
     private readonly configService: ConfigService,
@@ -58,6 +59,11 @@ export class VehiclesService {
       return { ok: false, allowManual: true };
     }
 
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => {
+      abortController.abort();
+    }, this.dvlaFetchTimeoutMs);
+
     try {
       const response = await fetch('https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/vehicles', {
         method: 'POST',
@@ -66,6 +72,7 @@ export class VehiclesService {
           'x-api-key': apiKey,
         },
         body: JSON.stringify({ registrationNumber: normalized }),
+        signal: abortController.signal,
       });
 
       if (!response.ok) {
@@ -92,8 +99,15 @@ export class VehiclesService {
         data: this.toResponsePayload(data, recommendation),
       };
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        this.logger.warn(`DVLA lookup timed out after ${this.dvlaFetchTimeoutMs}ms. Falling back to manual entry.`);
+        return { ok: false, allowManual: true };
+      }
+
       this.logger.error('DVLA lookup error', error as Error);
       return { ok: false, allowManual: true };
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
