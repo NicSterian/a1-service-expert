@@ -1,0 +1,18 @@
+{
+  "name": "a1-service-expert-monorepo",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "concurrently -c auto -n API,WEB \"pnpm --filter apps/booking-api dev\" \"pnpm --filter apps/booking-web dev\"",
+    "dev:api": "pnpm --filter apps/booking-api dev",
+    "dev:web": "pnpm --filter apps/booking-web dev"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.45.0",
+    "@typescript-eslint/parser": "^8.45.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0"
+  }
+}

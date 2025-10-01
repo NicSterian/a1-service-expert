@@ -1,0 +1,234 @@
+// Prisma schema for A1 Service Expert booking platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+  STAFF
+}
+
+enum BookingStatus {
+  DRAFT
+  HELD
+  CONFIRMED
+  CANCELLED
+}
+
+enum DocumentType {
+  INVOICE
+  QUOTE
+}
+
+enum DocumentStatus {
+  DRAFT
+  ISSUED
+  VOID
+}
+
+enum SequenceKey {
+  INVOICE
+  QUOTE
+}
+
+enum ServiceCode {
+  SERVICE_1
+  SERVICE_2
+  SERVICE_3
+}
+
+enum EngineTierCode {
+  SMALL
+  MEDIUM
+  LARGE
+  XLARGE
+}
+
+
+model User {
+  id            Int      @id @default(autoincrement())
+  email         String   @unique
+  passwordHash  String
+  role          UserRole @default(CUSTOMER)
+  emailVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  bookings           Booking[]
+  verificationTokens EmailVerificationToken[]
+}
+
+model EmailVerificationToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EngineTier {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  maxCc     Int?
+  sortOrder Int      @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  prices          ServicePrice[]
+  bookingServices BookingService[]
+}
+
+model Service {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  prices          ServicePrice[]
+  bookingServices BookingService[]
+}
+
+model ServicePrice {
+  id           Int      @id @default(autoincrement())
+  serviceId    Int
+  engineTierId Int
+  amountPence  Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  service    Service    @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  engineTier EngineTier @relation(fields: [engineTierId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, engineTierId], name: "serviceId_engineTierId")
+}
+
+model Settings {
+  id                            Int      @id
+  companyName                   String?
+  companyAddress                String?
+  companyPhone                  String?
+  vatNumber                     String?
+  vatRatePercent                Decimal  @db.Decimal(5, 2)
+  timezone                      String
+  defaultSlotsJson              Json
+  bankHolidayRegion             String
+  logoUrl                       String?
+  holdMinutes                   Int
+  recaptchaEnabled              Boolean  @default(true)
+  vrmLookupRateLimitPerMinute   Int?
+  signupRateLimitPerHour        Int?
+  bookingConfirmRateLimitPerDay Int?
+  dvlaApiKey                   String?
+  dvlaApiKeyEnc                String?
+  dvlaApiKeyIv                 String?
+  dvlaApiKeyTag                String?
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+}
+
+model NotificationRecipient {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ExceptionDate {
+  id        Int      @id @default(autoincrement())
+  date      DateTime @unique
+  reason    String?
+  createdAt DateTime @default(now())
+}
+
+model ExtraSlot {
+  id        Int      @id @default(autoincrement())
+  date      DateTime
+  time      String
+  capacity  Int      @default(1)
+  createdAt DateTime @default(now())
+
+  @@unique([date, time])
+}
+
+model Booking {
+  id                  Int           @id @default(autoincrement())
+  userId              Int
+  status              BookingStatus @default(DRAFT)
+  slotDate            DateTime
+  slotTime            String
+  holdId              String?
+  customerName        String
+  customerEmail       String
+  customerPhone       String
+  vehicleRegistration String
+  vehicleMake         String?
+  vehicleModel        String?
+  vehicleEngineSizeCc Int?
+  notes               String?
+  serviceCode         ServiceCode?
+  engineTierCode      EngineTierCode?
+  servicePricePence   Int?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  user      User             @relation(fields: [userId], references: [id])
+  services  BookingService[]
+  documents Document[]
+
+  @@unique([slotDate, slotTime])
+}
+
+model BookingService {
+  id             Int      @id @default(autoincrement())
+  bookingId      Int
+  serviceId      Int
+  engineTierId   Int
+  unitPricePence Int
+  createdAt      DateTime @default(now())
+
+  booking    Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  service    Service    @relation(fields: [serviceId], references: [id])
+  engineTier EngineTier @relation(fields: [engineTierId], references: [id])
+
+  @@unique([bookingId, serviceId, engineTierId], name: "bookingId_serviceId_engineTierId")
+}
+
+model Sequence {
+  id        Int         @id @default(autoincrement())
+  key       SequenceKey
+  year      Int
+  counter   Int         @default(0)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([key, year], name: "key_year")
+}
+
+model Document {
+  id               Int            @id @default(autoincrement())
+  bookingId        Int?
+  type             DocumentType
+  number           String         @unique
+  status           DocumentStatus @default(DRAFT)
+  totalAmountPence Int
+  vatAmountPence   Int
+  pdfUrl           String
+  validUntil       DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  booking Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+}
+
