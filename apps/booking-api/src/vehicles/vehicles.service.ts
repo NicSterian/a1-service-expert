@@ -62,6 +62,7 @@ export class VehiclesService {
   private engineTierCache: { expiresAt: number; tiers: EngineTier[] } | null =
     null;
   private readonly engineTierCacheTtlMs = 10 * 60 * 1000;
+  private readonly dvlaFetchTimeoutMs = 9_000;
 
   constructor(
     private readonly configService: ConfigService,
@@ -101,8 +102,12 @@ export class VehiclesService {
   return { ok: false, allowManual: true, reason: msg };
 }
 
-    // call DVLA
+    // call DVLA with timeout support
     let res: HttpResponse;
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => {
+      abortController.abort();
+    }, this.dvlaFetchTimeoutMs);
     try {
       // Node 18+ global fetch returns an undici Response (typed via 'undici')
       res = (await fetch(DVLA_URL, {
@@ -113,28 +118,34 @@ export class VehiclesService {
           Accept: 'application/json',
         },
         body: JSON.stringify({ registrationNumber: normalized }),
+        signal: abortController.signal,
       })) as unknown as HttpResponse;
     } catch (error) {
-  const msg = `Network error calling DVLA: ${(error as Error).message}`;
-  this.logger.error(msg);
-  return { ok: false, allowManual: true, reason: msg };
-}
+      if (error instanceof Error && error.name === 'AbortError') {
+        this.logger.warn(
+          `DVLA lookup timed out after ${this.dvlaFetchTimeoutMs}ms. Falling back to manual entry.`,
+        );
+        return { ok: false, allowManual: true };
+      }
+      const msg = `Network error calling DVLA: ${(error as Error).message}`;
+      this.logger.error(msg);
+      return { ok: false, allowManual: true, reason: msg };
+    } finally {
+      clearTimeout(timeout);
+    }
 
+    if (res.status === 404) {
+      const msg = 'DVLA 404 (VRM not found)';
+      this.logger.warn(msg);
+      return { ok: false, allowManual: true, reason: msg };
+    }
 
-   if (res.status === 404) {
-  const msg = 'DVLA 404 (VRM not found)';
-  this.logger.warn(msg);
-  return { ok: false, allowManual: true, reason: msg };
-}
-
-if (!res.ok) {
-  const text = await res.text().catch(() => '');
-  const msg = `DVLA error ${res.status}: ${text || res.statusText || 'Unknown error'}`;
-  this.logger.warn(msg);
-  return { ok: false, allowManual: true, reason: msg };
-}
-
-
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      const msg = `DVLA error ${res.status}: ${text || res.statusText || 'Unknown error'}`;
+      this.logger.warn(msg);
+      return { ok: false, allowManual: true, reason: msg };
+    }
 
     // success
     const raw = (await res.json()) as DVLAResponse;
@@ -151,6 +162,7 @@ if (!res.ok) {
         data,
         expiresAt: Date.now() + this.vehicleCacheTtlMs,
       });
+    }
     }
 
     const recommendation = await this.buildRecommendation(
