@@ -49,17 +49,23 @@ export class SettingsService {
     return settings;
   }
 
+  /**
+   * Return DVLA API key, preferring DB (encrypted) then falling back to .env (DVLA_API_KEY)
+   */
   async getDecryptedDvlaApiKey(): Promise<string | null> {
     const settings = await this.getSettings();
-    return this.decryptDvlaKey(settings);
+    const fromDb = this.decryptDvlaKey(settings);
+    const fromEnv = this.normalizeNullableString(process.env.DVLA_API_KEY ?? null);
+    return fromDb ?? fromEnv;
   }
 
   async isDvlaKeyConfigured(): Promise<boolean> {
     const settings = await this.getSettings();
-    return Boolean(
-      (settings.dvlaApiKeyEnc && settings.dvlaApiKeyIv && settings.dvlaApiKeyTag) ||
-        this.normalizeNullableString(settings.dvlaApiKey),
-    );
+    const hasDb =
+      Boolean(settings.dvlaApiKeyEnc && settings.dvlaApiKeyIv && settings.dvlaApiKeyTag) ||
+      Boolean(this.normalizeNullableString(settings.dvlaApiKey));
+    const hasEnv = Boolean(this.normalizeNullableString(process.env.DVLA_API_KEY ?? null));
+    return hasDb || hasEnv;
   }
 
   async updateSettings(dto: UpdateSettingsDto): Promise<Settings> {

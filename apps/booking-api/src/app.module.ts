@@ -19,7 +19,14 @@ import { VehiclesModule } from './vehicles/vehicles.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      // Load both the app-level and repo-root env files (first match wins)
+      envFilePath: [
+        'apps/booking-api/.env',
+        '.env',
+      ],
+    }),
     PrismaModule,
     SettingsModule,
     EmailModule,
