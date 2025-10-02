@@ -39,9 +39,7 @@ function Stepper() {
   const handleNavigate = (target: (typeof steps)[number]) => {
     const stepIndex = steps.findIndex((step) => step.id === target.id);
     const isEnabled = stepIndex <= currentIndex || completedSteps.has(target.id);
-    if (!isEnabled) {
-      return;
-    }
+    if (!isEnabled) return;
     navigate(target.route === '.' ? '.' : target.route);
   };
 
@@ -79,17 +77,39 @@ function Stepper() {
 
 function BookingWizardShell() {
   const locationStep = useCurrentStepFromLocation();
-  const { setCurrentStep } = useBookingWizard();
+  const navigate = useNavigate();
+  const { setCurrentStep, reset } = useBookingWizard();
 
   useEffect(() => {
     setCurrentStep(locationStep);
   }, [locationStep, setCurrentStep]);
 
+  const handleStartAgain = () => {
+    // If your state exposes reset(), use it; otherwise this still brings you to the first step.
+    try {
+      reset?.();
+    } catch {
+      /* ignore */
+    }
+    navigate('/online-booking');
+  };
+
   return (
     <div className="space-y-8">
       <header className="space-y-4">
-        <h1 className="text-3xl font-semibold text-brand-black">Online Booking</h1>
-        <p className="text-slate-600">Follow the steps below to reserve your service slot.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold text-brand-black">Online Booking</h1>
+            <p className="text-slate-600">Follow the steps below to reserve your service slot.</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleStartAgain}
+            className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400"
+          >
+            Start again
+          </button>
+        </div>
         <Stepper />
       </header>
 

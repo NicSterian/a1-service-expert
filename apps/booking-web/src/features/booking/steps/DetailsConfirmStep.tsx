@@ -8,7 +8,7 @@ import { RecaptchaWidget } from '../../../components/RecaptchaWidget';
 import { apiDelete, apiPatch, apiPost } from '../../../lib/api';
 import { AUTH_EVENT_NAME, getToken } from '../../../lib/auth';
 import { useBookingWizard } from '../state';
-import {
+import type {
   BookingDocumentSummary,
   ConfirmBookingResponse,
   CreateBookingResponse,
@@ -102,6 +102,23 @@ export function DetailsConfirmStep() {
     navigate('../date-time');
   };
 
+  const releaseHoldIfAny = async () => {
+    if (draft.holdId) {
+      try {
+        await apiDelete(`/holds/${draft.holdId}`);
+      } catch {
+        /* ignore */
+      }
+      updateDraft({ holdId: undefined, holdExpiresAt: undefined });
+    }
+  };
+
+  const handleStartAgain = async () => {
+    await releaseHoldIfAny();
+    reset();
+    navigate('/online-booking');
+  };
+
   const handleSubmit = form.handleSubmit(async (values) => {
     if (!token) {
       setSubmitError('You need to log in to confirm a booking.');
@@ -117,7 +134,7 @@ export function DetailsConfirmStep() {
       return;
     }
 
-    const loaderId = toast.loading('Confirming your booking�');
+    const loaderId = toast.loading('Confirming your booking…');
 
     try {
       setSubmitError(null);
@@ -143,19 +160,15 @@ export function DetailsConfirmStep() {
         customer: customerDetails,
       });
 
-      const bookingId = booking.bookingId ?? booking.id;
+      const bookingId = extractBookingId(booking);
+
 
       const confirmation = await apiPatch<ConfirmBookingResponse>(`/bookings/${bookingId}/confirm`, {
         captchaToken: values.captchaToken || 'dev-captcha-token',
       });
 
-      if (draft.holdId) {
-        try {
-          await apiDelete(`/holds/${draft.holdId}`);
-        } catch {
-          /* ignore inability to release hold after confirmation */
-        }
-      }
+      // release hold after confirm (best-effort)
+      await releaseHoldIfAny();
 
       const reference = confirmation.reference || String(bookingId);
       const successState: SuccessState = {
@@ -201,7 +214,8 @@ export function DetailsConfirmStep() {
               {draft.serviceName ?? 'N/A'}{' '}
               {draft.engineTierName || draft.engineTierCode ? (
                 <span className="text-slate-500">
-                  ({draft.engineTierName ?? 'Unknown'}{draft.engineTierCode ? ` - ${draft.engineTierCode}` : ''})
+                  ({draft.engineTierName ?? 'Unknown'}
+                  {draft.engineTierCode ? ` - ${draft.engineTierCode}` : ''})
                 </span>
               ) : null}
             </dd>
@@ -245,6 +259,7 @@ export function DetailsConfirmStep() {
               <p className="text-xs text-red-600">{form.formState.errors.name.message}</p>
             ) : null}
           </div>
+
           <div>
             <label className="block text-sm font-medium text-slate-700" htmlFor="details-email">
               Email address
@@ -260,6 +275,7 @@ export function DetailsConfirmStep() {
               <p className="text-xs text-red-600">{form.formState.errors.email.message}</p>
             ) : null}
           </div>
+
           <div>
             <label className="block text-sm font-medium text-slate-700" htmlFor="details-phone">
               Phone number
@@ -275,6 +291,7 @@ export function DetailsConfirmStep() {
               <p className="text-xs text-red-600">{form.formState.errors.phone.message}</p>
             ) : null}
           </div>
+
           <div className="sm:col-span-2">
             <label className="block text-sm font-medium text-slate-700" htmlFor="details-notes">
               Additional notes (optional)
@@ -305,19 +322,29 @@ export function DetailsConfirmStep() {
         {submitError ? <p className="text-sm text-red-600">{submitError}</p> : null}
 
         <div className="flex justify-between">
-          <button
-            type="button"
-            onClick={handleBack}
-            className="rounded border border-slate-300 px-4 py-2 text-slate-700 hover:border-slate-400"
-          >
-            Back
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleBack}
+              className="rounded border border-slate-300 px-4 py-2 text-slate-700 hover:border-slate-400"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={handleStartAgain}
+              className="rounded border border-slate-300 px-4 py-2 text-slate-700 hover:border-slate-400"
+            >
+              Start again
+            </button>
+          </div>
+
           <button
             type="submit"
             disabled={disableSubmit}
             className="rounded bg-brand-orange px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isSubmitting ? 'Confirming�' : 'Confirm booking'}
+            {isSubmitting ? 'Confirming…' : 'Confirm booking'}
           </button>
         </div>
       </form>
@@ -325,4 +352,18 @@ export function DetailsConfirmStep() {
   );
 }
 
+function extractBookingId(resp: unknown): string {
+  if (resp && typeof resp === 'object') {
+    const r = resp as { bookingId?: unknown; id?: unknown };
+    if (typeof r.bookingId === 'string' || typeof r.bookingId === 'number') {
+      return String(r.bookingId);
+    }
+    if (typeof r.id === 'string' || typeof r.id === 'number') {
+      return String(r.id);
+    }
+  }
+  throw new Error('Booking id missing in response');
+}
 
+
+export default DetailsConfirmStep;

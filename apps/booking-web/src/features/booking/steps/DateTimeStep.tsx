@@ -50,21 +50,22 @@ const isWeekend = (date: Date) => {
 export function DateTimeStep() {
   const navigate = useNavigate();
   const { draft, updateDraft, markStepComplete } = useBookingWizard();
+
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState<Date | null>(draft.date ? new Date(draft.date) : null);
   const [slots, setSlots] = useState<AvailabilityResponse['slots']>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
   const [holdError, setHoldError] = useState<string | null>(null);
-  const [holdCountdown, setHoldCountdown] = useState<string | null>(null);
 
   const dateKey = selectedDate ? formatDateKey(selectedDate) : null;
+
+  // Must have service, a tier and a price before we allow slot selection.
   const hasPricingSelection = Boolean(
-    draft.serviceId &&
-      (draft.engineTierId || draft.engineTierCode) &&
-      typeof draft.pricePence === 'number'
+    draft.serviceId && (draft.engineTierId || draft.engineTierCode) && typeof draft.pricePence === 'number',
   );
 
+  // Load slots for the selected date
   useEffect(() => {
     if (!dateKey) {
       setSlots([]);
@@ -98,7 +99,6 @@ export function DateTimeStep() {
     };
 
     fetchAvailability();
-
     return () => {
       cancelled = true;
     };
@@ -115,7 +115,6 @@ export function DateTimeStep() {
   const clearHold = useCallback(
     async (options: { resetTime?: boolean } = {}) => {
       const targetHoldId = draft.holdId;
-
       try {
         if (targetHoldId) {
           await releaseHold(targetHoldId);
@@ -131,41 +130,6 @@ export function DateTimeStep() {
     [draft.holdId, releaseHold, updateDraft],
   );
 
-  useEffect(() => {
-    if (!draft.holdId || !draft.holdExpiresAt) {
-      setHoldCountdown(null);
-      return;
-    }
-
-    const expiresAtMs = new Date(draft.holdExpiresAt).getTime();
-    if (Number.isNaN(expiresAtMs)) {
-      setHoldCountdown(null);
-      return;
-    }
-
-    const updateCountdown = () => {
-      const remaining = expiresAtMs - Date.now();
-      if (remaining <= 0) {
-        setHoldCountdown(null);
-        void clearHold({ resetTime: true });
-        toast.error('Your reserved slot has expired. Please choose another available time.');
-        return false;
-      }
-
-      const minutes = Math.floor(remaining / 60000);
-      const seconds = Math.floor((remaining % 60000) / 1000);
-      setHoldCountdown(`${minutes}:${seconds.toString().padStart(2, '0')}`);
-      return true;
-    };
-
-    if (!updateCountdown()) {
-      return;
-    }
-
-    const interval = window.setInterval(updateCountdown, 1000);
-    return () => window.clearInterval(interval);
-  }, [clearHold, draft.holdExpiresAt, draft.holdId]);
-
   const calendarDays = useMemo(() => {
     const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
     const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
@@ -174,26 +138,15 @@ export function DateTimeStep() {
 
   const isDisabledDate = (date: Date) => {
     const today = startOfDay(new Date());
-    if (!isSameMonth(date, currentMonth)) {
-      return true;
-    }
-    if (isBefore(date, today)) {
-      return true;
-    }
-    if (isWeekend(date)) {
-      return true;
-    }
+    if (!isSameMonth(date, currentMonth)) return true;
+    if (isBefore(date, today)) return true;
+    if (isWeekend(date)) return true;
     return false;
   };
 
   const handleSelectDate = async (date: Date) => {
-    if (isDisabledDate(date)) {
-      return;
-    }
-
-    if (selectedDate && isSameDay(selectedDate, date)) {
-      return;
-    }
+    if (isDisabledDate(date)) return;
+    if (selectedDate && isSameDay(selectedDate, date)) return;
 
     await clearHold({ resetTime: true });
 
@@ -210,12 +163,12 @@ export function DateTimeStep() {
   };
 
   const handleSelectTime = async (time: string) => {
-    if (!selectedDate) {
-      return;
-    }
+    if (!selectedDate) return;
 
     const selectedKey = formatDateKey(selectedDate);
 
+    // Try to create a server-side hold silently. If it fails, we still let the
+    // user continue (time will be set without hold).
     try {
       setHoldError(null);
 
@@ -234,24 +187,25 @@ export function DateTimeStep() {
         holdId,
         holdExpiresAt: expiresAt,
       });
-      toast.success(`Slot held for ${format(selectedDate, 'd MMM')} at ${time}. Complete your booking within 10 minutes.`);
+      // No success toast / no countdown UI by design.
     } catch (error) {
-      const message = (error as Error).message || 'Unable to hold this slot. Please try another time.';
+      const message = (error as Error).message || 'Unable to reserve this slot. You can still try to continue.';
       setHoldError(message);
+
+      // Still set the time so the user can proceed; booking will try to confirm anyway.
+      updateDraft({
+        date: selectedKey,
+        time,
+        holdId: undefined,
+        holdExpiresAt: undefined,
+      });
       toast.error(message);
     }
   };
 
-  const holdExpiresAt = draft.holdExpiresAt ? new Date(draft.holdExpiresAt) : null;
-  const holdExpiresLabel = holdExpiresAt && !Number.isNaN(holdExpiresAt.getTime()) ? format(holdExpiresAt, 'HH:mm') : null;
-
-  const canContinue = Boolean(
-    hasPricingSelection &&
-      draft.date &&
-      draft.time &&
-      draft.holdId &&
-      draft.holdExpiresAt
-  );
+  // We allow continuing as soon as a valid date & time are chosen.
+  // We *do not* require a hold in the draft.
+  const canContinue = Boolean(hasPricingSelection && draft.date && draft.time);
 
   if (!hasPricingSelection) {
     return (
@@ -285,7 +239,6 @@ export function DateTimeStep() {
       setHoldError('Choose an available slot to continue.');
       return;
     }
-
     markStepComplete('date-time');
     navigate('../details-confirm');
   };
@@ -294,9 +247,7 @@ export function DateTimeStep() {
     <div className="space-y-6">
       <header className="space-y-2">
         <h2 className="text-2xl font-semibold text-brand-black">4. Date &amp; Time</h2>
-        <p className="text-slate-600">
-          Pick a weekday slot. Holds last 10 minutes while you complete the booking.
-        </p>
+        <p className="text-slate-600">Pick a weekday slot.</p>
         {draft.pricePence ? (
           <p className="text-xs text-slate-500">Selected service price: {formatPrice(draft.pricePence)}</p>
         ) : null}
@@ -392,13 +343,6 @@ export function DateTimeStep() {
           <p className="text-sm text-slate-500">Select a date above to see available times.</p>
         )}
 
-        {draft.holdId ? (
-          <p className="text-xs text-emerald-600">
-            {holdExpiresLabel ? `Slot reserved until ${holdExpiresLabel}.` : 'Slot reserved.'}{' '}
-            {holdCountdown ? `Time remaining: ${holdCountdown}.` : ''}
-          </p>
-        ) : null}
-
         {holdError ? <p className="text-sm text-red-600">{holdError}</p> : null}
       </div>
 
@@ -422,4 +366,3 @@ export function DateTimeStep() {
     </div>
   );
 }
-

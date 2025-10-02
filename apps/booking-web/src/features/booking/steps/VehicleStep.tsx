@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { LoadingIndicator } from '../../../components/LoadingIndicator';
-import { apiGet, apiPost } from '../../../lib/api';
+import { apiPost } from '../../../lib/api';
 import { EngineTierCode, mapEngineTierNameToCode } from '@shared/pricing';
 import { useBookingWizard } from '../state';
 import type { BookingDraft } from '../types';
@@ -42,17 +42,11 @@ const normalizeVrm = (value: string) => value.replace(/\s+/g, '').toUpperCase();
 
 const engineSizeField = z.preprocess(
   (value) => {
-    if (value === '' || value === null || value === undefined) {
-      return undefined;
-    }
-    if (typeof value === 'number') {
-      return Number.isFinite(value) ? value : undefined;
-    }
+    if (value === '' || value === null || value === undefined) return undefined;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
     if (typeof value === 'string') {
       const trimmed = value.trim();
-      if (!trimmed) {
-        return undefined;
-      }
+      if (!trimmed) return undefined;
       const parsed = Number(trimmed);
       return Number.isFinite(parsed) ? parsed : value;
     }
@@ -61,9 +55,10 @@ const engineSizeField = z.preprocess(
   z
     .number({ invalid_type_error: 'Enter a valid engine size' })
     .int('Engine size must be a whole number')
-    .min(1, 'Engine size must be at least 1 cc')
-    .optional(),
+    .min(1, 'Engine size must be at least 1 cc'),
 );
+
+// --- Schemas -------------------------------------------------
 
 const vrmSchema = z.object({
   vrm: z
@@ -73,85 +68,69 @@ const vrmSchema = z.object({
     .transform(normalizeVrm),
 });
 
-const optionalTrimmed = (label: string) =>
-  z.preprocess(
-    (value) => {
-      if (typeof value !== 'string') return undefined;
-      const trimmed = value.trim();
-      return trimmed.length ? trimmed : undefined;
-    },
-    z
-      .string()
-      .min(2, `${label} must be at least 2 characters`)
-      .max(100, `${label} must be at most 100 characters`)
-      .optional(),
-  );
-
-const manualSchema = z
-  .object({
-    vrm: z.preprocess(
-      (value) => {
-        if (typeof value !== 'string') return undefined;
-        const normalized = normalizeVrm(value);
-        return normalized.length ? normalized : undefined;
-      },
-      z
-        .string()
-        .min(2, 'VRM must be at least 2 characters')
-        .max(10, 'VRM must be at most 10 characters')
-        .optional(),
-    ),
-    make: optionalTrimmed('Make'),
-    model: optionalTrimmed('Model'),
-    engineSizeCc: engineSizeField,
-  })
-  .superRefine((values, ctx) => {
-    const hasVrm = Boolean(values.vrm);
-    const hasMakeModel = Boolean(values.make && values.model);
-
-    if (!hasVrm && !hasMakeModel) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Enter a VRM or both make and model',
-        path: ['vrm'],
-      });
-    }
-  });
+// All fields required for manual entry
+const manualSchema = z.object({
+  vrm: z
+    .string()
+    .min(2, 'VRM must be at least 2 characters')
+    .max(10, 'VRM must be at most 10 characters')
+    .transform(normalizeVrm),
+  make: z.string().min(2, 'Make is required').max(100, 'Make is too long'),
+  model: z.string().min(1, 'Model is required').max(100, 'Model is too long'),
+  engineSizeCc: engineSizeField,
+});
 
 type VrmFormValues = z.infer<typeof vrmSchema>;
 type ManualFormValues = z.infer<typeof manualSchema>;
 
+type WithTierId = { engineTierId?: number | null; engineTierName?: string | null };
+type WithTierCode = { engineTierCode?: EngineTierCode | null };
+type WithRecommendation = { recommendation?: RecommendationInfo | null };
+
+function hasTierId(x: unknown): x is WithTierId {
+  return typeof x === 'object' && x !== null && 'engineTierId' in x;
+}
+function hasTierCode(x: unknown): x is WithTierCode {
+  return typeof x === 'object' && x !== null && 'engineTierCode' in x;
+}
+function hasRecommendation(x: unknown): x is WithRecommendation {
+  return typeof x === 'object' && x !== null && 'recommendation' in x;
+}
+
 const toRecommendationInfo = (
   data?: VehicleLookupData | RecommendationInfo | RecommendTierResponse | null,
 ): RecommendationInfo | null => {
-  if (!data) {
-    return null;
-  }
+  if (!data) return null;
 
-  if ('engineTierId' in data && typeof data.engineTierId === 'number') {
+  if (hasTierId(data) && typeof data.engineTierId === 'number') {
+    const explicitCode = hasTierCode(data) ? data.engineTierCode ?? null : null;
     return {
       engineTierId: data.engineTierId,
       engineTierName: data.engineTierName ?? null,
-      engineTierCode: mapEngineTierNameToCode(data.engineTierName ?? undefined) ?? null,
-      pricePence: typeof data.pricePence === 'number' ? data.pricePence : null,
+      engineTierCode:
+        explicitCode ?? mapEngineTierNameToCode(data.engineTierName ?? undefined) ?? null,
+      pricePence:
+        'pricePence' in data && typeof (data as { pricePence?: number }).pricePence === 'number'
+          ? (data as { pricePence?: number }).pricePence!
+          : null,
     };
   }
 
-  if ('recommendation' in data) {
+  if (hasRecommendation(data)) {
     return toRecommendationInfo(data.recommendation ?? null);
   }
 
   return null;
 };
 
+// ----------------------------------------------------------------
+
 export function VehicleStep() {
   const navigate = useNavigate();
   const { draft, updateDraft, markStepComplete } = useBookingWizard();
 
   const initialLookupResult = useMemo<VehicleLookupData | null>(() => {
-    if (!draft.vehicle) {
-      return null;
-    }
+    if (!draft.vehicle) return null;
     return {
       make: draft.vehicle.make ?? null,
       model: draft.vehicle.model ?? null,
@@ -161,22 +140,21 @@ export function VehicleStep() {
           ? {
               engineTierId: draft.engineTierId,
               engineTierName: draft.engineTierName ?? null,
+              engineTierCode: draft.engineTierCode ?? null,
               pricePence: typeof draft.pricePence === 'number' ? draft.pricePence : null,
             }
           : null,
     };
-  }, [draft.engineTierId, draft.engineTierName, draft.pricePence, draft.vehicle]);
+  }, [draft.engineTierCode, draft.engineTierId, draft.engineTierName, draft.pricePence, draft.vehicle]);
 
   const [activeTab, setActiveTab] = useState<'vrm' | 'manual'>(draft.vehicle?.manualEntry ? 'manual' : 'vrm');
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [lookupMessage, setLookupMessage] = useState<string | null>(null);
   const [lookupResult, setLookupResult] = useState<VehicleLookupData | null>(initialLookupResult);
   const [lookupSuccess, setLookupSuccess] = useState<boolean>(() => {
-    if (!draft.vehicle) {
-      return false;
-    }
+    if (!draft.vehicle) return false;
     if (draft.vehicle.manualEntry) {
-      return Boolean(draft.vehicle.vrm || (draft.vehicle.make && draft.vehicle.model));
+      return Boolean(draft.vehicle.vrm && draft.vehicle.make && draft.vehicle.model && draft.vehicle.engineSizeCc);
     }
     return Boolean(draft.vehicle.vrm);
   });
@@ -184,13 +162,12 @@ export function VehicleStep() {
 
   const vrmForm = useForm<VrmFormValues>({
     resolver: zodResolver(vrmSchema),
-    defaultValues: {
-      vrm: draft.vehicle?.manualEntry ? '' : draft.vehicle?.vrm ?? '',
-    },
+    defaultValues: { vrm: draft.vehicle?.manualEntry ? '' : draft.vehicle?.vrm ?? '' },
   });
 
   const manualForm = useForm<ManualFormValues>({
     resolver: zodResolver(manualSchema),
+    mode: 'onChange', // <— so isValid updates live
     defaultValues: {
       vrm: draft.vehicle?.manualEntry ? draft.vehicle.vrm ?? '' : '',
       make: draft.vehicle?.manualEntry ? draft.vehicle.make ?? '' : '',
@@ -199,6 +176,7 @@ export function VehicleStep() {
     },
   });
 
+  // persist into draft
   const applyVehicleData = useCallback(
     (payload: {
       manualEntry: boolean;
@@ -214,20 +192,27 @@ export function VehicleStep() {
         make: payload.make ?? undefined,
         model: payload.model ?? undefined,
       };
-
       if (typeof payload.engineSizeCc === 'number' && payload.engineSizeCc > 0) {
         vehicle.engineSizeCc = payload.engineSizeCc;
       }
 
-      const updates: Partial<BookingDraft> = {
-        vehicle,
-        pricePence: undefined,
-      };
+      const updates: Partial<BookingDraft> = { vehicle };
 
       if (payload.recommendation) {
         updates.engineTierId = payload.recommendation.engineTierId ?? undefined;
         updates.engineTierName = payload.recommendation.engineTierName ?? undefined;
-        updates.engineTierCode = mapEngineTierNameToCode(payload.recommendation.engineTierName ?? undefined) ?? undefined;
+        updates.engineTierCode =
+          payload.recommendation.engineTierCode ??
+          mapEngineTierNameToCode(payload.recommendation.engineTierName ?? undefined) ??
+          undefined;
+
+        if (typeof payload.recommendation.pricePence === 'number') {
+          updates.pricePence = payload.recommendation.pricePence;
+        } else {
+          updates.pricePence = undefined;
+        }
+      } else {
+        updates.pricePence = undefined;
       }
 
       updateDraft(updates);
@@ -235,6 +220,17 @@ export function VehicleStep() {
     [updateDraft],
   );
 
+  const goNextAfterUpdate = (rec: RecommendationInfo | null | undefined) => {
+    markStepComplete('vehicle');
+    if (rec?.engineTierId && typeof rec.pricePence === 'number') {
+      markStepComplete('pricing');
+      navigate('../date-time');
+    } else {
+      navigate('../pricing');
+    }
+  };
+
+  // VRM LOOKUP
   const handleLookup = vrmForm.handleSubmit(async (values) => {
     if (!draft.serviceId) {
       toast.error('Select a service before looking up a vehicle.');
@@ -243,13 +239,16 @@ export function VehicleStep() {
 
     try {
       setLookupError(null);
-      setLookupMessage('Looking up vehicle.');
+      setLookupMessage('Looking up vehicle…');
       setIsLookingUp(true);
 
       const vrm = values.vrm;
       vrmForm.setValue('vrm', vrm);
 
-      const response = await apiGet<LookupResponse>(`/vehicles/vrm/${encodeURIComponent(vrm)}?serviceId=${draft.serviceId}`);
+      const response = await apiPost<LookupResponse>('/vehicles/vrm', {
+        vrm,
+        serviceId: draft.serviceId,
+      });
 
       if (!response.ok || !response.data) {
         setLookupResult(null);
@@ -260,7 +259,19 @@ export function VehicleStep() {
       }
 
       const resultData = response.data;
-      const recommendation = toRecommendationInfo(resultData);
+
+      let recommendation = toRecommendationInfo(resultData);
+      if (!recommendation && resultData.engineSizeCc && draft.serviceId) {
+        try {
+          const recResp = await apiPost<RecommendTierResponse>('/vehicles/recommend-tier', {
+            serviceId: draft.serviceId,
+            engineSizeCc: resultData.engineSizeCc,
+          });
+          recommendation = toRecommendationInfo(recResp);
+        } catch {
+          /* ignore; user will confirm pricing next step */
+        }
+      }
 
       applyVehicleData({
         manualEntry: false,
@@ -279,15 +290,17 @@ export function VehicleStep() {
       });
       setLookupSuccess(true);
 
-      if (recommendation) {
-        setLookupMessage('Vehicle found. Engine tier updated for engine size.');
+      if (recommendation?.engineTierId && typeof recommendation.pricePence === 'number') {
+        setLookupMessage('Vehicle found. Pricing confirmed from engine size.');
       } else if (resultData.engineSizeCc) {
         setLookupMessage('Vehicle found. Engine size captured.');
       } else {
         setLookupMessage('Vehicle found. Confirm details and continue.');
       }
-    } catch {
-      const message = (error as Error).message ?? 'Unable to contact DVLA. Please try again later.';
+
+      goNextAfterUpdate(recommendation);
+    } catch (error) {
+      const message = (error as Error)?.message ?? 'Unable to contact DVLA. Please try again later.';
       setLookupError(message);
       setLookupMessage(null);
       setLookupSuccess(false);
@@ -296,69 +309,63 @@ export function VehicleStep() {
     }
   });
 
-  const handleManualSubmit = manualForm.handleSubmit(async (values) => {
-    setLookupError(null);
-
-    const engineSizeCc = values.engineSizeCc ?? null;
+  // MANUAL ENTRY save (used by Save button AND Continue)
+  const saveManual = manualForm.handleSubmit(async (values) => {
     let recommendation: RecommendationInfo | null = null;
 
-    if (engineSizeCc && draft.serviceId) {
+    if (values.engineSizeCc && draft.serviceId) {
       try {
         const recommendationResponse = await apiPost<RecommendTierResponse>('/vehicles/recommend-tier', {
           serviceId: draft.serviceId,
-          engineSizeCc,
+          engineSizeCc: values.engineSizeCc,
         });
-
         recommendation = toRecommendationInfo(recommendationResponse);
       } catch {
         toast.error('Could not match engine size automatically. Please verify the service tier.');
       }
-    } else if (engineSizeCc && !draft.serviceId) {
+    } else if (!draft.serviceId) {
       toast.error('Select a service before applying engine size.');
     }
 
     applyVehicleData({
       manualEntry: true,
       vrm: values.vrm,
-      make: values.make ?? null,
-      model: values.model ?? null,
-      engineSizeCc,
+      make: values.make,
+      model: values.model,
+      engineSizeCc: values.engineSizeCc,
       recommendation,
     });
 
     setLookupResult({
-      make: values.make ?? null,
-      model: values.model ?? null,
-      engineSizeCc,
+      make: values.make,
+      model: values.model,
+      engineSizeCc: values.engineSizeCc,
       recommendation,
     });
 
-    setLookupSuccess(Boolean(values.vrm || (values.make && values.model)));
-
-    if (recommendation) {
-      setLookupMessage('Vehicle details saved. Engine tier updated for engine size.');
-    } else if (engineSizeCc) {
-      setLookupMessage('Vehicle details saved with engine size.');
-    } else {
-      setLookupMessage('Vehicle details saved.');
-    }
-
+    setLookupSuccess(true);
     toast.success('Vehicle details saved.');
+
+    return recommendation; // so Continue can decide where to go
   });
 
-  const canContinue = Boolean(
-    draft.vehicle &&
-      ((draft.vehicle.manualEntry && (draft.vehicle.vrm || (draft.vehicle.make && draft.vehicle.model))) || lookupSuccess),
-  );
+  // Enable Continue if:
+  //  - VRM lookup succeeded, OR
+  //  - Manual tab is active AND the manual form is valid right now
+  const canContinue = activeTab === 'manual' ? manualForm.formState.isValid : lookupSuccess;
 
-  const handleNext = () => {
-    if (!canContinue) {
+  const handleNext = async () => {
+    if (activeTab === 'manual') {
+      const rec = await saveManual(); // saves + returns recommendation
+      goNextAfterUpdate(rec ?? null);
+      return;
+    }
+    if (!lookupSuccess) {
       toast.error('Please provide vehicle details before continuing.');
       return;
     }
-
     markStepComplete('vehicle');
-    navigate('../date-time');
+    navigate('../pricing');
   };
 
   return (
@@ -420,10 +427,10 @@ export function VehicleStep() {
                 className="rounded bg-brand-orange px-4 py-2 text-white hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={isLookingUp}
               >
-                {isLookingUp ? 'Looking up�' : 'Lookup'}
+                {isLookingUp ? 'Looking up…' : 'Lookup'}
               </button>
 
-              {isLookingUp ? <LoadingIndicator label="Contacting DVLA�" /> : null}
+              {isLookingUp ? <LoadingIndicator label="Contacting DVLA…" /> : null}
               {lookupMessage ? <p className="text-sm text-emerald-700">{lookupMessage}</p> : null}
               {lookupError ? <p className="text-sm text-red-600">{lookupError}</p> : null}
               {lookupResult ? (
@@ -432,13 +439,29 @@ export function VehicleStep() {
                   <p>{`Model: ${lookupResult.model ?? 'Unknown'}`}</p>
                   <p>{`Engine size: ${lookupResult.engineSizeCc ? `${lookupResult.engineSizeCc} cc` : 'Unknown'}`}</p>
                   {lookupResult.recommendation ? (
-                    <p>{`Engine tier: ${lookupResult.recommendation.engineTierName ?? (typeof lookupResult.recommendation.engineTierId === 'number' ? `ID ${lookupResult.recommendation.engineTierId}` : 'Unknown')}${lookupResult.recommendation.engineTierCode ? ` (${lookupResult.recommendation.engineTierCode})` : ''}`}</p>
+                    <p>{`Engine tier: ${
+                      lookupResult.recommendation.engineTierName ??
+                      (typeof lookupResult.recommendation.engineTierId === 'number'
+                        ? `ID ${lookupResult.recommendation.engineTierId}`
+                        : 'Unknown')
+                    }${
+                      lookupResult.recommendation.engineTierCode
+                        ? ` (${lookupResult.recommendation.engineTierCode})`
+                        : ''
+                    }${
+                      typeof lookupResult.recommendation.pricePence === 'number'
+                        ? ` — ${Intl.NumberFormat('en-GB', {
+                            style: 'currency',
+                            currency: 'GBP',
+                          }).format(lookupResult.recommendation.pricePence / 100)}`
+                        : ''
+                    }`}</p>
                   ) : null}
                 </div>
               ) : null}
             </form>
           ) : (
-            <form className="space-y-3" onSubmit={handleManualSubmit} noValidate>
+            <form className="space-y-3" onSubmit={saveManual} noValidate>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block text-sm font-medium text-slate-700" htmlFor="manual-vrm">
@@ -464,6 +487,9 @@ export function VehicleStep() {
                     className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
                     {...manualForm.register('make')}
                   />
+                  {manualForm.formState.errors.make ? (
+                    <p className="text-xs text-red-600">{manualForm.formState.errors.make.message}</p>
+                  ) : null}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700" htmlFor="manual-model">
@@ -475,6 +501,9 @@ export function VehicleStep() {
                     className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
                     {...manualForm.register('model')}
                   />
+                  {manualForm.formState.errors.model ? (
+                    <p className="text-xs text-red-600">{manualForm.formState.errors.model.message}</p>
+                  ) : null}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700" htmlFor="manual-engine-size">
@@ -486,20 +515,17 @@ export function VehicleStep() {
                     min={1}
                     step={1}
                     className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-                    {...manualForm.register('engineSizeCc')}
+                    {...manualForm.register('engineSizeCc', { valueAsNumber: true })}
                   />
                   {manualForm.formState.errors.engineSizeCc ? (
                     <p className="text-xs text-red-600">{manualForm.formState.errors.engineSizeCc.message}</p>
                   ) : (
-                    <p className="text-xs text-slate-500">Optional but recommended for accurate pricing.</p>
+                    <p className="text-xs text-slate-500">Required for automatic pricing.</p>
                   )}
                 </div>
               </div>
 
-              <button
-                type="submit"
-                className="rounded bg-brand-orange px-4 py-2 text-white hover:bg-orange-500"
-              >
+              <button type="submit" className="rounded bg-brand-orange px-4 py-2 text-white hover:bg-orange-500">
                 Save vehicle details
               </button>
             </form>
@@ -527,36 +553,3 @@ export function VehicleStep() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

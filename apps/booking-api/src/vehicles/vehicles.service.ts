@@ -4,7 +4,12 @@ import { EngineTier } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { VehicleLookupDto } from './dto/vehicle-lookup.dto';
-import { EngineTierCode, mapEngineTierNameToCode, mapEngineTierSortOrderToCode } from '../../../../packages/shared/src/pricing';
+import {
+  EngineTierCode,
+  mapEngineTierNameToCode,
+  mapEngineTierSortOrderToCode,
+} from '../../../../packages/shared/src/pricing';
+
 
 type CachedVehicleData = {
   make?: string;
@@ -25,12 +30,37 @@ type Recommendation = {
   pricePence?: number;
 };
 
+type DVLAResponse = {
+  make?: string;
+  model?: string;
+  /** DVLA commonly provides this as engineCapacity */
+  engineCapacity?: number | string | null;
+  /** Some payloads use cylinderCapacity */
+  cylinderCapacity?: number | string | null;
+  /** Fallback field name seen in other datasets */
+  engineSize?: number | string | null;
+};
+
+type HttpResponse = {
+  ok: boolean;
+  status: number;
+  statusText?: string;
+  text(): Promise<string>;
+  json(): Promise<unknown>;
+};
+
+
+const DVLA_URL =
+  'https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/vehicles';
+
 @Injectable()
 export class VehiclesService {
   private readonly logger = new Logger(VehiclesService.name);
   private readonly vehicleCache = new Map<string, VehicleCacheEntry>();
   private readonly vehicleCacheTtlMs = 5 * 60 * 1000;
-  private engineTierCache: { expiresAt: number; tiers: EngineTier[] } | null = null;
+
+  private engineTierCache: { expiresAt: number; tiers: EngineTier[] } | null =
+    null;
   private readonly engineTierCacheTtlMs = 10 * 60 * 1000;
 
   constructor(
@@ -39,12 +69,23 @@ export class VehiclesService {
     private readonly prisma: PrismaService,
   ) {}
 
-  async lookupVrm({ vrm, serviceId }: VehicleLookupDto, options: { dryRun?: boolean } = {}) {
+  /**
+   * Lookup a VRM via DVLA. Caches results briefly.
+   * Returns { ok, allowManual, data?, reason? } (reason only in non-production).
+   */
+  async lookupVrm(
+    { vrm, serviceId }: VehicleLookupDto,
+    options: { dryRun?: boolean } = {},
+  ) {
     const normalized = this.normalizeVrm(vrm);
 
+    // cache hit
     const cached = this.vehicleCache.get(normalized);
     if (!options.dryRun && cached && cached.expiresAt > Date.now()) {
-      const recommendation = await this.buildRecommendation(cached.data.engineSizeCc, serviceId);
+      const recommendation = await this.buildRecommendation(
+        cached.data.engineSizeCc,
+        serviceId,
+      );
       return {
         ok: true,
         allowManual: false,
@@ -52,53 +93,83 @@ export class VehiclesService {
       };
     }
 
+    // resolve API key: DB (encrypted) -> .env fallback
     const apiKey = await this.resolveApiKey();
     if (!apiKey) {
-      this.logger.warn('DVLA API key is not configured. Falling back to manual entry.');
-      return { ok: false, allowManual: true };
-    }
+  const msg = 'DVLA API key is not configured';
+  this.logger.warn(msg);
+  return { ok: false, allowManual: true, reason: msg };
+}
 
+    // call DVLA
+    let res: HttpResponse;
     try {
-      const response = await fetch('https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/vehicles', {
+      // Node 18+ global fetch returns an undici Response (typed via 'undici')
+      res = (await fetch(DVLA_URL, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'x-api-key': apiKey,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
         },
         body: JSON.stringify({ registrationNumber: normalized }),
-      });
-
-      if (!response.ok) {
-        this.logger.warn(`DVLA lookup failed with status ${response.status}`);
-        return { ok: false, allowManual: true };
-      }
-
-      const raw = (await response.json()) as Record<string, unknown>;
-      const data: CachedVehicleData = {
-        make: this.extractString(raw.make),
-        model: this.extractString(raw.model),
-        engineSizeCc: this.sanitizeEngineSize(raw.engineCapacity ?? raw.cylinderCapacity ?? raw.engineSize),
-      };
-
-      if (!options.dryRun) {
-        this.vehicleCache.set(normalized, { data, expiresAt: Date.now() + this.vehicleCacheTtlMs });
-      }
-
-      const recommendation = await this.buildRecommendation(data.engineSizeCc, serviceId);
-
-      return {
-        ok: true,
-        allowManual: false,
-        data: this.toResponsePayload(data, recommendation),
-      };
+      })) as unknown as HttpResponse;
     } catch (error) {
-      this.logger.error('DVLA lookup error', error as Error);
-      return { ok: false, allowManual: true };
+  const msg = `Network error calling DVLA: ${(error as Error).message}`;
+  this.logger.error(msg);
+  return { ok: false, allowManual: true, reason: msg };
+}
+
+
+   if (res.status === 404) {
+  const msg = 'DVLA 404 (VRM not found)';
+  this.logger.warn(msg);
+  return { ok: false, allowManual: true, reason: msg };
+}
+
+if (!res.ok) {
+  const text = await res.text().catch(() => '');
+  const msg = `DVLA error ${res.status}: ${text || res.statusText || 'Unknown error'}`;
+  this.logger.warn(msg);
+  return { ok: false, allowManual: true, reason: msg };
+}
+
+
+
+    // success
+    const raw = (await res.json()) as DVLAResponse;
+    const data: CachedVehicleData = {
+      make: this.extractString(raw.make),
+      model: this.extractString(raw.model),
+      engineSizeCc: this.sanitizeEngineSize(
+        raw.engineCapacity ?? raw.cylinderCapacity ?? raw.engineSize,
+      ),
+    };
+
+    if (!options.dryRun) {
+      this.vehicleCache.set(normalized, {
+        data,
+        expiresAt: Date.now() + this.vehicleCacheTtlMs,
+      });
     }
+
+    const recommendation = await this.buildRecommendation(
+      data.engineSizeCc,
+      serviceId,
+    );
+
+    return {
+      ok: true,
+      allowManual: false,
+      data: this.toResponsePayload(data, recommendation),
+    };
   }
 
   async recommendEngineTier(serviceId: number, engineSizeCc: number) {
-    const recommendation = await this.buildRecommendation(engineSizeCc, serviceId);
+    const recommendation = await this.buildRecommendation(
+      engineSizeCc,
+      serviceId,
+    );
     return {
       engineSizeCc: recommendation.engineSizeCc ?? engineSizeCc,
       engineTierId: recommendation.engineTierId ?? null,
@@ -112,7 +183,12 @@ export class VehiclesService {
     return this.recommendEngineTier(serviceId, engineSizeCc);
   }
 
-  private async buildRecommendation(engineSizeCc?: number, serviceId?: number): Promise<Recommendation> {
+  // ----------------- internals -----------------
+
+  private async buildRecommendation(
+    engineSizeCc?: number,
+    serviceId?: number,
+  ): Promise<Recommendation> {
     if (!engineSizeCc || engineSizeCc <= 0) {
       return { engineSizeCc };
     }
@@ -123,7 +199,10 @@ export class VehiclesService {
     }
 
     const sorted = tiers.slice().sort((a, b) => a.sortOrder - b.sortOrder);
-    let selected = this.pickTier(sorted, engineSizeCc) ?? sorted[sorted.length - 1];
+
+    // pick first tier whose maxCc >= engineSizeCc, else highest
+    let selected =
+      this.pickTier(sorted, engineSizeCc) ?? sorted[sorted.length - 1];
 
     let pricePence: number | undefined;
 
@@ -132,37 +211,38 @@ export class VehiclesService {
         where: { serviceId },
         select: { engineTierId: true, amountPence: true },
       });
-      const priceMap = new Map(prices.map((price) => [price.engineTierId, price.amountPence]));
+      const priceMap = new Map(
+        prices.map((p) => [p.engineTierId, p.amountPence]),
+      );
 
       if (priceMap.size) {
         if (!priceMap.has(selected.id)) {
-          const matching = this.findTierWithPrice(sorted, priceMap, engineSizeCc) ?? this.findHighestTierWithPrice(sorted, priceMap);
-          if (matching) {
-            selected = matching;
-          }
+          const matching =
+            this.findTierWithPrice(sorted, priceMap, engineSizeCc) ??
+            this.findHighestTierWithPrice(sorted, priceMap);
+        if (matching) selected = matching;
         }
         pricePence = priceMap.get(selected.id);
       }
     }
 
-    const engineTierCode = selected
-      ? mapEngineTierNameToCode(selected.name) ?? mapEngineTierSortOrderToCode(selected.sortOrder) ?? null
-      : null;
+    const engineTierCode =
+      mapEngineTierNameToCode(selected.name) ??
+      mapEngineTierSortOrderToCode(selected.sortOrder) ??
+      null;
 
     return {
       engineSizeCc,
-      engineTierId: selected?.id,
+      engineTierId: selected.id,
       engineTierCode,
-      engineTierName: selected?.name,
+      engineTierName: selected.name,
       pricePence,
     };
   }
 
   private pickTier(tiers: EngineTier[], engineSizeCc: number) {
     return tiers.find((tier) => {
-      if (tier.maxCc === null || typeof tier.maxCc === 'undefined') {
-        return true;
-      }
+      if (tier.maxCc === null || typeof tier.maxCc === 'undefined') return true;
       return engineSizeCc <= tier.maxCc;
     });
   }
@@ -174,16 +254,20 @@ export class VehiclesService {
   ) {
     return tiers.find(
       (tier) =>
-        priceMap.has(tier.id) && (tier.maxCc === null || typeof tier.maxCc === 'undefined' || engineSizeCc <= tier.maxCc),
+        priceMap.has(tier.id) &&
+        (tier.maxCc === null ||
+          typeof tier.maxCc === 'undefined' ||
+          engineSizeCc <= tier.maxCc),
     );
   }
 
-  private findHighestTierWithPrice(tiers: EngineTier[], priceMap: Map<number, number>) {
-    for (let index = tiers.length - 1; index >= 0; index -= 1) {
-      const tier = tiers[index];
-      if (priceMap.has(tier.id)) {
-        return tier;
-      }
+  private findHighestTierWithPrice(
+    tiers: EngineTier[],
+    priceMap: Map<number, number>,
+  ) {
+    for (let i = tiers.length - 1; i >= 0; i -= 1) {
+      const tier = tiers[i];
+      if (priceMap.has(tier.id)) return tier;
     }
     return undefined;
   }
@@ -193,26 +277,24 @@ export class VehiclesService {
     if (this.engineTierCache && this.engineTierCache.expiresAt > now) {
       return this.engineTierCache.tiers;
     }
-
-    const tiers = await this.prisma.engineTier.findMany({ orderBy: { sortOrder: 'asc' } });
+    const tiers = await this.prisma.engineTier.findMany({
+      orderBy: { sortOrder: 'asc' },
+    });
     this.engineTierCache = { tiers, expiresAt: now + this.engineTierCacheTtlMs };
     return tiers;
   }
 
   private async resolveApiKey(): Promise<string | null> {
+    // 1) DB (encrypted) via SettingsService
     const decrypted = await this.settingsService.getDecryptedDvlaApiKey();
-    if (decrypted) {
-      return decrypted;
-    }
+    if (decrypted) return decrypted;
 
+    // 2) .env fallback (ConfigModule)
     const fromEnv = this.configService.get<string>('DVLA_API_KEY');
     if (typeof fromEnv === 'string') {
       const trimmed = fromEnv.trim();
-      if (trimmed.length) {
-        return trimmed;
-      }
+      if (trimmed.length) return trimmed;
     }
-
     return null;
   }
 
@@ -221,34 +303,31 @@ export class VehiclesService {
   }
 
   private extractString(value: unknown) {
-    if (typeof value !== 'string') {
-      return undefined;
-    }
-    const trimmed = value.trim();
-    return trimmed.length ? trimmed : undefined;
+    if (typeof value !== 'string') return undefined;
+    const t = value.trim();
+    return t.length ? t : undefined;
   }
 
   private sanitizeEngineSize(raw: unknown): number | undefined {
-    if (raw === null || typeof raw === 'undefined') {
-      return undefined;
-    }
+    if (raw === null || typeof raw === 'undefined') return undefined;
 
     const numeric =
       typeof raw === 'number'
         ? raw
         : typeof raw === 'string'
-          ? Number.parseInt(raw, 10)
-          : Number.NaN;
+        ? Number.parseInt(raw, 10)
+        : Number.NaN;
 
-    if (!Number.isFinite(numeric)) {
-      return undefined;
-    }
+    if (!Number.isFinite(numeric)) return undefined;
 
     const rounded = Math.round(numeric);
     return rounded > 0 ? rounded : undefined;
   }
 
-  private toResponsePayload(data: CachedVehicleData, recommendation: Recommendation) {
+  private toResponsePayload(
+    data: CachedVehicleData,
+    recommendation: Recommendation,
+  ) {
     const hasRecommendation =
       recommendation.engineTierId !== undefined ||
       recommendation.engineTierCode !== undefined ||
