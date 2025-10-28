@@ -102,6 +102,93 @@ export class BookingsService {
     });
   }
 
+  async getBookingForUser(user: User, bookingId: number) {
+    const booking = await this.prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        userId: user.id,
+      },
+      include: {
+        services: {
+          include: {
+            service: true,
+            engineTier: true,
+          },
+        },
+        documents: true,
+      },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    const services = booking.services.map((service) => {
+      const engineTier = service.engineTier
+        ? {
+            id: service.engineTier.id,
+            name: service.engineTier.name,
+            sortOrder: service.engineTier.sortOrder,
+            code: mapEngineTierSortOrderToCode(service.engineTier.sortOrder),
+          }
+        : null;
+
+      return {
+        id: service.id,
+        name: service.service.name ?? 'Service',
+        description: service.service.description ?? null,
+        pricingMode: service.service.pricingMode,
+        serviceCode: service.service.code ?? null,
+        engineTier,
+        unitPricePence: service.unitPricePence,
+      };
+    });
+
+    const totalAmountPence = services.reduce((sum, service) => sum + service.unitPricePence, 0);
+
+    const invoiceDocument = booking.documents.find((doc) => doc.type === 'INVOICE') ?? null;
+
+    return {
+      id: booking.id,
+      status: booking.status,
+      slotDate: booking.slotDate.toISOString(),
+      slotTime: booking.slotTime,
+      createdAt: booking.createdAt.toISOString(),
+      updatedAt: booking.updatedAt.toISOString(),
+      holdId: booking.holdId ?? null,
+      acceptedTermsAt: booking.acceptedTermsAt ? booking.acceptedTermsAt.toISOString() : null,
+      notes: booking.notes ?? null,
+      totals: {
+        servicesAmountPence: totalAmountPence,
+        invoiceAmountPence: invoiceDocument?.totalAmountPence ?? null,
+        invoiceVatAmountPence: invoiceDocument?.vatAmountPence ?? null,
+      },
+      customer: {
+        title: booking.customerTitle ?? null,
+        firstName: booking.customerFirstName ?? null,
+        lastName: booking.customerLastName ?? null,
+        companyName: booking.customerCompany ?? null,
+        email: booking.customerEmail,
+        mobileNumber: booking.customerMobile ?? booking.customerPhone,
+        landlineNumber: booking.customerLandline ?? null,
+        addressLine1: booking.customerAddressLine1 ?? null,
+        addressLine2: booking.customerAddressLine2 ?? null,
+        addressLine3: booking.customerAddressLine3 ?? null,
+        city: booking.customerCity ?? null,
+        county: booking.customerCounty ?? null,
+        postcode: booking.customerPostcode ?? null,
+      },
+      vehicle: {
+        registration: booking.vehicleRegistration,
+        make: booking.vehicleMake ?? null,
+        model: booking.vehicleModel ?? null,
+        engineSizeCc: this.normalizeEngineSize(booking.vehicleEngineSizeCc),
+      },
+      services,
+      documents: booking.documents.map((doc) => this.presentDocument(doc)),
+    };
+  }
+
   async createBooking(user: User, dto: CreateBookingDto): Promise<{ bookingId: number }> {
     const vehicleRegistration = dto.vehicle?.vrm?.trim().toUpperCase();
     if (!vehicleRegistration) {

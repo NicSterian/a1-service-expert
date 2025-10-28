@@ -871,3 +871,57 @@ Also: please output a short note with the exact .env keys you expect me to fill 
 - apps/booking-web/src/features/booking/SuccessPage.tsx
 **Testing Notes**
 - pnpm.cmd --filter booking-web build
+## [2025-10-29] Email delivery QA blocker (Codex)
+**Summary**
+- Email confirmation QA deferred until Microsoft 365 (GoDaddy) mailbox credentials are available; current `.env` already targets `smtp.office365.com:587` with STARTTLS and the support mailbox.
+- Documented next steps for ops: supply the live password/app password, trigger a booking confirmation, and validate customer/staff emails plus invoice/quote links once access is granted.
+**Files Modified**
+- (documentation only)
+**Testing Notes**
+- Not run (awaiting SMTP credentials)
+## [2025-10-29] Draft migration verification (Codex)
+**Summary**
+- Exported the booking draft normalisation helpers and introduced `scripts/checkDraftMigration.ts` so we can validate legacy localStorage payloads in isolation.
+- `pnpm.cmd dlx tsx apps/booking-web/scripts/checkDraftMigration.ts` confirms legacy drafts upgrade correctly to the new schema (names split, notes preserved, booking notes fallback) while current-format drafts remain unchanged.
+**Files Modified**
+- apps/booking-web/src/features/booking/state.tsx
+- apps/booking-web/scripts/checkDraftMigration.ts
+**Testing Notes**
+- pnpm.cmd dlx tsx apps/booking-web/scripts/checkDraftMigration.ts
+## [2025-10-29] Confirm-step QA plan (Codex)
+**Summary**
+- Recorded the manual test matrix for the new confirm experience: guest booking flow with inline registration, authenticated confirmation with profile sync, and hold-expiry validation.
+- Documented prerequisites (API + web dev servers, seeded data, Turnstile bypass toggle) so QA can run through the flows once interactive access is available.
+**Files Modified**
+- (documentation only)
+**Testing Notes**
+- Pending manual execution
+## [2025-10-29] Header profile menu & routing tidy (Codex)
+**Summary**
+- Introduced the authenticated profile dropdown in `App.tsx`, surfacing account/admin/dev links while keeping Dev Tools hidden from non-admins and providing login/register buttons for guests.
+- Added mobile-friendly account actions and menu-dismiss logic (click-away, escape) to keep the header responsive.
+**Files Modified**
+- apps/booking-web/src/App.tsx
+**Testing Notes**
+- pnpm.cmd --filter booking-web build
+## [2025-10-29] Account area refresh (Codex)
+**Summary**
+- Revamped `AccountPage` with the new profile/booking layout: inline profile editing hooked to `/account/profile`, change-password form calling `/account/change-password`, refreshed verification messaging, and a richer booking history list with document chips and detail stubs.
+- Admin users are redirected to the admin dashboard automatically when navigating to `/account`.
+**Files Modified**
+- apps/booking-web/src/pages/AccountPage.tsx
+**Testing Notes**
+- pnpm.cmd --filter booking-web build
+## [2025-10-29] Booking detail view (Codex)
+**Summary**
+- Backend: added `GET /bookings/:id` with ownership checks and enriched response (customer, vehicle, services, documents, totals).
+- Frontend: created `BookingDetailPage` (`/account/bookings/:bookingId`) and linked it from the account history; detail view shows totals, service breakdown, vehicle/contact info, and document download state.
+**Files Modified**
+- apps/booking-api/src/bookings/bookings.controller.ts
+- apps/booking-api/src/bookings/bookings.service.ts
+- apps/booking-web/src/routes.tsx
+- apps/booking-web/src/pages/AccountPage.tsx
+- apps/booking-web/src/pages/BookingDetailPage.tsx
+**Testing Notes**
+- pnpm.cmd --filter booking-api build
+- pnpm.cmd --filter booking-web build

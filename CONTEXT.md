@@ -734,3 +734,36 @@ Each deliverable can be tackled in a focused session to keep changes reviewable 
 - Versioned the booking wizard draft store (`state.tsx`) so older localStorage payloads migrate into the expanded customer/account shape without breaking current users; added watchers so email/profile edits persist immediately.
 - Updated success experience (`SuccessPage.tsx`) to highlight follow-up actions and wired the booking draft/account reset flows, ensuring the confirm button respects hold expiry, captcha state, and validated terms.
 - Testing: `pnpm.cmd --filter booking-web build`.
+### 2025-10-29 - Email delivery QA blocker (Codex)
+- Unable to complete Deliverable 3 step 5 (email + document verification) because outbound mailbox credentials are not yet provisioned; sandbox lacks access to the GoDaddy-managed Microsoft 365 account.
+- Captured the SMTP requirements for that setup (host `smtp.office365.com`, port `587`, STARTTLS, mailbox `support@a1serviceexpert.com`) and left notes in the changelog so ops can plug in the live password once issued.
+- Next action: once credentials/forwarding are ready, run a logged-out booking confirmation to confirm staff/customer email delivery and PDF availability, then document results.
+### 2025-10-29 - Draft migration verification (Codex)
+- Added a small `apps/booking-web/scripts/checkDraftMigration.ts` harness and exported the draft normalisation helpers so we can sanity-check legacy/localStorage payloads without spinning up the UI.
+- Ran `pnpm.cmd dlx tsx apps/booking-web/scripts/checkDraftMigration.ts`; confirmed old `customer.name/phone/notes` drafts map into the new structured fields and that current-format drafts remain untouched.
+- Outcome: migration logic passes all scripted checks; ready for manual browser validation when QA begins.
+### 2025-10-29 - Confirm-step QA plan (Codex)
+- Outlined hands-on QA scripts for the rebuilt confirm step: run logged-out booking creation (inline registration, Turnstile success/failure, success payload), logged-in booking confirmation (profile prefill + PATCH), and hold-expiry recovery.
+- Highlighted prerequisites: start the API (`pnpm --filter booking-api dev`) and web app (`pnpm --filter booking-web dev`), preload catalogue/availability data, and prepare mock Turnstile keys so bypass mode works locally.
+- Next action: execute the flows once interactive access is available; capture screenshots, verify invoice/quote links, and append findings to this log.
+### 2025-10-29 - Header profile menu & route tidy (Codex)
+- Reworked `App.tsx` navigation so authenticated users see a profile pill with dropdown actions (account, admin dashboard, dev tools for admins) instead of inline nav links; added click-away + escape handling and mobile equivalents.
+- Restricted the Dev Tools shortcut to admins only and moved login/register CTAs into the header action area for unauthenticated visitors.
+- Verified the updated layout with `pnpm.cmd --filter booking-web build` (passes, aside from existing Vite chunk-size warnings).
+### 2025-10-29 - Account area refresh (Codex)
+- Replaced the old account dashboard with a multi-card layout: booking history list (with document chips + stub detail links), editable profile form backed by `/account/profile`, and a change-password card using `/account/change-password`.
+- Added hero verification messaging, quick actions (book again / sign out), and support contact copy so customers know how to reach the workshop.
+- Admin users now redirect straight to `/admin` when visiting the account area.
+- Build check: `pnpm.cmd --filter booking-web build` (passes; Vite chunk-size warning persists).
+### 2025-10-29 - Booking detail view (Codex)
+- Exposed `GET /bookings/:id` so signed-in users can retrieve a full booking payload (customer profile, vehicle, services, documents, totals); controller now wires the route and enforces ownership checks.
+- Added `BookingDetailPage` with richer service/vehicle/document summaries, wired from account history (`/account/bookings/:bookingId`) and guarded for auth redirects.
+- Updated the account history list to keep linking to the new detail page; build/tests run: `pnpm.cmd --filter booking-api build`, `pnpm.cmd --filter booking-web build` (both pass, Vite chunk-size warning persists).
+### 2025-10-28 - Proposed sub-deliverables status (Codex)
+- 1) Data & Auth foundation — Complete. Prisma schema extended (full profile on User + UserSession), DTOs/services updated, /account/profile + /account/change-password live; API tests pass after migrations.
+- 2) Email service & Turnstile swap — Complete. Turnstile in web + API guards, admin copy/envs updated, branded customer/staff booking emails in place including support@a1serviceexpert.com. Email QA pending awaiting live Microsoft 365 mailbox credentials.
+- 3) Booking confirm step rebuild — Implemented. New dark summary card, inline login/register (Turnstile), full profile form, confirm gating (hold/captcha/terms). End‑to‑end validation still to run for guest/auth flows, hold expiry, and email delivery.
+- 4) Header/profile menu & routing — Complete. Logged‑in profile pill + dropdown (account/admin/dev-for-admins), mobile parity, dev tools hidden for non‑admins.
+- 5) Account area refresh — Complete. New profile editor (PATCH /account/profile), change‑password card (PATCH /account/change-password), refreshed booking history with document chips, admin redirect to /admin.
+- 6) Booking detail view & history — Complete. Added GET /bookings/:id and BookingDetailPage at /account/bookings/:bookingId; account history links to detail page.
+- 7) QA & polish — Outstanding. Run full booking flows (guest/auth), verify Turnstile toggles/bypass, validate emails+PDF links once SMTP creds are live, sanity‑check localStorage migration in real browsers, and capture screenshots.

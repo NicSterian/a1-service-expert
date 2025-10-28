@@ -349,4 +349,15 @@ export function useBookingWizard() {
   return context;
 }
 
+export const __draftMigrationTools = {
+  stringOrUndefined,
+  numberOrUndefined,
+  booleanOrUndefined,
+  normaliseVehicle,
+  normaliseCustomer,
+  normaliseAccount,
+  normaliseDraftRecord,
+  extractStoredDraft,
+};
+
 
