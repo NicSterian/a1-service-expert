@@ -1,31 +1,17 @@
-import {
-  ConflictException,
-  Injectable,
-  Logger,
-  NotFoundException,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { User, UserRole } from '@prisma/client';
+import { User } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { randomUUID } from 'crypto';
-import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { normalisePostcode, sanitisePhone, sanitiseString } from '../common/utils/profile.util';
+import { PublicUser } from './auth.responses';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import { VerifyEmailDto } from './dto/verify-email.dto';
 
-const VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
-
-interface AuthUser {
-  id: number;
-  email: string;
-  role: UserRole;
-  emailVerified: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
+export type AuthRequestContext = {
+  ipAddress?: string | null;
+  userAgent?: string | null;
+};
 
 @Injectable()
 export class AuthService {
@@ -33,52 +19,51 @@ export class AuthService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly emailService: EmailService,
     private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
   ) {}
 
-  async register(dto: RegisterDto) {
+  async register(dto: RegisterDto, context: AuthRequestContext) {
     const email = dto.email.trim().toLowerCase();
-
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) {
       throw new ConflictException('Email already registered');
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
-    const token = randomUUID();
-    const expiresAt = new Date(Date.now() + VERIFICATION_TOKEN_TTL_MS);
+    const now = new Date();
 
-    const user = await this.prisma.$transaction(async (tx) => {
-      const createdUser = await tx.user.create({
-        data: {
-          email,
-          passwordHash,
-        },
-      });
-
-      await tx.emailVerificationToken.create({
-        data: {
-          userId: createdUser.id,
-          token,
-          expiresAt,
-        },
-      });
-
-      return createdUser;
+    const user = await this.prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        emailVerified: true,
+        title: dto.title.trim().toUpperCase(),
+        firstName: sanitiseString(dto.firstName),
+        lastName: sanitiseString(dto.lastName),
+        companyName: sanitiseString(dto.companyName),
+        mobileNumber: sanitisePhone(dto.mobileNumber),
+        landlineNumber: sanitisePhone(dto.landlineNumber),
+        addressLine1: sanitiseString(dto.addressLine1),
+        addressLine2: sanitiseString(dto.addressLine2),
+        addressLine3: sanitiseString(dto.addressLine3),
+        city: sanitiseString(dto.city),
+        county: sanitiseString(dto.county),
+        postcode: normalisePostcode(dto.postcode),
+        marketingOptIn: dto.marketingOptIn ?? false,
+        notes: sanitiseString(dto.notes),
+        registrationIp: context.ipAddress ?? null,
+        profileUpdatedAt: now,
+      },
     });
 
-    await this.emailService.sendVerificationEmail(user.email, token);
-    this.logVerificationToken(user.email, token);
+    this.logger.log(`New user registered: ${user.email}`);
 
     return {
       user: this.presentUser(user),
-      verificationToken: this.shouldExposeTokens() ? token : undefined,
     };
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, context: AuthRequestContext) {
     const email = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email } });
 
@@ -91,68 +76,57 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const payload = { sub: user.id, role: user.role };
+    const loginAt = new Date();
+    const [updatedUser] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          lastLoginAt: loginAt,
+        },
+      }),
+      this.prisma.userSession.create({
+        data: {
+          userId: user.id,
+          ipAddress: context.ipAddress ?? null,
+          userAgent: context.userAgent ?? null,
+        },
+      }),
+    ]);
+
+    const payload = { sub: updatedUser.id, role: updatedUser.role };
     const token = await this.jwtService.signAsync(payload);
 
     return {
       token,
-      user: this.presentUser(user),
+      user: this.presentUser(updatedUser),
     };
   }
 
-  async verifyEmail(dto: VerifyEmailDto) {
-    const tokenRecord = await this.prisma.emailVerificationToken.findUnique({
-      where: { token: dto.token },
-    });
-
-    if (!tokenRecord) {
-      throw new NotFoundException('Verification token not found');
-    }
-
-    if (tokenRecord.expiresAt < new Date()) {
-      await this.prisma.emailVerificationToken.delete({ where: { id: tokenRecord.id } });
-      throw new NotFoundException('Verification token expired');
-    }
-
-    const user = await this.prisma.$transaction(async (tx) => {
-      const updatedUser = await tx.user.update({
-        where: { id: tokenRecord.userId },
-        data: { emailVerified: true },
-      });
-
-      await tx.emailVerificationToken.delete({ where: { id: tokenRecord.id } });
-      return updatedUser;
-    });
-
+  presentUser(user: User): PublicUser {
     return {
-      user: this.presentUser(user),
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      emailVerified: user.emailVerified,
+      title: user.title ?? null,
+      firstName: user.firstName ?? null,
+      lastName: user.lastName ?? null,
+      companyName: user.companyName ?? null,
+      mobileNumber: user.mobileNumber ?? null,
+      landlineNumber: user.landlineNumber ?? null,
+      addressLine1: user.addressLine1 ?? null,
+      addressLine2: user.addressLine2 ?? null,
+      addressLine3: user.addressLine3 ?? null,
+      city: user.city ?? null,
+      county: user.county ?? null,
+      postcode: user.postcode ?? null,
+      marketingOptIn: user.marketingOptIn ?? false,
+      notes: user.notes ?? null,
+      profileUpdatedAt: user.profileUpdatedAt ? user.profileUpdatedAt.toISOString() : null,
+      lastLoginAt: user.lastLoginAt ? user.lastLoginAt.toISOString() : null,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
     };
   }
 
-  private presentUser(user: User): AuthUser {
-    const { passwordHash, ...rest } = user;
-    return rest;
-  }
-
-  private shouldExposeTokens(): boolean {
-    const env = this.configService.get<string>('NODE_ENV');
-    const flag = this.configService.get<string>('EXPOSE_VERIFICATION_TOKEN');
-    const isProduction = env?.toLowerCase() === 'production';
-
-    if (isProduction) {
-      return flag === 'true';
-    }
-
-    if (flag === 'false') {
-      return false;
-    }
-
-    return true;
-  }
-
-  private logVerificationToken(email: string, token: string) {
-    if (this.shouldExposeTokens()) {
-      this.logger.log(`Verification token for ${email}: ${token}`);
-    }
-  }
 }

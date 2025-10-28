@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import heroBackground from '../assets/images/home-hero.svg';
 import servicesFeature from '../assets/images/services-feature.png';
 import reviewsBackground from '../assets/images/reviews-background.svg';
-import logoMark from '../assets/logo.svg';
 
 const heroHighlights = [
   {
@@ -128,10 +127,7 @@ export function HomePage() {
         <div className="relative grid gap-10 p-8 sm:grid-cols-[1.1fr_0.9fr] sm:p-14">
           <div className="space-y-6">
             <p className="text-sm font-semibold uppercase tracking-[0.35em] text-brand-orange">Independent Specialists</p>
-            <span className="inline-flex items-center gap-5 rounded-2xl border border-white/30 bg-white/15 px-6 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-white shadow-sm">
-              <img src={logoMark} alt="A1 Service Expert logo" className="h-12 w-12 rounded-full bg-white p-1.5 shadow-inner" />
-              
-            </span>
+            
             <h1 className="text-4xl font-semibold leading-tight sm:text-5xl">
               Servicing, diagnostics, and repairs with dealer-level expertise.
             </h1>
@@ -349,6 +345,17 @@ export function HomePage() {
               </span>
               <a href="tel:07394433889" className="inline-flex items-center gap-1 rounded-full border border-brand-orange px-4 py-2 font-semibold text-brand-orange transition hover:-translate-y-0.5 hover:bg-brand-orange hover:text-white">
                 Call 07394 433889
+              </a>
+              <a
+                href="https://wa.me/447394433889"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Chat on WhatsApp"
+                title="Chat on WhatsApp"
+                className="inline-flex items-center gap-2 rounded-full border border-brand-orange px-4 py-2 font-semibold text-brand-orange transition hover:-translate-y-0.5 hover:bg-brand-orange hover:text-white"
+              >
+                <span aria-hidden className="inline-flex"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><path d="M20.52 3.48A11.94 11.94 0 0 0 12.06 0C5.47 0 .1 5.37.1 12c0 2.12.56 4.14 1.62 5.94L0 24l6.2-1.6A11.86 11.86 0 0 0 12.06 24c6.58 0 11.94-5.37 11.94-12 0-3.2-1.25-6.2-3.48-8.52Zm-8.46 18.5c-1.86 0-3.63-.5-5.2-1.47l-.37-.22-3.68.95.98-3.58-.24-.37A9.65 9.65 0 0 1 2.3 12c0-5.38 4.38-9.76 9.76-9.76 2.6 0 5.06 1 6.9 2.83a9.66 9.66 0 0 1 2.86 6.93c0 5.38-4.38 9.76-9.76 9.76Zm5.63-7.3c-.3-.15-1.78-.88-2.06-.98-.28-.1-.49-.15-.7.15-.2.3-.8.98-.98 1.18-.2.2-.36.23-.66.08-.3-.15-1.25-.46-2.38-1.46-.88-.78-1.48-1.74-1.66-2.04-.18-.3 0-.47.14-.62.14-.14.3-.36.46-.54.15-.18.2-.3.3-.5.1-.2.05-.38-.03-.54-.08-.15-.7-1.68-.96-2.3-.25-.6-.5-.5-.7-.51h-.6c-.2 0-.54.07-.82.38-.28.3-1.08 1.06-1.08 2.58 0 1.5 1.1 2.94 1.26 3.14.15.2 2.12 3.24 5.14 4.54.72.3 1.28.48 1.72.62.72.23 1.38.2 1.9.12.58-.08 1.78-.72 2.03-1.4.26-.7.26-1.3.2-1.4-.08-.12-.28-.2-.58-.35Z"/></svg></span>
+                WhatsApp
               </a>
             </div>
             <div>

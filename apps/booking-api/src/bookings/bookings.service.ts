@@ -5,7 +5,7 @@
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { BookingStatus, Document, Prisma, User } from '@prisma/client';
+import { BookingStatus, Document, Prisma, ServicePricingMode, User } from '@prisma/client';
 import { DocumentSummary, DocumentsService } from '../documents/documents.service';
 import { EmailService } from '../email/email.service';
 import { HoldsService } from '../holds/holds.service';
@@ -13,14 +13,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { VehiclesService } from '../vehicles/vehicles.service';
 import { toUtcDate } from '../common/date-utils';
+import { normalisePostcode, sanitisePhone, sanitiseString } from '../common/utils/profile.util';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import {
   EngineTierCode,
-  ServiceCode,
-  isServiceCode,
   mapEngineTierNameToCode,
   mapEngineTierSortOrderToCode,
-} from '../../../../packages/shared/src/pricing';
+} from '@a1/shared/pricing';
 
 type BookingWithServices = Prisma.BookingGetPayload<{
   include: {
@@ -104,7 +103,7 @@ export class BookingsService {
   }
 
   async createBooking(user: User, dto: CreateBookingDto): Promise<{ bookingId: number }> {
-    const vehicleRegistration = dto.vehicle?.vrm?.trim();
+    const vehicleRegistration = dto.vehicle?.vrm?.trim().toUpperCase();
     if (!vehicleRegistration) {
       throw new BadRequestException('Vehicle registration is required.');
     }
@@ -118,73 +117,118 @@ export class BookingsService {
       throw new ConflictException('Slot already booked');
     }
 
-    const normalizedEngineSize = this.normalizeEngineSize(dto.vehicle?.engineSizeCc);
-    const requestedEngineTierId = dto.engineTierId;
-    let resolvedEngineTierId = requestedEngineTierId;
-
-    if (normalizedEngineSize) {
-      try {
-        const recommendation = await this.vehiclesService.getRecommendation(dto.serviceId, normalizedEngineSize);
-        if (recommendation.engineTierId) {
-          resolvedEngineTierId = recommendation.engineTierId;
-        }
-      } catch (error) {
-        this.logger.warn(`Unable to determine engine tier automatically: ${(error as Error).message}`);
-      }
-    }
-
-    let servicePrice = await this.prisma.servicePrice.findUnique({
-      where: {
-        serviceId_engineTierId: {
-          serviceId: dto.serviceId,
-          engineTierId: resolvedEngineTierId,
-        },
-      },
-      include: {
-        service: true,
-        engineTier: true,
-      },
+    const service = await this.prisma.service.findUnique({
+      where: { id: dto.serviceId },
     });
-
-    if (!servicePrice && resolvedEngineTierId !== requestedEngineTierId) {
-      servicePrice = await this.prisma.servicePrice.findUnique({
-        where: {
-          serviceId_engineTierId: {
-            serviceId: dto.serviceId,
-            engineTierId: requestedEngineTierId,
-          },
-        },
-        include: {
-          service: true,
-          engineTier: true,
-        },
-      });
-
-      if (servicePrice) {
-        resolvedEngineTierId = servicePrice.engineTierId;
-      }
-    }
-    if (!servicePrice) {
-      throw new BadRequestException('Invalid service or engine tier selection.');
-    }
-
-    const serviceEntity = servicePrice.service;
-    if (!isServiceCode(serviceEntity.code)) {
+    if (!service || !service.isActive) {
       throw new BadRequestException('Selected service is not available.');
     }
-    const serviceCode: ServiceCode = serviceEntity.code;
 
-    const tierEntity = servicePrice.engineTier;
-    const engineTierCode: EngineTierCode | null =
-      mapEngineTierNameToCode(tierEntity.name) ?? mapEngineTierSortOrderToCode(tierEntity.sortOrder);
-    if (!engineTierCode) {
-      throw new BadRequestException('Selected engine tier is not supported.');
+    const serviceCodeValue = service.code?.trim();
+    if (!serviceCodeValue) {
+      throw new BadRequestException('Selected service is not available.');
     }
 
-    const unitPricePence = servicePrice.amountPence;
-    if (!Number.isFinite(unitPricePence)) {
+    const normalizedEngineSize = this.normalizeEngineSize(dto.vehicle?.engineSizeCc);
+    const requestedEngineTierId = dto.engineTierId ?? null;
+    let resolvedEngineTierId: number | null = requestedEngineTierId;
+    let engineTierCode: EngineTierCode | null = null;
+    let unitPricePence: number | null = null;
+
+    if (service.pricingMode === ServicePricingMode.FIXED) {
+      if (typeof service.fixedPricePence !== 'number' || service.fixedPricePence <= 0) {
+        throw new BadRequestException('Service pricing is not configured correctly.');
+      }
+      unitPricePence = service.fixedPricePence;
+      resolvedEngineTierId = null;
+    } else {
+      if (normalizedEngineSize) {
+        try {
+          const recommendation = await this.vehiclesService.getRecommendation(dto.serviceId, normalizedEngineSize);
+          if (recommendation.engineTierId) {
+            resolvedEngineTierId = recommendation.engineTierId;
+          }
+        } catch (error) {
+          this.logger.warn(`Unable to determine engine tier automatically: ${(error as Error).message}`);
+        }
+      }
+
+      let servicePrice: Prisma.ServicePriceGetPayload<{ include: { engineTier: true } }> | null = null;
+      if (resolvedEngineTierId) {
+        servicePrice = await this.prisma.servicePrice.findUnique({
+          where: {
+            serviceId_engineTierId: {
+              serviceId: dto.serviceId,
+              engineTierId: resolvedEngineTierId,
+            },
+          },
+          include: {
+            engineTier: true,
+          },
+        });
+      }
+
+      if (!servicePrice && requestedEngineTierId && requestedEngineTierId !== resolvedEngineTierId) {
+        servicePrice = await this.prisma.servicePrice.findUnique({
+          where: {
+            serviceId_engineTierId: {
+              serviceId: dto.serviceId,
+              engineTierId: requestedEngineTierId,
+            },
+          },
+          include: {
+            engineTier: true,
+          },
+        });
+      }
+
+      if (!servicePrice) {
+        servicePrice = await this.prisma.servicePrice.findFirst({
+          where: { serviceId: dto.serviceId },
+          orderBy: [{ amountPence: 'asc' }],
+          include: { engineTier: true },
+        });
+      }
+
+      if (!servicePrice) {
+        throw new BadRequestException('Service pricing is not configured correctly.');
+      }
+
+      unitPricePence = servicePrice.amountPence;
+      resolvedEngineTierId = servicePrice.engineTierId;
+
+      const tierName = servicePrice.engineTier?.name ?? null;
+      const tierSortOrder = servicePrice.engineTier?.sortOrder ?? null;
+      engineTierCode = mapEngineTierNameToCode(tierName) ?? mapEngineTierSortOrderToCode(tierSortOrder);
+    }
+
+    if (unitPricePence === null || !Number.isFinite(unitPricePence)) {
       throw new BadRequestException('Service pricing is not configured correctly.');
     }
+
+    const customerTitleRaw = dto.customer.title?.trim();
+    const customerTitle = customerTitleRaw ? customerTitleRaw.toUpperCase() : null;
+    const customerFirstName = sanitiseString(dto.customer.firstName) ?? dto.customer.firstName.trim();
+    const customerLastName = sanitiseString(dto.customer.lastName) ?? dto.customer.lastName.trim();
+    const computedName = [customerTitle, customerFirstName, customerLastName]
+      .filter((part) => part && part.length > 0)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const customerEmail = dto.customer.email.trim().toLowerCase();
+    const customerCompany = sanitiseString(dto.customer.companyName);
+    const customerMobile = sanitisePhone(dto.customer.mobileNumber) ?? dto.customer.mobileNumber.trim();
+    const customerLandline = sanitisePhone(dto.customer.landlineNumber);
+    const addressLine1 = sanitiseString(dto.customer.addressLine1) ?? dto.customer.addressLine1.trim();
+    const addressLine2 = sanitiseString(dto.customer.addressLine2);
+    const addressLine3 = sanitiseString(dto.customer.addressLine3);
+    const customerCity = sanitiseString(dto.customer.city) ?? dto.customer.city.trim();
+    const customerCounty = sanitiseString(dto.customer.county) ?? dto.customer.county.trim();
+    const customerPostcode = normalisePostcode(dto.customer.postcode);
+    const marketingOptIn = dto.customer.marketingOptIn ?? false;
+    const acceptedTermsAt = dto.customer.acceptedTerms ? new Date() : null;
+    const bookingNotes = sanitiseString(dto.bookingNotes);
 
     const booking = await this.prisma.$transaction(async (tx) => {
       const created = await tx.booking.create({
@@ -194,15 +238,29 @@ export class BookingsService {
           slotDate,
           slotTime: dto.time,
           holdId: dto.holdId,
-          customerName: dto.customer.name.trim(),
-          customerEmail: dto.customer.email.trim(),
-          customerPhone: dto.customer.phone.trim(),
-          notes: dto.customer.notes,
+          customerName: computedName || `${customerFirstName} ${customerLastName}`.trim(),
+          customerTitle,
+          customerFirstName,
+          customerLastName,
+          customerCompany,
+          customerEmail,
+          customerPhone: customerMobile,
+          customerMobile,
+          customerLandline: customerLandline ?? null,
+          customerAddressLine1: addressLine1,
+          customerAddressLine2: addressLine2,
+          customerAddressLine3: addressLine3,
+          customerCity,
+          customerCounty,
+          customerPostcode,
+          wantsSmsReminder: marketingOptIn,
+          acceptedTermsAt,
+          notes: bookingNotes,
           vehicleRegistration,
-          vehicleMake: dto.vehicle.make?.trim(),
-          vehicleModel: dto.vehicle.model?.trim(),
+          vehicleMake: sanitiseString(dto.vehicle.make),
+          vehicleModel: sanitiseString(dto.vehicle.model),
           vehicleEngineSizeCc: normalizedEngineSize ?? null,
-          serviceCode,
+          serviceCode: serviceCodeValue,
           engineTierCode,
           servicePricePence: unitPricePence,
         },
@@ -211,9 +269,30 @@ export class BookingsService {
       await tx.bookingService.create({
         data: {
           bookingId: created.id,
-          serviceId: servicePrice.serviceId,
-          engineTierId: servicePrice.engineTierId,
+          serviceId: service.id,
+          engineTierId: resolvedEngineTierId ?? undefined,
           unitPricePence,
+        },
+      });
+
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          title: customerTitle,
+          firstName: customerFirstName,
+          lastName: customerLastName,
+          companyName: customerCompany,
+          mobileNumber: customerMobile,
+          landlineNumber: customerLandline ?? null,
+          addressLine1,
+          addressLine2,
+          addressLine3,
+          city: customerCity,
+          county: customerCounty,
+          postcode: customerPostcode,
+          marketingOptIn,
+          notes: bookingNotes,
+          profileUpdatedAt: new Date(),
         },
       });
 
@@ -430,18 +509,49 @@ export class BookingsService {
     const recipients = await this.prisma.notificationRecipient.findMany();
 
     await this.emailService.sendBookingConfirmation({
-      customerEmail: booking.customerEmail,
-      customerName: booking.customerName,
+      bookingId: booking.id,
       slotDate: booking.slotDate,
       slotTime: booking.slotTime,
-      serviceName: bookingService?.service.name ?? 'Service',
-      engineTier: bookingService?.engineTier?.name,
-      pricePence: totalAmountPence,
-      invoiceNumber: invoice.number,
-      invoiceUrl: invoice.pdfUrl,
-      quoteNumber: quote.number,
-      quoteUrl: quote.pdfUrl,
-      adminRecipients: recipients.map((r) => r.email),
+      service: {
+        name: bookingService?.service.name ?? 'Service',
+        engineTier: bookingService?.engineTier?.name ?? null,
+      },
+      totals: {
+        pricePence: totalAmountPence,
+      },
+      vehicle: {
+        registration: booking.vehicleRegistration,
+        make: booking.vehicleMake,
+        model: booking.vehicleModel,
+        engineSizeCc: booking.vehicleEngineSizeCc,
+      },
+      customer: {
+        email: booking.customerEmail,
+        name: booking.customerName,
+        title: booking.customerTitle,
+        firstName: booking.customerFirstName,
+        lastName: booking.customerLastName,
+        companyName: booking.customerCompany,
+        phone: booking.customerPhone,
+        mobile: booking.customerMobile,
+        landline: booking.customerLandline,
+        addressLine1: booking.customerAddressLine1,
+        addressLine2: booking.customerAddressLine2,
+        addressLine3: booking.customerAddressLine3,
+        city: booking.customerCity,
+        county: booking.customerCounty,
+        postcode: booking.customerPostcode,
+        notes: booking.notes ?? null,
+      },
+      documents: {
+        invoiceNumber: invoice.number,
+        invoiceUrl: invoice.pdfUrl,
+        quoteNumber: quote.number,
+        quoteUrl: quote.pdfUrl,
+      },
+      adminRecipients: recipients.map((recipient) => recipient.email),
     });
   }
 }
+
+

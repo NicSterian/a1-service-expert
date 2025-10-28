@@ -1,7 +1,6 @@
 ﻿import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { EmailModule } from '../email/email.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RateLimitModule } from '../rate-limit/rate-limit.module';
 import { SettingsModule } from '../settings/settings.module';
@@ -15,7 +14,6 @@ import { JwtAuthGuard } from './jwt-auth.guard';
   imports: [
     ConfigModule,
     PrismaModule,
-    EmailModule,
     SecurityModule,
     RateLimitModule,
     SettingsModule,

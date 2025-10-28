@@ -1,0 +1,15 @@
+ALTER TABLE "Booking"
+  ADD COLUMN "customerTitle" TEXT,
+  ADD COLUMN "customerFirstName" TEXT,
+  ADD COLUMN "customerLastName" TEXT,
+  ADD COLUMN "customerCompany" TEXT,
+  ADD COLUMN "customerMobile" TEXT,
+  ADD COLUMN "customerLandline" TEXT,
+  ADD COLUMN "customerAddressLine1" TEXT,
+  ADD COLUMN "customerAddressLine2" TEXT,
+  ADD COLUMN "customerAddressLine3" TEXT,
+  ADD COLUMN "customerCity" TEXT,
+  ADD COLUMN "customerCounty" TEXT,
+  ADD COLUMN "customerPostcode" TEXT,
+  ADD COLUMN "wantsSmsReminder" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN "acceptedTermsAt" TIMESTAMP;

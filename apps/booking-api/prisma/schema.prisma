@@ -38,17 +38,16 @@ enum SequenceKey {
   QUOTE
 }
 
-enum ServiceCode {
-  SERVICE_1
-  SERVICE_2
-  SERVICE_3
-}
-
 enum EngineTierCode {
   SMALL
   MEDIUM
   LARGE
   XLARGE
+}
+
+enum ServicePricingMode {
+  TIERED
+  FIXED
 }
 
 
@@ -58,11 +57,29 @@ model User {
   passwordHash  String
   role          UserRole @default(CUSTOMER)
   emailVerified Boolean  @default(false)
+  title                String?
+  firstName            String?
+  lastName             String?
+  companyName          String?
+  mobileNumber         String?
+  landlineNumber       String?
+  addressLine1         String?
+  addressLine2         String?
+  addressLine3         String?
+  city                 String?
+  county               String?
+  postcode             String?
+  marketingOptIn       Boolean  @default(false)
+  notes                String?
+  registrationIp       String?
+  profileUpdatedAt     DateTime?
+  lastLoginAt          DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   bookings           Booking[]
   verificationTokens EmailVerificationToken[]
+  sessions           UserSession[]
 }
 
 model EmailVerificationToken {
@@ -92,6 +109,9 @@ model Service {
   code        String   @unique
   name        String
   description String?
+  pricingMode ServicePricingMode @default(TIERED)
+  fixedPricePence Int?
+  footnotes   String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -126,14 +146,15 @@ model Settings {
   bankHolidayRegion             String
   logoUrl                       String?
   holdMinutes                   Int
-  recaptchaEnabled              Boolean  @default(true)
+  captchaEnabled                Boolean  @default(true)
+  captchaRequireInDev           Boolean  @default(false)
   vrmLookupRateLimitPerMinute   Int?
   signupRateLimitPerHour        Int?
   bookingConfirmRateLimitPerDay Int?
-  dvlaApiKey                   String?
-  dvlaApiKeyEnc                String?
-  dvlaApiKeyIv                 String?
-  dvlaApiKeyTag                String?
+  dvlaApiKey                    String?
+  dvlaApiKeyEnc                 String?
+  dvlaApiKeyIv                  String?
+  dvlaApiKeyTag                 String?
   createdAt                     DateTime @default(now())
   updatedAt                     DateTime @updatedAt
 }
@@ -170,14 +191,28 @@ model Booking {
   slotTime            String
   holdId              String?
   customerName        String
+  customerTitle       String?
+  customerFirstName   String?
+  customerLastName    String?
+  customerCompany     String?
   customerEmail       String
   customerPhone       String
+  customerMobile      String?
+  customerLandline    String?
+  customerAddressLine1 String?
+  customerAddressLine2 String?
+  customerAddressLine3 String?
+  customerCity        String?
+  customerCounty      String?
+  customerPostcode    String?
+  wantsSmsReminder    Boolean      @default(false)
+  acceptedTermsAt     DateTime?
   vehicleRegistration String
   vehicleMake         String?
   vehicleModel        String?
   vehicleEngineSizeCc Int?
   notes               String?
-  serviceCode         ServiceCode?
+  serviceCode         String?
   engineTierCode      EngineTierCode?
   servicePricePence   Int?
   createdAt           DateTime      @default(now())
@@ -194,13 +229,13 @@ model BookingService {
   id             Int      @id @default(autoincrement())
   bookingId      Int
   serviceId      Int
-  engineTierId   Int
+  engineTierId   Int?
   unitPricePence Int
   createdAt      DateTime @default(now())
 
   booking    Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   service    Service    @relation(fields: [serviceId], references: [id])
-  engineTier EngineTier @relation(fields: [engineTierId], references: [id])
+  engineTier EngineTier? @relation(fields: [engineTierId], references: [id])
 
   @@unique([bookingId, serviceId, engineTierId], name: "bookingId_serviceId_engineTierId")
 }
@@ -230,5 +265,17 @@ model Document {
   updatedAt        DateTime       @updatedAt
 
   booking Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+}
+
+model UserSession {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 

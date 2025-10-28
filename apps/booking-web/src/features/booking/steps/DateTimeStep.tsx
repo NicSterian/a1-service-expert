@@ -248,6 +248,24 @@ export function DateTimeStep() {
       <header className="space-y-2">
         <h2 className="text-2xl font-semibold text-brand-black">4. Date &amp; Time</h2>
         <p className="text-slate-600">Pick a weekday slot.</p>
+        <div className="mt-2 rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              <strong>Service:</strong> {draft.serviceName ?? '—'}
+            </span>
+            <span>
+              <strong>Vehicle:</strong> {(draft.vehicle?.vrm ?? '').toUpperCase() || '—'}
+            </span>
+            <span>
+              <strong>Price:</strong>{' '}
+              {draft.pricePence
+                ? new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(
+                    draft.pricePence / 100,
+                  )
+                : '—'}
+            </span>
+          </div>
+        </div>
         {draft.pricePence ? (
           <p className="text-xs text-slate-500">Selected service price: {formatPrice(draft.pricePence)}</p>
         ) : null}

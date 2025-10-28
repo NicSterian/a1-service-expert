@@ -109,23 +109,30 @@ export function SuccessPage() {
 
       <div className="flex flex-col items-center gap-3 text-sm text-slate-600">
         <p>If you need to make changes, please call or email us and have your reference ready.</p>
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <Link
-            to="/"
-            className="rounded border border-slate-300 px-4 py-2 text-slate-700 hover:border-slate-400"
+            to="/online-booking"
+            className="rounded bg-brand-orange px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-500"
           >
-            Return home
+            Book another visit
           </Link>
           <Link
             to="/account"
-            className="rounded bg-brand-orange px-4 py-2 text-white hover:bg-orange-500"
+            className="rounded border border-slate-300 px-4 py-2 text-sm text-slate-700 transition hover:border-brand-orange hover:text-brand-orange"
           >
             Manage bookings
+          </Link>
+          <Link
+            to="/"
+            className="rounded border border-slate-300 px-4 py-2 text-sm text-slate-700 transition hover:border-brand-orange hover:text-brand-orange"
+          >
+            Return home
           </Link>
         </div>
       </div>
     </div>
   );
 }
+
 
 

@@ -12,7 +12,8 @@ type SettingsResponse = {
   bankHolidayRegion: string;
   logoUrl?: string | null;
   holdMinutes: number;
-  recaptchaEnabled: boolean;
+  captchaEnabled: boolean;
+  captchaRequireInDev: boolean;
   vrmLookupRateLimitPerMinute?: number | null;
   signupRateLimitPerHour?: number | null;
   bookingConfirmRateLimitPerDay?: number | null;
@@ -129,22 +130,23 @@ export function SettingsManager() {
       setSavingGeneral(true);
       setMessage(null);
       setError(null);
-      const payload = {
-        companyName: settings.companyName,
-        companyAddress: settings.companyAddress,
-        companyPhone: settings.companyPhone,
-        vatNumber: settings.vatNumber,
-        vatRatePercent: vatNumber,
-        timezone: settings.timezone,
-        defaultSlots: settings.defaultSlotsJson,
-        bankHolidayRegion: settings.bankHolidayRegion,
-        logoUrl: settings.logoUrl,
-        holdMinutes: settings.holdMinutes,
-        recaptchaEnabled: settings.recaptchaEnabled,
-        vrmLookupRateLimitPerMinute: settings.vrmLookupRateLimitPerMinute,
-        signupRateLimitPerHour: settings.signupRateLimitPerHour,
-        bookingConfirmRateLimitPerDay: settings.bookingConfirmRateLimitPerDay,
-      };
+        const payload = {
+          companyName: settings.companyName,
+          companyAddress: settings.companyAddress,
+          companyPhone: settings.companyPhone,
+          vatNumber: settings.vatNumber,
+          vatRatePercent: vatNumber,
+          timezone: settings.timezone,
+          defaultSlots: settings.defaultSlotsJson,
+          bankHolidayRegion: settings.bankHolidayRegion,
+          logoUrl: settings.logoUrl,
+          holdMinutes: settings.holdMinutes,
+          captchaEnabled: settings.captchaEnabled,
+          captchaRequireInDev: settings.captchaRequireInDev,
+          vrmLookupRateLimitPerMinute: settings.vrmLookupRateLimitPerMinute,
+          signupRateLimitPerHour: settings.signupRateLimitPerHour,
+          bookingConfirmRateLimitPerDay: settings.bookingConfirmRateLimitPerDay,
+        };
       const updated = await apiPatch<SettingsResponse>('/admin/settings', payload);
       setSettings(normalizeSettings(updated));
       setMessage('Settings saved.');
@@ -378,15 +380,27 @@ export function SettingsManager() {
           />
         </div>
         <div className="sm:col-span-1">
-          <label className="block text-xs font-semibold text-slate-600">reCAPTCHA enabled</label>
+          <label className="block text-xs font-semibold text-slate-600">Turnstile enabled</label>
           <select
-            value={settings.recaptchaEnabled ? 'true' : 'false'}
-            onChange={(event) => update('recaptchaEnabled', event.target.value === 'true')}
+            value={settings.captchaEnabled ? 'true' : 'false'}
+            onChange={(event) => update('captchaEnabled', event.target.value === 'true')}
             className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
           >
             <option value="true">Enabled</option>
             <option value="false">Disabled</option>
           </select>
+        </div>
+        <div className="sm:col-span-1">
+          <label className="block text-xs font-semibold text-slate-600">Require Turnstile in dev</label>
+          <select
+            value={settings.captchaRequireInDev ? 'true' : 'false'}
+            onChange={(event) => update('captchaRequireInDev', event.target.value === 'true')}
+            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+          >
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+          <p className="mt-1 text-xs text-slate-500">Force Turnstile locally to validate the configuration.</p>
         </div>
         <div className="sm:col-span-3">
           <label className="block text-xs font-semibold text-slate-600">Company address</label>
@@ -517,4 +531,6 @@ export function SettingsManager() {
     </section>
   );
 }
+
+
 

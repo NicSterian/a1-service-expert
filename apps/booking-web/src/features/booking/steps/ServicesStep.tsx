@@ -1,14 +1,17 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { LoadingIndicator } from '../../../components/LoadingIndicator';
+import { ServiceCard } from '../../../components/ServiceCard';
+import { VehicleModal } from '../../../components/VehicleModal';
+import { PricingTable } from '../../../components/PricingTable';
 import {
   ENGINE_TIER_CODES,
   SERVICE_CODES,
   SERVICE_DETAILS,
   type EngineTierCode,
   type ServiceCode,
-} from '@shared/pricing';
+} from '@a1/shared/pricing';
 import { useBookingWizard } from '../state';
 import type { CatalogSummary } from '../types';
 import { useCatalogSummary } from '../useCatalogSummary';
@@ -32,11 +35,19 @@ function formatPrice(pence: number | undefined) {
   return priceFormatter.format(pence / 100);
 }
 
+function useNewBookingUIFlag() {
+  const raw = (import.meta as any).env?.USE_NEW_BOOKING_UI ?? (import.meta as any).env?.VITE_USE_NEW_BOOKING_UI ?? 'true';
+  const val = String(raw).trim().toLowerCase();
+  return !(val === 'false' || val === '0' || val === '');
+}
+
 export function ServicesStep() {
   const navigate = useNavigate();
   const { draft, updateDraft, markStepComplete } = useBookingWizard();
   const { catalog, loading, error, refresh } = useCatalogSummary();
   const [message, setMessage] = useState<string | null>(null);
+  const useNewUI = useNewBookingUIFlag();
+  const [modalOpen, setModalOpen] = useState(false);
 
   const serviceOptions: ServiceOption[] = useMemo(() => {
     if (!catalog) {
@@ -96,6 +107,7 @@ export function ServicesStep() {
       serviceId: summary.id,
       serviceCode: code,
       serviceName: summary.name ?? details.name,
+      serviceDescription: summary?.description ?? details.description,
       engineTierId: undefined,
       engineTierCode: undefined,
       engineTierName: undefined,
@@ -103,6 +115,9 @@ export function ServicesStep() {
       holdId: undefined,
     });
     setMessage(null);
+    if (useNewUI) {
+      setModalOpen(true);
+    }
   };
 
   const handleNext = () => {
@@ -113,7 +128,7 @@ export function ServicesStep() {
     }
 
     markStepComplete('services');
-    navigate('vehicle');
+    navigate('pricing');
   };
 
   if (loading && !catalog) {
@@ -140,6 +155,43 @@ export function ServicesStep() {
           </button>
         </div>
       </section>
+    );
+  }
+
+  // New UI: black service cards with "Price from Â£X" and Vehicle modal
+  if (useNewUI) {
+    return (
+      <div className="space-y-6">
+        <header className="space-y-2">
+          <h2 className="text-2xl font-semibold text-brand-black">1. Choose a service package</h2>
+          <p className="text-slate-600">
+            Each package is priced with VAT included. Engine size determines the final tier in the next step.
+          </p>
+          {message ? <p className="text-sm text-red-600">{message}</p> : null}
+        </header>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {serviceOptions.map(({ code, summary }) => {
+            const details = SERVICE_DETAILS[code];
+            const lowest = summary?.lowestTierPricePence ?? null;
+            const isAvailable = Boolean(summary);
+            return (
+              <ServiceCard
+                key={code}
+                title={summary?.name ?? details.name}
+                description={summary?.description ?? details.description}
+                priceFromPence={lowest}
+                disabled={!isAvailable}
+                onSelect={() => handleSelect(code)}
+              />
+            );
+          })}
+        </div>\n\n        {/* Pricing table below cards */}\n        <PricingTable catalog={catalog} />\n\n        <VehicleModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          onAdded={() => setModalOpen(false)}
+        />
+      </div>
     );
   }
 
@@ -204,9 +256,11 @@ export function ServicesStep() {
           onClick={handleNext}
           className="rounded bg-brand-orange px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Continue to Vehicle
+          Continue to summary
         </button>
       </div>
     </div>
   );
 }
+
+

@@ -1,4 +1,5 @@
-﻿import { IsBoolean, IsNotEmpty, IsOptional, IsString, Length } from 'class-validator';
+import { ServicePricingMode } from '@prisma/client';
+import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Length, Min } from 'class-validator';
 
 export class CreateServiceDto {
   @IsString()
@@ -16,6 +17,20 @@ export class CreateServiceDto {
   description?: string;
 
   @IsOptional()
+  @IsEnum(ServicePricingMode)
+  pricingMode?: ServicePricingMode;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  fixedPricePence?: number | null;
+
+  @IsOptional()
+  @IsString()
+  footnotes?: string | null;
+
+  @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 }
+

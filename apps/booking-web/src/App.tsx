@@ -1,8 +1,11 @@
-﻿import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AUTH_EVENT_NAME, clearAuthToken, getAuthToken } from './lib/auth';
 import { apiGet } from './lib/api';
+import HeaderLogo from './components/HeaderLogo';
+import Footer from './components/Footer';
+import BackToTop from './components/BackToTop';
 
 interface CurrentUser {
   email: string;
@@ -116,7 +119,7 @@ function App() {
         <Link
           key={link.to}
           to={link.to}
-          className={`flex w-full items-center justify-end gap-3 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-orange ${isActive ? 'bg-white/10 text-brand-orange' : 'text-white hover:bg-white/10 hover:text-brand-orange'}`}
+          className={`flex w-full items-center justify-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-orange ${isActive ? 'bg-white/10 text-brand-orange' : 'text-white hover:bg-white/10 hover:text-brand-orange'}`}
         >
           {link.icon ? (
             <span className="flex items-center gap-2">
@@ -153,12 +156,24 @@ function App() {
       <header className="border-b border-slate-800 bg-slate-900/95 text-white">
         <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
           <div className="flex items-center justify-between">
-            <Link to="/" className="text-xs font-semibold uppercase tracking-[0.45em] text-white/80" aria-label="A1 Service Expert home"> A1 Service Expert </Link><div className="flex items-center gap-3 sm:hidden">
+            <HeaderLogo variant="mobile" />
+            <div className="flex items-center gap-3 sm:hidden">
               <a
                 href="tel:07394433889"
                 className="inline-flex items-center justify-center rounded-full border border-brand-orange px-3 py-2 text-xs font-semibold text-brand-orange transition hover:bg-brand-orange hover:text-white"
               >
                 Call
+              </a>
+              <a
+                href="https://wa.me/447394433889"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Chat on WhatsApp"
+                title="Chat on WhatsApp"
+                className="inline-flex items-center justify-center gap-1 rounded-full border border-brand-orange px-3 py-2 text-xs font-semibold text-brand-orange transition hover:bg-brand-orange hover:text-white"
+              >
+                <span aria-hidden className="inline-flex"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><path d="M20.52 3.48A11.94 11.94 0 0 0 12.06 0C5.47 0 .1 5.37.1 12c0 2.12.56 4.14 1.62 5.94L0 24l6.2-1.6A11.86 11.86 0 0 0 12.06 24c6.58 0 11.94-5.37 11.94-12 0-3.2-1.25-6.2-3.48-8.52Zm-8.46 18.5c-1.86 0-3.63-.5-5.2-1.47l-.37-.22-3.68.95.98-3.58-.24-.37A9.65 9.65 0 0 1 2.3 12c0-5.38 4.38-9.76 9.76-9.76 2.6 0 5.06 1 6.9 2.83a9.66 9.66 0 0 1 2.86 6.93c0 5.38-4.38 9.76-9.76 9.76Zm5.63-7.3c-.3-.15-1.78-.88-2.06-.98-.28-.1-.49-.15-.7.15-.2.3-.8.98-.98 1.18-.2.2-.36.23-.66.08-.3-.15-1.25-.46-2.38-1.46-.88-.78-1.48-1.74-1.66-2.04-.18-.3 0-.47.14-.62.14-.14.3-.36.46-.54.15-.18.2-.3.3-.5.1-.2.05-.38-.03-.54-.08-.15-.7-1.68-.96-2.3-.25-.6-.5-.5-.7-.51h-.6c-.2 0-.54.07-.82.38-.28.3-1.08 1.06-1.08 2.58 0 1.5 1.1 2.94 1.26 3.14.15.2 2.12 3.24 5.14 4.54.72.3 1.28.48 1.72.62.72.23 1.38.2 1.9.12.58-.08 1.78-.72 2.03-1.4.26-.7.26-1.3.2-1.4-.08-.12-.28-.2-.58-.35Z"/></svg></span>
+                WhatsApp
               </a>
               <button
                 type="button"
@@ -176,6 +191,7 @@ function App() {
               </button>
             </div>
           </div>
+          <HeaderLogo variant="desktop" />
           <div className="hidden items-center justify-between sm:flex">
             <nav className="flex items-center gap-4 text-sm font-medium">
               {navLinks.map((link) => renderNavLink(link, 'desktop'))}
@@ -186,6 +202,17 @@ function App() {
                 className="inline-flex items-center justify-center rounded-full border border-brand-orange px-4 py-2 text-sm font-semibold text-brand-orange transition hover:bg-brand-orange hover:text-white"
               >
                 Call 07394 433889
+              </a>
+              <a
+                href="https://wa.me/447394433889"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Chat on WhatsApp"
+                title="Chat on WhatsApp"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-brand-orange px-4 py-2 text-sm font-semibold text-brand-orange transition hover:bg-brand-orange hover:text-white"
+              >
+                <span aria-hidden className="inline-flex"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><path d="M20.52 3.48A11.94 11.94 0 0 0 12.06 0C5.47 0 .1 5.37.1 12c0 2.12.56 4.14 1.62 5.94L0 24l6.2-1.6A11.86 11.86 0 0 0 12.06 24c6.58 0 11.94-5.37 11.94-12 0-3.2-1.25-6.2-3.48-8.52Zm-8.46 18.5c-1.86 0-3.63-.5-5.2-1.47l-.37-.22-3.68.95.98-3.58-.24-.37A9.65 9.65 0 0 1 2.3 12c0-5.38 4.38-9.76 9.76-9.76 2.6 0 5.06 1 6.9 2.83a9.66 9.66 0 0 1 2.86 6.93c0 5.38-4.38 9.76-9.76 9.76Zm5.63-7.3c-.3-.15-1.78-.88-2.06-.98-.28-.1-.49-.15-.7.15-.2.3-.8.98-.98 1.18-.2.2-.36.23-.66.08-.3-.15-1.25-.46-2.38-1.46-.88-.78-1.48-1.74-1.66-2.04-.18-.3 0-.47.14-.62.14-.14.3-.36.46-.54.15-.18.2-.3.3-.5.1-.2.05-.38-.03-.54-.08-.15-.7-1.68-.96-2.3-.25-.6-.5-.5-.7-.51h-.6c-.2 0-.54.07-.82.38-.28.3-1.08 1.06-1.08 2.58 0 1.5 1.1 2.94 1.26 3.14.15.2 2.12 3.24 5.14 4.54.72.3 1.28.48 1.72.62.72.23 1.38.2 1.9.12.58-.08 1.78-.72 2.03-1.4.26-.7.26-1.3.2-1.4-.08-.12-.28-.2-.58-.35Z"/></svg></span>
+                WhatsApp
               </a>
               {isLoggedIn ? (
                 <button
@@ -199,8 +226,8 @@ function App() {
             </div>
           </div>
           {mobileMenuOpen ? (
-            <div id="main-navigation" className="mt-3 flex flex-col items-end gap-2 sm:hidden">
-              <nav className="flex w-full flex-col items-end gap-2 text-sm font-medium">
+            <div id="main-navigation" className="mt-3 flex flex-col items-center gap-2 sm:hidden">
+              <nav className="flex w-full flex-col items-center gap-2 text-sm font-medium">
                 {navLinks.map((link) => renderNavLink(link, 'mobile'))}
               </nav>
               {isLoggedIn ? (
@@ -219,20 +246,14 @@ function App() {
       <main className="mx-auto w-full flex-1 max-w-5xl px-4 py-10">
         <Outlet context={{ currentUser: user }} />
       </main>
-      <footer className="bg-white py-6 text-xs text-slate-500">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-2 px-4 sm:flex-row sm:justify-between">
-          <p>© {new Date().getFullYear()} A1 Service Expert. All rights reserved.</p>
-          <div className="flex items-center gap-4">
-            <Link to="/terms" className="transition hover:text-brand-orange">Terms</Link>
-            <Link to="/privacy" className="transition hover:text-brand-orange">Privacy</Link>
-          </div>
-        </div>
-      </footer>
+      <Footer />
+      <BackToTop />
     </div>
   );
 }
 
 export default App;
+
 
 
 

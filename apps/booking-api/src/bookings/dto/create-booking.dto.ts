@@ -39,28 +39,73 @@ export class VehicleDetailsDto {
 }
 
 export class CustomerDetailsDto {
+  @IsOptional()
+  @IsString()
+  title?: string;
+
   @IsString()
   @IsNotEmpty()
-  name!: string;
+  firstName!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  lastName!: string;
+
+  @IsOptional()
+  @IsString()
+  companyName?: string;
 
   @IsEmail()
   email!: string;
 
   @IsString()
   @IsNotEmpty()
-  phone!: string;
+  mobileNumber!: string;
 
   @IsOptional()
   @IsString()
-  notes?: string;
+  landlineNumber?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  addressLine1!: string;
+
+  @IsOptional()
+  @IsString()
+  addressLine2?: string;
+
+  @IsOptional()
+  @IsString()
+  addressLine3?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  city!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  county!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  postcode!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  marketingOptIn?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  acceptedTerms?: boolean;
 }
 
 export class CreateBookingDto {
   @IsInt()
   serviceId!: number;
 
+  @IsOptional()
   @IsInt()
-  engineTierId!: number;
+  engineTierId?: number;
 
   @IsOptional()
   @IsInt()
@@ -83,6 +128,10 @@ export class CreateBookingDto {
   @ValidateNested()
   @Type(() => CustomerDetailsDto)
   customer!: CustomerDetailsDto;
+
+  @IsOptional()
+  @IsString()
+  bookingNotes?: string;
 }
 
 export class ConfirmBookingDto {

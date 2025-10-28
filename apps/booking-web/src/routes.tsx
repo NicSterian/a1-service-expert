@@ -19,7 +19,6 @@ import {
   DetailsConfirmStep,
   PriceStep,
   ServicesStep,
-  VehicleStep,
 } from "./features/booking";
 import { SuccessPage } from "./features/booking/SuccessPage";
 
@@ -35,7 +34,6 @@ export const routes: RouteObject[] = [
         element: <BookingWizard />,
         children: [
           { index: true, element: <ServicesStep /> },
-          { path: "vehicle", element: <VehicleStep /> },
           { path: "pricing", element: <PriceStep /> },
           { path: "date-time", element: <DateTimeStep /> },
           { path: "details-confirm", element: <DetailsConfirmStep /> },

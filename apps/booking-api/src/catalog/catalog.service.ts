@@ -1,12 +1,12 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, ServicePricingMode } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEngineTierDto } from './dto/create-engine-tier.dto';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateEngineTierDto } from './dto/update-engine-tier.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { UpsertServicePriceDto } from './dto/upsert-service-price.dto';
-import { mapEngineTierNameToCode, mapEngineTierSortOrderToCode } from '../../../../packages/shared/src/pricing';
+import { mapEngineTierNameToCode, mapEngineTierSortOrderToCode } from '@a1/shared/pricing';
 
 @Injectable()
 export class CatalogService {
@@ -62,6 +62,9 @@ export class CatalogService {
       code: service.code?.trim() ?? null,
       name: service.name,
       description: service.description ?? null,
+      pricingMode: service.pricingMode,
+      fixedPricePence: typeof service.fixedPricePence === 'number' ? service.fixedPricePence : null,
+      footnotes: service.footnotes ?? null,
     }));
 
     const engineTiersSummary = engineTiers.map((tier) => ({
@@ -89,8 +92,25 @@ export class CatalogService {
       orderBy: [{ serviceId: 'asc' }, { engineTierId: 'asc' }],
     });
 
+    // Compute lowest tier price per service for convenience in the UI
+    const lowestByService = new Map<number, number>();
+    for (const p of prices) {
+      const prev = lowestByService.get(p.serviceId);
+      if (typeof prev !== 'number' || p.amountPence < prev) {
+        lowestByService.set(p.serviceId, p.amountPence);
+      }
+    }
+
+    const servicesWithLowest = servicesSummary.map((s) => ({
+      ...s,
+      lowestTierPricePence:
+        s.pricingMode === ServicePricingMode.FIXED
+          ? s.fixedPricePence
+          : lowestByService.get(s.id) ?? null,
+    }));
+
     return {
-      services: servicesSummary,
+      services: servicesWithLowest,
       engineTiers: engineTiersSummary,
       prices: prices.map((price) => ({
         serviceId: price.serviceId,
@@ -106,7 +126,10 @@ export class CatalogService {
         data: {
           code: dto.code.trim(),
           name: dto.name.trim(),
-          description: dto.description?.trim(),
+          description: dto.description?.trim() ?? null,
+          pricingMode: dto.pricingMode ?? ServicePricingMode.TIERED,
+          fixedPricePence: dto.fixedPricePence ?? null,
+          footnotes: dto.footnotes?.trim() ?? null,
           isActive: dto.isActive ?? true,
         },
       });
@@ -116,11 +139,28 @@ export class CatalogService {
   }
 
   async updateService(id: number, dto: UpdateServiceDto) {
-    const data: Prisma.ServiceUpdateInput = {};    if (dto.name !== undefined) {
+    const data: Prisma.ServiceUpdateInput = {};
+
+    if (dto.code !== undefined) {
+      data.code = dto.code.trim();
+    }
+    if (dto.name !== undefined) {
       data.name = dto.name.trim();
     }
     if (dto.description !== undefined) {
-      data.description = dto.description?.trim();
+      data.description = dto.description?.trim() ?? null;
+    }
+    if (dto.pricingMode !== undefined) {
+      data.pricingMode = dto.pricingMode;
+      if (dto.pricingMode === ServicePricingMode.TIERED) {
+        data.fixedPricePence = null;
+      }
+    }
+    if (dto.fixedPricePence !== undefined) {
+      data.fixedPricePence = dto.fixedPricePence ?? null;
+    }
+    if (dto.footnotes !== undefined) {
+      data.footnotes = dto.footnotes?.trim() ?? null;
     }
     if (dto.isActive !== undefined) {
       data.isActive = dto.isActive;

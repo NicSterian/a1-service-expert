@@ -32,17 +32,31 @@ async function main() {
     {
       code: 'SERVICE_1',
       name: 'Service 1',
-      description: 'Oil & Oil Filters — oil change, oil filter change, and check & top up of all fluid levels.'
+      description: 'Oil & Oil Filters - oil change, oil filter change, and check & top up of all fluid levels.',
+      pricingMode: 'TIERED' as const,
+      fixedPricePence: null,
+      footnotes:
+        '* Up to 5 litres of standard oil included. Certain oil types will incur an additional charge.\n* Additional costs for parts only and will not incur any labour charges.'
     },
     {
       code: 'SERVICE_2',
       name: 'Service 2',
-      description: 'Interim — includes SERVICE 1 plus air filter change, visual brake check, battery condition report, and full under body inspections.'
+      description:
+        'Interim - includes SERVICE 1 plus air filter change, visual brake check, battery condition report, and full under body inspections.',
+      pricingMode: 'TIERED' as const,
+      fixedPricePence: null,
+      footnotes:
+        '* Up to 5 litres of standard oil included. Certain oil types will incur an additional charge.\n* Additional costs for parts only and will not incur any labour charges.'
     },
     {
       code: 'SERVICE_3',
       name: 'Service 3',
-      description: 'Full — includes SERVICE 2 plus cabin filter replacement, spark plug replacement (additional cost for platinum/iridium), full brake and disc check, and optional fuel filter replacement at parts cost.'
+      description:
+        'Full - includes SERVICE 2 plus cabin filter replacement, spark plug replacement (additional cost for platinum/iridium), full brake and disc check, and optional fuel filter replacement at parts cost.',
+      pricingMode: 'TIERED' as const,
+      fixedPricePence: null,
+      footnotes:
+        '* Up to 5 litres of standard oil included. Certain oil types will incur an additional charge.\n* Additional costs for parts only and will not incur any labour charges.'
     }
   ];
 
@@ -52,12 +66,18 @@ async function main() {
       update: {
         name: service.name,
         description: service.description,
+        pricingMode: service.pricingMode,
+        fixedPricePence: service.fixedPricePence,
+        footnotes: service.footnotes,
         isActive: true
       },
       create: {
         code: service.code,
         name: service.name,
         description: service.description,
+        pricingMode: service.pricingMode,
+        fixedPricePence: service.fixedPricePence,
+        footnotes: service.footnotes,
         isActive: true
       }
     });
@@ -75,7 +95,7 @@ async function main() {
     { serviceCode: 'SERVICE_2', tierName: 'Medium', amountPence: 12995 },
     { serviceCode: 'SERVICE_2', tierName: 'Large', amountPence: 13995 },
     { serviceCode: 'SERVICE_2', tierName: 'Ex-Large', amountPence: 15995 },
-    { serviceCode: 'SERVICE_3', tierName: 'Small', amountPence: 16995 },
+    { serviceCode: 'SERVICE_3', tierName: 'Small', amountPence: 17995 },
     { serviceCode: 'SERVICE_3', tierName: 'Medium', amountPence: 17995 },
     { serviceCode: 'SERVICE_3', tierName: 'Large', amountPence: 19995 },
     { serviceCode: 'SERVICE_3', tierName: 'Ex-Large', amountPence: 21995 }
@@ -115,7 +135,8 @@ async function main() {
     bankHolidayRegion: 'England & Wales',
     logoUrl: null as string | null,
     holdMinutes: 10,
-    recaptchaEnabled: true,
+    captchaEnabled: true,
+    captchaRequireInDev: false,
     vrmLookupRateLimitPerMinute: 10,
     signupRateLimitPerHour: 5,
     bookingConfirmRateLimitPerDay: 5,
@@ -135,7 +156,8 @@ async function main() {
       bankHolidayRegion: settingsData.bankHolidayRegion,
       logoUrl: settingsData.logoUrl,
       holdMinutes: settingsData.holdMinutes,
-      recaptchaEnabled: settingsData.recaptchaEnabled,
+      captchaEnabled: settingsData.captchaEnabled,
+      captchaRequireInDev: settingsData.captchaRequireInDev,
       vrmLookupRateLimitPerMinute: settingsData.vrmLookupRateLimitPerMinute,
       signupRateLimitPerHour: settingsData.signupRateLimitPerHour,
       bookingConfirmRateLimitPerDay: settingsData.bookingConfirmRateLimitPerDay,
@@ -153,7 +175,8 @@ async function main() {
       bankHolidayRegion: settingsData.bankHolidayRegion,
       logoUrl: settingsData.logoUrl,
       holdMinutes: settingsData.holdMinutes,
-      recaptchaEnabled: settingsData.recaptchaEnabled,
+      captchaEnabled: settingsData.captchaEnabled,
+      captchaRequireInDev: settingsData.captchaRequireInDev,
       vrmLookupRateLimitPerMinute: settingsData.vrmLookupRateLimitPerMinute,
       signupRateLimitPerHour: settingsData.signupRateLimitPerHour,
       bookingConfirmRateLimitPerDay: settingsData.bookingConfirmRateLimitPerDay,

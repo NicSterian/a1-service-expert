@@ -8,7 +8,7 @@ import {
   EngineTierCode,
   mapEngineTierNameToCode,
   mapEngineTierSortOrderToCode,
-} from '../../../../packages/shared/src/pricing';
+} from '@a1/shared/pricing';
 
 
 type CachedVehicleData = {

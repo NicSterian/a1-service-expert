@@ -99,6 +99,16 @@ describe('Pricing regression', () => {
     bookingDate.setDate(bookingDate.getDate() + 7);
 
     const bookingCustomerEmail = `pricing-regression-${Date.now()}@example.com`;
+    const customerProfile = {
+      firstName: 'Pricing',
+      lastName: 'Regression',
+      email: bookingCustomerEmail,
+      mobileNumber: '07000000000',
+      addressLine1: '1 Test Street',
+      city: 'Testville',
+      county: 'Testshire',
+      postcode: 'TE5 1ST',
+    };
 
     try {
       const { bookingId } = await bookingsService.createBooking(user, {
@@ -111,9 +121,15 @@ describe('Pricing regression', () => {
           manualEntry: true,
         },
         customer: {
-          name: 'Pricing Regression',
-          email: bookingCustomerEmail,
-          phone: '07000000000',
+          title: 'MR',
+          firstName: customerProfile.firstName,
+          lastName: customerProfile.lastName,
+          email: customerProfile.email,
+          mobileNumber: customerProfile.mobileNumber,
+          addressLine1: customerProfile.addressLine1,
+          city: customerProfile.city,
+          county: customerProfile.county,
+          postcode: customerProfile.postcode,
         },
       });
 

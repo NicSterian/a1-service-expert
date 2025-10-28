@@ -1,12 +1,16 @@
-﻿import type { EngineTierCode, ServiceCode } from '@shared/pricing';
+import type { EngineTierCode, ServiceCode } from '@a1/shared/pricing';
 
-export type BookingStep = 'services' | 'vehicle' | 'pricing' | 'date-time' | 'details-confirm';
+export type BookingStep = 'services' | 'pricing' | 'date-time' | 'details-confirm';
 
 export type CatalogServiceSummary = {
   id: number;
   code: ServiceCode;
   name: string;
   description: string | null;
+  pricingMode?: 'TIERED' | 'FIXED';
+  fixedPricePence?: number | null;
+  footnotes?: string | null;
+  lowestTierPricePence?: number | null;
 };
 
 export type CatalogEngineTierSummary = {
@@ -29,10 +33,36 @@ export type CatalogSummary = {
   prices: CatalogPriceSummary[];
 };
 
+export type BookingDraftCustomer = {
+  title?: 'MR' | 'MRS' | 'MISS' | 'MS';
+  firstName?: string;
+  lastName?: string;
+  companyName?: string;
+  email?: string;
+  mobileNumber?: string;
+  landlineNumber?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  addressLine3?: string;
+  city?: string;
+  county?: string;
+  postcode?: string;
+  marketingOptIn?: boolean;
+  acceptedTerms?: boolean;
+  notes?: string;
+};
+
+export type BookingDraftAccount = {
+  mode?: 'login' | 'register';
+  email?: string;
+  password?: string;
+};
+
 export type BookingDraft = {
   serviceId?: number;
   serviceCode?: ServiceCode;
   serviceName?: string;
+  serviceDescription?: string;
   engineTierId?: number;
   engineTierCode?: EngineTierCode;
   engineTierName?: string;
@@ -52,14 +82,11 @@ export type BookingDraft = {
   };
   date?: string;
   time?: string;
-  customer?: {
-    name?: string;
-    email?: string;
-    phone?: string;
-    notes?: string;
-  };
+  customer?: BookingDraftCustomer;
+  account?: BookingDraftAccount;
   holdId?: string;
   holdExpiresAt?: string;
+  bookingNotes?: string;
 };
 
 export type BookingWizardContextValue = {
@@ -72,6 +99,8 @@ export type BookingWizardContextValue = {
   markStepComplete: (step: BookingStep) => void;
   setCatalog: (catalog: CatalogSummary | null) => void;
   reset: () => void;
+  loginPanelOpen: boolean;
+  setLoginPanelOpen: (open: boolean) => void;
 };
 
 export type CreateBookingResponse = {

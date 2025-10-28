@@ -18,7 +18,8 @@ const DEFAULT_SETTINGS: Prisma.SettingsCreateInput = {
   bankHolidayRegion: 'England & Wales',
   logoUrl: null,
   holdMinutes: 10,
-  recaptchaEnabled: true,
+  captchaEnabled: true,
+  captchaRequireInDev: false,
   vrmLookupRateLimitPerMinute: 10,
   signupRateLimitPerHour: 5,
   bookingConfirmRateLimitPerDay: 5,
@@ -109,8 +110,11 @@ export class SettingsService {
     if (dto.holdMinutes !== undefined) {
       data.holdMinutes = dto.holdMinutes;
     }
-    if (dto.recaptchaEnabled !== undefined) {
-      data.recaptchaEnabled = dto.recaptchaEnabled;
+    if (dto.captchaEnabled !== undefined) {
+      data.captchaEnabled = dto.captchaEnabled;
+    }
+    if (dto.captchaRequireInDev !== undefined) {
+      data.captchaRequireInDev = dto.captchaRequireInDev;
     }
     if (dto.vrmLookupRateLimitPerMinute !== undefined) {
       data.vrmLookupRateLimitPerMinute = dto.vrmLookupRateLimitPerMinute ?? null;

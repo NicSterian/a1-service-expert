@@ -1,0 +1,17 @@
+﻿{
+  "Audi": ["A1","A3","A4","A6","Q2","Q3","Q5"],
+  "BMW": ["1 Series","2 Series","3 Series","X1","X3"],
+  "Ford": ["Fiesta","Focus","Mondeo","Puma","Kuga"],
+  "Honda": ["Civic","Jazz","CR-V","HR-V"],
+  "Hyundai": ["i10","i20","i30","Tucson","Kona"],
+  "Kia": ["Rio","Ceed","Sportage","Picanto","Stonic"],
+  "Mercedes-Benz": ["A-Class","C-Class","E-Class","GLA","GLC"],
+  "Nissan": ["Micra","Juke","Qashqai","X-Trail"],
+  "Peugeot": ["208","308","3008","2008"],
+  "Renault": ["Clio","Megane","Captur","Kadjar"],
+  "Skoda": ["Fabia","Octavia","Karoq","Kodiaq"],
+  "Toyota": ["Yaris","Corolla","C-HR","RAV4"],
+  "Vauxhall": ["Corsa","Astra","Mokka","Grandland"],
+  "Volkswagen": ["Polo","Golf","Passat","T-Roc","Tiguan"],
+  "Volvo": ["XC40","XC60","V60","S90"]
+}

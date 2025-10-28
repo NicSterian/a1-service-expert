@@ -67,7 +67,11 @@ export class UpdateSettingsDto {
 
   @IsOptional()
   @IsBoolean()
-  recaptchaEnabled?: boolean;
+  captchaEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  captchaRequireInDev?: boolean;
 
   @IsOptional()
   @Type(() => Number)

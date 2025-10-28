@@ -3,8 +3,8 @@ import type { User } from '@prisma/client';
 import { AuthUser } from '../auth/auth-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BookingConfirmRateLimitGuard } from '../rate-limit/booking-confirm-rate-limit.guard';
-import { RecaptchaProtected } from '../security/recaptcha.decorator';
-import { RecaptchaGuard } from '../security/recaptcha.guard';
+import { TurnstileProtected } from '../security/turnstile.decorator';
+import { TurnstileGuard } from '../security/turnstile.guard';
 import { BookingsService } from './bookings.service';
 import { ConfirmBookingDto, CreateBookingDto } from './dto/create-booking.dto';
 
@@ -25,8 +25,8 @@ export class BookingsController {
   }
 
   @Patch(':id/confirm')
-  @UseGuards(JwtAuthGuard, BookingConfirmRateLimitGuard, RecaptchaGuard)
-  @RecaptchaProtected('captchaToken')
+  @UseGuards(JwtAuthGuard, BookingConfirmRateLimitGuard, TurnstileGuard)
+  @TurnstileProtected('captchaToken')
   confirmBooking(
     @AuthUser() user: User,
     @Param('id', ParseIntPipe) bookingId: number,

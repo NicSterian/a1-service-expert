@@ -1,14 +1,15 @@
 ﻿import { ReactNode, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { BookingWizardProvider, useBookingWizard } from './state';
+import { CartSidebar } from '../../components/CartSidebar';
+import { MobileCartDrawer } from '../../components/MobileCartDrawer';
 import type { BookingStep } from './types';
 
 const steps: Array<{ id: BookingStep; label: string; description: string; route: string }> = [
   { id: 'services', label: 'Services', description: 'Choose your service package', route: '.' },
-  { id: 'vehicle', label: 'Vehicle', description: 'Provide vehicle details', route: 'vehicle' },
-  { id: 'pricing', label: 'Pricing', description: 'Confirm tier & price', route: 'pricing' },
+  { id: 'pricing', label: 'Booking summary', description: 'Review vehicle & price', route: 'pricing' },
   { id: 'date-time', label: 'Date & Time', description: 'Select an appointment slot', route: 'date-time' },
-  { id: 'details-confirm', label: 'Details & Confirm', description: 'Enter your info and confirm', route: 'details-confirm' },
+  { id: 'details-confirm', label: 'Confirm booking', description: 'Create your account & finalise', route: 'details-confirm' },
 ];
 
 function useCurrentStepFromLocation(): BookingStep {
@@ -18,8 +19,6 @@ function useCurrentStepFromLocation(): BookingStep {
   const slug = onlineBookingIndex >= 0 ? segments[onlineBookingIndex + 1] ?? '' : '';
 
   switch (slug) {
-    case 'vehicle':
-      return 'vehicle';
     case 'pricing':
       return 'pricing';
     case 'date-time':
@@ -44,7 +43,7 @@ function Stepper() {
   };
 
   return (
-    <ol className="grid gap-3 sm:grid-cols-5">
+    <ol className="grid gap-3 sm:grid-cols-4">
       {steps.map((step, index) => {
         const isActive = step.id === currentStep;
         const isCompleted = completedSteps.has(step.id);
@@ -78,43 +77,52 @@ function Stepper() {
 function BookingWizardShell() {
   const locationStep = useCurrentStepFromLocation();
   const navigate = useNavigate();
-  const { setCurrentStep, reset } = useBookingWizard();
+  const { setCurrentStep, setLoginPanelOpen } = useBookingWizard();
 
   useEffect(() => {
     setCurrentStep(locationStep);
   }, [locationStep, setCurrentStep]);
 
-  const handleStartAgain = () => {
-    // If your state exposes reset(), use it; otherwise this still brings you to the first step.
-    try {
-      reset?.();
-    } catch {
-      /* ignore */
+  const handleLogin = () => {
+    setLoginPanelOpen(true);
+    if (locationStep !== 'details-confirm') {
+      navigate('details-confirm');
+      return;
     }
-    navigate('/online-booking');
+    if (typeof document !== 'undefined') {
+      document.getElementById('booking-account-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   return (
     <div className="space-y-8">
       <header className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
           <div>
             <h1 className="text-3xl font-semibold text-brand-black">Online Booking</h1>
             <p className="text-slate-600">Follow the steps below to reserve your service slot.</p>
           </div>
           <button
             type="button"
-            onClick={handleStartAgain}
-            className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400"
+            onClick={handleLogin}
+            className="self-start rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand-orange hover:text-brand-orange"
           >
-            Start again
+            Login
           </button>
         </div>
         <Stepper />
       </header>
 
-      <section className="rounded border border-slate-200 bg-white p-6 shadow-sm">
-        <Outlet />
+      <section className="">
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 rounded border border-slate-200 bg-white p-6 shadow-sm">
+            <Outlet />
+          </div>
+          <div className="hidden lg:block">
+            <CartSidebar />
+          </div>
+        </div>
+        <MobileCartDrawer />
       </section>
     </div>
   );
