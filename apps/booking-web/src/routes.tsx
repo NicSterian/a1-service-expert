@@ -21,6 +21,7 @@ import {
   ServicesStep,
 } from "./features/booking";
 import { SuccessPage } from "./features/booking/SuccessPage";
+import { BookingDetailPage } from "./pages/BookingDetailPage";
 
 export const routes: RouteObject[] = [
   {
@@ -47,6 +48,7 @@ export const routes: RouteObject[] = [
       { path: "register", element: <RegisterPage /> },
       { path: "verify-email", element: <VerifyEmailPage /> },
       { path: "account", element: <AccountPage /> },
+      { path: "account/bookings/:bookingId", element: <BookingDetailPage /> },
       { path: "dev", element: <DevPage /> },
       { path: "admin", element: <AdminPage /> },
       { path: "terms", element: <TermsPage /> },

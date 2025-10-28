@@ -1,7 +1,7 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Link, useNavigate } from 'react-router-dom';
-import { apiGet } from '../lib/api';
+import { apiGet, apiPatch } from '../lib/api';
 import { clearAuthToken, getToken } from '../lib/auth';
 
 interface MeResponse {
@@ -11,6 +11,30 @@ interface MeResponse {
     role: string;
     emailVerified: boolean;
   };
+}
+
+interface ProfileUser {
+  title: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  companyName: string | null;
+  mobileNumber: string | null;
+  landlineNumber: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  addressLine3: string | null;
+  city: string | null;
+  county: string | null;
+  postcode: string | null;
+  marketingOptIn: boolean;
+  notes: string | null;
+  email: string;
+  role: string;
+  emailVerified: boolean;
+}
+
+interface ProfileResponse {
+  user: ProfileUser;
 }
 
 interface BookingDocument {
@@ -48,7 +72,29 @@ export function AccountPage() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [bookingsError, setBookingsError] = useState<string | null>(null);
   const [user, setUser] = useState<MeResponse['user'] | null>(null);
+  const [profile, setProfile] = useState<ProfileUser | null>(null);
   const [bookings, setBookings] = useState<BookingSummary[]>([]);
+  const [profileForm, setProfileForm] = useState({
+    title: 'MR',
+    firstName: '',
+    lastName: '',
+    companyName: '',
+    mobileNumber: '',
+    landlineNumber: '',
+    addressLine1: '',
+    addressLine2: '',
+    addressLine3: '',
+    city: '',
+    county: '',
+    postcode: '',
+    marketingOptIn: false,
+    notes: '',
+  });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const token = getToken();
 
   const currencyFormatter = useMemo(
@@ -65,19 +111,41 @@ export function AccountPage() {
       setProfileStatus('idle');
       setBookingsStatus('idle');
       setUser(null);
+      setProfile(null);
       setBookings([]);
       return;
     }
 
     let cancelled = false;
 
-    const fetchMe = async () => {
+    const fetchProfile = async () => {
       try {
         setProfileStatus('loading');
         setProfileError(null);
-        const response = await apiGet<MeResponse>('/auth/me');
+        const [me, profileResponse] = await Promise.all([
+          apiGet<MeResponse>('/auth/me'),
+          apiGet<ProfileResponse>('/account/profile'),
+        ]);
+
         if (!cancelled) {
-          setUser(response.user);
+          setUser(me.user);
+          setProfile(profileResponse.user);
+          setProfileForm({
+            title: profileResponse.user.title ?? 'MR',
+            firstName: profileResponse.user.firstName ?? '',
+            lastName: profileResponse.user.lastName ?? '',
+            companyName: profileResponse.user.companyName ?? '',
+            mobileNumber: profileResponse.user.mobileNumber ?? '',
+            landlineNumber: profileResponse.user.landlineNumber ?? '',
+            addressLine1: profileResponse.user.addressLine1 ?? '',
+            addressLine2: profileResponse.user.addressLine2 ?? '',
+            addressLine3: profileResponse.user.addressLine3 ?? '',
+            city: profileResponse.user.city ?? '',
+            county: profileResponse.user.county ?? '',
+            postcode: profileResponse.user.postcode ?? '',
+            marketingOptIn: profileResponse.user.marketingOptIn ?? false,
+            notes: profileResponse.user.notes ?? '',
+          });
           setProfileStatus('success');
         }
       } catch (err) {
@@ -88,7 +156,7 @@ export function AccountPage() {
       }
     };
 
-    fetchMe();
+    fetchProfile();
 
     return () => {
       cancelled = true;
@@ -126,78 +194,172 @@ export function AccountPage() {
     };
   }, [token, user]);
 
-  const handleLogout = () => {
-    clearAuthToken();
-    toast.success('You have been logged out.');
-    navigate('/');
-  };
+  useEffect(() => {
+    if (user?.role === 'ADMIN') {
+      navigate('/admin', { replace: true });
+    }
+  }, [navigate, user?.role]);
 
-  if (!token) {
-    return (
-      <section className="space-y-6">
-        <div className="rounded-3xl bg-slate-900 px-6 py-10 text-white shadow-lg">
-          <h1 className="text-3xl font-semibold">My Account</h1>
-          <p className="mt-2 text-sm text-slate-200">Log in to view your profile, bookings, and documents.</p>
-          <Link
-            to="/login"
-            state={{ from: '/account' }}
-            className="mt-6 inline-flex items-center justify-center rounded-full bg-brand-orange px-5 py-2 text-sm font-semibold text-slate-900 transition hover:-translate-y-0.5 hover:bg-orange-400"
-          >
-            Go to login
-          </Link>
-        </div>
-      </section>
-    );
-  }
-
-  const renderStatusBadge = (status: string) => {
-    const normalized = status.toUpperCase();
-    const isConfirmed = normalized === 'CONFIRMED';
-    const isDraft = normalized === 'DRAFT' || normalized === 'HELD';
-    const badgeClass = isConfirmed
-      ? 'bg-emerald-100 text-emerald-700'
-      : isDraft
-        ? 'bg-amber-100 text-amber-700'
-        : 'bg-slate-200 text-slate-700';
-
-    const baseClass = 'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold';
-    return <span className={`${baseClass} ${badgeClass}`}>{normalized}</span>;
-  };
-
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString('en-GB', {
+  const formatDate = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    return date.toLocaleDateString('en-GB', {
       weekday: 'short',
       day: 'numeric',
       month: 'short',
       year: 'numeric',
     });
+  };
 
-  const formatTime = (time: string) => time.slice(0, 5);
-
+  const formatTime = (value: string) => value;
   const formatCurrency = (amountPence: number) => currencyFormatter.format(amountPence / 100);
 
+  const handleLogout = () => {
+    clearAuthToken();
+    toast.success('You have been logged out.');
+    navigate('/', { replace: true });
+  };
+
+  const handleProfileInput =
+    (field: keyof typeof profileForm) =>
+    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+      const value = event.target.type === 'checkbox' ? (event.target as HTMLInputElement).checked : event.target.value;
+      setProfileForm((prev) => ({ ...prev, [field]: value }));
+    };
+
+  const handleProfileSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!token) {
+      toast.error('Please sign in again to update your profile.');
+      return;
+    }
+
+    const requiredFields: Array<keyof typeof profileForm> = [
+      'firstName',
+      'lastName',
+      'mobileNumber',
+      'addressLine1',
+      'city',
+      'county',
+      'postcode',
+    ];
+
+    for (const field of requiredFields) {
+      if (!profileForm[field] || String(profileForm[field]).trim().length === 0) {
+        toast.error('Please complete all required profile fields before saving.');
+        return;
+      }
+    }
+
+    try {
+      setProfileSaving(true);
+      await apiPatch('/account/profile', {
+        title: profileForm.title,
+        firstName: profileForm.firstName,
+        lastName: profileForm.lastName,
+        companyName: profileForm.companyName || undefined,
+        mobileNumber: profileForm.mobileNumber,
+        landlineNumber: profileForm.landlineNumber || undefined,
+        addressLine1: profileForm.addressLine1,
+        addressLine2: profileForm.addressLine2 || undefined,
+        addressLine3: profileForm.addressLine3 || undefined,
+        city: profileForm.city,
+        county: profileForm.county,
+        postcode: profileForm.postcode.toUpperCase(),
+        marketingOptIn: profileForm.marketingOptIn,
+        notes: profileForm.notes || undefined,
+      });
+
+      toast.success('Profile updated successfully.');
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...profileForm,
+            }
+          : prev,
+      );
+    } catch (error) {
+      toast.error((error as Error).message ?? 'Unable to update profile.');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (newPassword.length < 8) {
+      toast.error('New password must be at least 8 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('New passwords do not match.');
+      return;
+    }
+
+    try {
+      setPasswordSaving(true);
+      await apiPatch('/account/change-password', {
+        currentPassword,
+        newPassword,
+      });
+      toast.success('Password updated successfully.');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error) {
+      toast.error((error as Error).message ?? 'Unable to change password.');
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
+  const verificationAlert =
+    profileStatus === 'success' && user
+      ? user.emailVerified
+        ? {
+            status: 'verified',
+            headline: 'Email verified',
+            message: 'Thanks for confirming your email. You can download invoices and view booking history below.',
+          }
+        : {
+            status: 'pending',
+            headline: 'Verify your email address',
+            message: 'Please check your inbox for a verification link so we can keep your documents accessible.',
+          }
+      : null;
+
+  const renderStatusBadge = (status: string) => {
+    const normalized = status.toUpperCase();
+    const styles: Record<string, string> = {
+      CONFIRMED: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+      PENDING: 'bg-amber-100 text-amber-700 border-amber-200',
+      CANCELLED: 'bg-red-100 text-red-700 border-red-200',
+    };
+
+    const badgeStyles = styles[normalized] ?? 'bg-slate-100 text-slate-700 border-slate-200';
+
+    return (
+      <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${badgeStyles}`}>
+        {normalized.charAt(0) + normalized.slice(1).toLowerCase()}
+      </span>
+    );
+  };
+
   return (
-    <div className="space-y-10">
-      <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white shadow-xl">
-        <div className="relative grid gap-10 p-8 sm:grid-cols-[1.2fr_0.8fr] sm:p-12">
-          <div className="space-y-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-orange">My Account</p>
-            <h1 className="text-3xl font-semibold sm:text-4xl">
-              Welcome back{user ? `, ${user.email.split('@')[0]}` : ''}.
-            </h1>
-            <p className="max-w-xl text-sm text-slate-200">
-              Review your upcoming visits, download invoices and quotes, and keep your contact details up to date.
+    <div className="space-y-8">
+      <section className="rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8 text-white shadow-lg">
+        <div className="flex flex-col gap-8 xl:flex-row xl:gap-12">
+          <div className="flex-1 space-y-4">
+            <p className="text-xs uppercase tracking-[0.35em] text-brand-orange">Account centre</p>
+            <h1 className="text-3xl font-semibold text-white">Keep your visits and documents in one place.</h1>
+            <p className="text-sm text-slate-200">
+              Review upcoming and past bookings, update your contact details, and change your password without leaving the
+              workshop flow.
             </p>
-            <div className="flex flex-wrap gap-3 text-xs text-slate-200">
-              {user?.emailVerified ? (
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 font-semibold text-white">
-                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" /> Email verified
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-100/10 px-3 py-1 font-semibold text-amber-100">
-                  <span className="inline-block h-2 w-2 rounded-full bg-amber-400" /> Verification required
-                </span>
-              )}
+            <div className="flex flex-wrap items-center gap-3 text-sm">
               <Link
                 to="/online-booking"
                 className="inline-flex items-center gap-2 rounded-full bg-brand-orange px-4 py-2 text-sm font-semibold text-slate-900 transition hover:-translate-y-0.5 hover:bg-orange-400"
@@ -207,28 +369,41 @@ export function AccountPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14m-6-6 6 6-6 6" />
                 </svg>
               </Link>
-            </div>
-          </div>
-          <div className="flex flex-col justify-between gap-4 rounded-3xl border border-white/10 bg-white/5 p-5 text-sm text-slate-100 backdrop-blur">
-            <div>
-              <p className="text-xs uppercase tracking-[0.35em] text-brand-orange">Profile snapshot</p>
-              <p className="mt-3 text-lg font-semibold">{user?.email ?? 'Loading'}</p>
-              <p className="text-xs text-slate-300">Role: {user?.role ?? '-'}</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={handleLogout}
-                className="inline-flex items-center justify-center rounded-full border border-white/30 px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:border-brand-orange hover:text-brand-orange"
+                className="inline-flex items-center gap-2 rounded-full border border-white/30 px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:border-brand-orange hover:text-brand-orange"
               >
-                Logout
+                Sign out
               </button>
             </div>
+          </div>
+          <div className="flex w-full max-w-md flex-col gap-4 rounded-3xl border border-white/10 bg-white/5 p-5 text-sm text-slate-100 backdrop-blur">
+            <div>
+              <p className="text-xs uppercase tracking-[0.35em] text-brand-orange">Signed in as</p>
+              <p className="mt-3 text-lg font-semibold">{user?.email ?? 'Loading…'}</p>
+              <p className="text-xs text-slate-300">
+                Role: {user?.role ?? '-'} · Status:{' '}
+                {verificationAlert?.status === 'verified' ? 'Verified' : 'Email verification pending'}
+              </p>
+            </div>
+            {verificationAlert ? (
+              <div
+                className={`rounded-2xl border px-3 py-3 text-xs ${
+                  verificationAlert.status === 'verified'
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                    : 'border-amber-500/40 bg-amber-500/10 text-amber-200'
+                }`}
+              >
+                <p className="font-semibold uppercase tracking-wide text-[11px]">{verificationAlert.headline}</p>
+                <p className="mt-1 text-[12px]">{verificationAlert.message}</p>
+              </div>
+            ) : null}
           </div>
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <div className="space-y-4 rounded-3xl bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-brand-black">Booking history</h2>
           {bookingsStatus === 'loading' ? (
@@ -247,7 +422,7 @@ export function AccountPage() {
                     <div>
                       <p className="text-sm font-semibold text-brand-black">
                         {booking.serviceName ?? 'Service'}
-                        {booking.engineTierName ? ` - ${booking.engineTierName}` : ''}
+                        {booking.engineTierName ? ` · ${booking.engineTierName}` : ''}
                       </p>
                       <p className="text-xs text-slate-500">
                         {formatDate(booking.slotDate)} at {formatTime(booking.slotTime)}
@@ -289,6 +464,15 @@ export function AccountPage() {
                       </div>
                     </div>
                   ) : null}
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <Link
+                      to={`/account/bookings/${booking.id}`}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 font-medium text-brand-black transition hover:-translate-y-0.5 hover:border-brand-orange hover:text-brand-orange"
+                    >
+                      View details
+                    </Link>
+                    <span className="text-slate-400">Booked on {formatDate(booking.createdAt)}</span>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -296,30 +480,281 @@ export function AccountPage() {
         </div>
 
         <div className="space-y-4 rounded-3xl bg-white p-6 shadow-sm text-sm text-slate-600">
-          <h2 className="text-xl font-semibold text-brand-black">Contact details</h2>
+          <h2 className="text-xl font-semibold text-brand-black">Update your profile</h2>
           {profileStatus === 'loading' ? (
-            <p className="text-sm text-slate-500">Loading profile...</p>
+            <p className="text-sm text-slate-500">Loading profile…</p>
           ) : profileStatus === 'error' ? (
             <p className="text-sm text-red-600">{profileError ?? 'Unable to load your profile right now.'}</p>
-          ) : user ? (
-            <dl className="space-y-3">
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Email</dt>
-                <dd className="text-sm text-brand-black">{user.email}</dd>
+          ) : (
+            <form className="space-y-4 text-sm" onSubmit={handleProfileSubmit} noValidate>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="profile-title">
+                    Title
+                  </label>
+                  <select
+                    id="profile-title"
+                    value={profileForm.title}
+                    onChange={handleProfileInput('title')}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+                  >
+                    <option value="MR">Mr</option>
+                    <option value="MRS">Mrs</option>
+                    <option value="MISS">Miss</option>
+                    <option value="MS">Ms</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="profile-company">
+                    Company (optional)
+                  </label>
+                  <input
+                    id="profile-company"
+                    type="text"
+                    value={profileForm.companyName}
+                    onChange={handleProfileInput('companyName')}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="profile-first">
+                    First name
+                  </label>
+                  <input
+                    id="profile-first"
+                    type="text"
+                    required
+                    value={profileForm.firstName}
+                    onChange={handleProfileInput('firstName')}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="profile-last">
+                    Last name
+                  </label>
+                  <input
+                    id="profile-last"
+                    type="text"
+                    required
+                    value={profileForm.lastName}
+                    onChange={handleProfileInput('lastName')}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="profile-mobile">
+                    Mobile number
+                  </label>
+                  <input
+                    id="profile-mobile"
+                    type="tel"
+                    required
+                    value={profileForm.mobileNumber}
+                    onChange={handleProfileInput('mobileNumber')}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="profile-landline">
+                    Landline (optional)
+                  </label>
+                  <input
+                    id="profile-landline"
+                    type="tel"
+                    value={profileForm.landlineNumber}
+                    onChange={handleProfileInput('landlineNumber')}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="profile-address1">
+                    Address line 1
+                  </label>
+                  <input
+                    id="profile-address1"
+                    type="text"
+                    required
+                    value={profileForm.addressLine1}
+                    onChange={handleProfileInput('addressLine1')}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="profile-address2">
+                    Address line 2
+                  </label>
+                  <input
+                    id="profile-address2"
+                    type="text"
+                    value={profileForm.addressLine2}
+                    onChange={handleProfileInput('addressLine2')}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="profile-address3">
+                    Address line 3
+                  </label>
+                  <input
+                    id="profile-address3"
+                    type="text"
+                    value={profileForm.addressLine3}
+                    onChange={handleProfileInput('addressLine3')}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="profile-city">
+                    City
+                  </label>
+                  <input
+                    id="profile-city"
+                    type="text"
+                    required
+                    value={profileForm.city}
+                    onChange={handleProfileInput('city')}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="profile-county">
+                    County
+                  </label>
+                  <input
+                    id="profile-county"
+                    type="text"
+                    required
+                    value={profileForm.county}
+                    onChange={handleProfileInput('county')}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="profile-postcode">
+                    Postcode
+                  </label>
+                  <input
+                    id="profile-postcode"
+                    type="text"
+                    required
+                    value={profileForm.postcode}
+                    onChange={handleProfileInput('postcode')}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 uppercase"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="profile-notes">
+                    Notes for the team (optional)
+                  </label>
+                  <textarea
+                    id="profile-notes"
+                    rows={3}
+                    value={profileForm.notes}
+                    onChange={handleProfileInput('notes')}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+                  />
+                </div>
               </div>
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Role</dt>
-                <dd className="text-sm text-brand-black">{user.role}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verification</dt>
-                <dd className="text-sm text-brand-black">{user.emailVerified ? 'Verified' : 'Pending verification'}</dd>
-              </div>
-            </dl>
-          ) : null}
+              <label className="flex items-start gap-3 text-xs text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={profileForm.marketingOptIn}
+                  onChange={handleProfileInput('marketingOptIn')}
+                  className="mt-0.5 h-4 w-4"
+                />
+                <span>
+                  I’d like to receive occasional service reminders and offers. We respect your inbox and you can opt out at
+                  any time.
+                </span>
+              </label>
+              <button
+                type="submit"
+                disabled={profileSaving}
+                className="inline-flex items-center justify-center rounded-full bg-brand-orange px-4 py-2 text-xs font-semibold text-slate-900 transition hover:-translate-y-0.5 hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {profileSaving ? 'Saving…' : 'Save profile'}
+              </button>
+            </form>
+          )}
           <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
-            <p>Need to update your contact details? Let us know when you confirm your next booking or call the workshop.</p>
+            <p>Prefer to talk? Call 07394 433889 and we’ll update your details while you’re on the phone.</p>
           </div>
+        </div>
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="space-y-4 rounded-3xl bg-white p-6 shadow-sm text-sm text-slate-600">
+          <h2 className="text-xl font-semibold text-brand-black">Change password</h2>
+          <p className="text-xs text-slate-500">
+            Pick a strong password you haven’t used elsewhere. We’ll ask for your current password before saving changes.
+          </p>
+          <form className="space-y-4" onSubmit={handlePasswordSubmit} noValidate>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="password-current">
+                Current password
+              </label>
+              <input
+                id="password-current"
+                type="password"
+                required
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="password-new">
+                New password
+              </label>
+              <input
+                id="password-new"
+                type="password"
+                required
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="password-confirm">
+                Confirm new password
+              </label>
+              <input
+                id="password-confirm"
+                type="password"
+                required
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={passwordSaving}
+              className="inline-flex items-center justify-center rounded-full border border-brand-orange px-4 py-2 text-xs font-semibold text-brand-orange transition hover:-translate-y-0.5 hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {passwordSaving ? 'Updating…' : 'Update password'}
+            </button>
+          </form>
+        </div>
+        <div className="space-y-4 rounded-3xl bg-white p-6 shadow-sm text-sm text-slate-600">
+          <h2 className="text-xl font-semibold text-brand-black">Need a hand?</h2>
+          <p>
+            If you spot anything that doesn’t look right, just give us a call or mention it when you confirm your next
+            booking and we’ll fix it for you.
+          </p>
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
+            <p className="font-semibold text-brand-black">Workshop contact</p>
+            <p className="mt-1">Phone: 07394 433889</p>
+            <p>Email: support@a1serviceexpert.com</p>
+          </div>
+          <Link
+            to="/online-booking"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-orange px-4 py-2 text-xs font-semibold text-slate-900 transition hover:-translate-y-0.5 hover:bg-orange-400"
+          >
+            Start a booking
+          </Link>
         </div>
       </section>
     </div>
