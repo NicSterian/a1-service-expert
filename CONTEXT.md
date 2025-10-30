@@ -397,36 +397,36 @@ Note: A git tag `pre-booking-redesign` was created before these changes for quic
 
 > Populate the keys once credentials are issued; keep ‚ÄúRequire CAPTCHA in dev‚Äù toggle accessible via Admin settings.
 
-# Phase 2ÔøΩ8 Plan (accepted)
+# Phase 2ñ8 Plan (accepted)
 
-Phase 2 ÔøΩ Service Cards + Vehicle Modal (MVP)
+Phase 2 ó Service Cards + Vehicle Modal (MVP)
 
-- 3 black cards (SERVICE 1/2/3), orange CTAs, ÔøΩPrice from ÔøΩXÔøΩ via `lowestTierPricePence`.
+- 3 black cards (SERVICE 1/2/3), orange CTAs, ìPrice from £Xî via `lowestTierPricePence`.
 - Vehicle modal skeleton (yellow VRM input), open on Select, feature-flagged via `USE_NEW_BOOKING_UI`.
 
-Phase 3 ÔøΩ Vehicle Modal Full + Cart Sidebar
+Phase 3 ó Vehicle Modal Full + Cart Sidebar
 
 - DVLA lookup + manual fallback, resolve tier/price from DB.
 - Cart Sidebar (desktop) and mobile drawer; summary at Date/Time step.
 
-Phase 4 ÔøΩ Downstream: Auth, Details, Confirm
+Phase 4 ó Downstream: Auth, Details, Confirm
 
 - Inline login/register with persistence; details form per spec; Turnstile on Confirm; SMTP email.
 - Keep dev SMTP/Turnstile permissive; enforce before QA/UAT.
 
-Phase 5 ÔøΩ Pricing Table
+Phase 5 ó Pricing Table
 
-- DB-driven ÔøΩFixed Price Menu ServicingÔøΩ table with footnotes; reused across pages.
+- DB-driven ìFixed Price Menu Servicingî table with footnotes; reused across pages.
 
-Phase 6 ÔøΩ Admin Wiring + Model
+Phase 6 ó Admin Wiring + Model
 
 - Admin forms: `pricingMode`, `fixedPricePence`, `footnotes`; dark/orange theme; non-destructive migrate path for prod.
 
-Phase 7 ÔøΩ Accessibility & Polish
+Phase 7 ó Accessibility & Polish
 
 - Focus trap, aria labels, keyboard nav, 44px targets, en-GB currency, animation tidy.
 
-Phase 8 ÔøΩ Testing, Docs, Release Prep
+Phase 8 ó Testing, Docs, Release Prep
 
 - Pricing regression for fixed/tiered; UI smoke list; update docs; keep feature flag fallback.
 
@@ -457,9 +457,9 @@ Phase 8 ÔøΩ Testing, Docs, Release Prep
   - Opted to avoid Router v7 type friction; build remains green and dev warning is informational. May revisit full v7 flags with compatible typings.
   - Vite CJS Node API deprecation notice is non-blocking; no Node API usage in the app code.
 
-- Phase 2 ÔøΩ Service cards + vehicle modal (scaffold)
+- Phase 2 ó Service cards + vehicle modal (scaffold)
 
-  - Added black ServiceCard grid (SERVICE 1/2/3) with ÔøΩPrice from ÔøΩXÔøΩ and orange CTAs.
+  - Added black ServiceCard grid (SERVICE 1/2/3) with ìPrice from £Xî and orange CTAs.
   - Added VehicleModal skeleton (yellow VRM input UI, cancel/close, a11y basics).
   - Gated by `USE_NEW_BOOKING_UI` (legacy flow intact when false).
   - Files:
@@ -477,28 +477,28 @@ User/Nicolae requested and confirmed the following for Phase 3:
 
 - Cards pricing source
 
-  - Keep ÔøΩPrice from ÔøΩXÔøΩ reading from live DB (Small tier price). Admin prices are set to: Service 1 ÔøΩ79.95, Service 2 ÔøΩ119.95, Service 3 ÔøΩ179.95.
+  - Keep ìPrice from £Xî reading from live DB (Small tier price). Admin prices are set to: Service 1 £79.95, Service 2 £119.95, Service 3 £179.95.
 
 - Pricing table placement
 
-  - Add a DB-driven ÔøΩFixed Price Menu ServicingÔøΩ table directly below the cards with comfortable spacing (ÔøΩ48ÔøΩ64px). Reuse later on the Services page. Add a tasteful logo placement (small logo above the table heading) ÔøΩ to be implemented.
+  - Add a DB-driven ìFixed Price Menu Servicingî table directly below the cards with comfortable spacing (ò48ñ64px). Reuse later on the Services page. Add a tasteful logo placement (small logo above the table heading) ó to be implemented.
 
 - Vehicle modal (match the design; our styling)
 
-  - Yellow full-width VRM input with placeholder ÔøΩEnter your registrationÔøΩ.
+  - Yellow full-width VRM input with placeholder ìEnter your registrationî.
   - Continue button to the right on desktop, below on mobile; disabled until input; Enter submits.
-  - Inline link under input: ÔøΩYou can enter details manually hereÔøΩ ÔøΩ switches to manual entry within the same modal.
+  - Inline link under input: ìYou can enter details manually hereî ó switches to manual entry within the same modal.
 
 - Behavior
 
-  - On submit: spinner + ÔøΩSearching DVLAÔøΩÔøΩ, uppercase/trim VRM.
-  - On success: show Make (and Model if present), rounded engine size (e.g. ÔøΩ1999 ccÔøΩ), resolved tier, and final price; links ÔøΩSearch againÔøΩ and ÔøΩChange detailsÔøΩ; primary button labeled ÔøΩContinueÔøΩ.
+  - On submit: spinner + ìSearching DVLAÖî, uppercase/trim VRM.
+  - On success: show Make (and Model if present), rounded engine size (e.g. ì1999 ccî), resolved tier, and final price; links ìSearch againî and ìChange detailsî; primary button labeled ìContinueî.
   - On failure or rate limit: show friendly error and reveal the manual entry panel.
 
 - Manual entry
 
   - Required fields: VRM, Make, Engine size (cc). Optional: Model.
-  - After valid manual inputs, show a confirmation step mirroring DVLA success (Make/Model/CC/Tier/Price) with primary ÔøΩContinueÔøΩ.
+  - After valid manual inputs, show a confirmation step mirroring DVLA success (Make/Model/CC/Tier/Price) with primary ìContinueî.
 
 - Fuel type dropdown (informational only, does not affect price)
 
@@ -515,16 +515,16 @@ Implementation plan for Phase 3
 
 1. Vehicle modal DVLA integration
 
-- Add VRM normalization + validation; submit to DVLA endpoint; handle spinner/success/error states; ÔøΩSearch againÔøΩ.
-- On success, compute tier and price; show summary with primary ÔøΩContinueÔøΩ.
+- Add VRM normalization + validation; submit to DVLA endpoint; handle spinner/success/error states; ìSearch againî.
+- On success, compute tier and price; show summary with primary ìContinueî.
 
 2. Manual entry panel
 
-- Required field validation; engine size normalization; compute tier and price; show summary; ÔøΩContinueÔøΩ.
+- Required field validation; engine size normalization; compute tier and price; show summary; ìContinueî.
 
 3. Cart update on confirmation
 
-- When ÔøΩContinueÔøΩ is clicked on either DVLA or manual path, close modal and update the cart with service, VRM, tier, and price.
+- When ìContinueî is clicked on either DVLA or manual path, close modal and update the cart with service, VRM, tier, and price.
 
 4. Pricing table component
 
@@ -534,11 +534,11 @@ Implementation plan for Phase 3
 
 - Append CHANGELOG & CONTEXT as parts land; extend smoke checklist for modal flows.
 
-## Phase 3 ÔøΩ Implementation progress (2025-10-27)
+## Phase 3 ñ Implementation progress (2025-10-27)
 
 - VehicleModal implemented with:
-  - Yellow VRM input + Continue (desktop right / mobile below), Enter submits, inline manual-entry link (ÔøΩhereÔøΩ).
-  - DVLA path: spinner + Searching DVLAÔøΩ; on success shows Make/Model/CC/Tier/Price; actions Search again + Continue.
+  - Yellow VRM input + Continue (desktop right / mobile below), Enter submits, inline manual-entry link (ìhereî).
+  - DVLA path: spinner + Searching DVLAÖ; on success shows Make/Model/CC/Tier/Price; actions Search again + Continue.
   - Manual path: required VRM/Make/Engine size (cc); Model optional; fuel type captured. On resolve, shows confirmation with Continue.
   - On Continue, cart updates with VRM, tier and price; modal closes.
 - Fixed Price Menu Servicing table component added below cards, DB-driven, with spacing. Reuse on Services page later.
@@ -547,21 +547,21 @@ Implementation plan for Phase 3
 - Cart Sidebar (desktop) implemented in layout; mobile drawer pending. Sidebar reflects VRM and price after modal confirmation; Continue advances the step; Start again clears draft.
 - Manual entry now includes offline Make/Model suggestions (curated JSON in repo). VRM validation uses user-friendly strict GB formats (current + common legacy/personalized + Q plates).
 - Date/Time step shows a compact summary (service, VRM, price) above the calendar.
-- Mobile cart drawer: pending next ÔøΩ current sidebar appears on desktop.
+- Mobile cart drawer: pending next ó current sidebar appears on desktop.
 - Mobile cart drawer added: sticky bar with price and slide-up drawer on small screens; desktop sidebar unchanged. Continue drives step forward; Start again clears draft.
 
-## Phase 3 Progress ÔøΩ Vehicle modal, pricing table, carts (consolidated)
+## Phase 3 Progress ó Vehicle modal, pricing table, carts (consolidated)
 
-- Vehicle modal finalized: DVLA lookup with spinner and message ÔøΩSearching DVLAÔøΩÔøΩ, manual fallback with required VRM/Make/Engine size, Model optional, Fuel type captured. Confirmation shows Make/Model/CC/Tier/Price with actions: Change details | Continue.
-- Helper copy: under VRM input ÔøΩWeÔøΩll use DVLA to look up your vehicle. You can enter details manually hereÔøΩ where ÔøΩhereÔøΩ switches to manual.
+- Vehicle modal finalized: DVLA lookup with spinner and message ìSearching DVLAÖî, manual fallback with required VRM/Make/Engine size, Model optional, Fuel type captured. Confirmation shows Make/Model/CC/Tier/Price with actions: Change details | Continue.
+- Helper copy: under VRM input ìWeíll use DVLA to look up your vehicle. You can enter details manually hereî where ìhereî switches to manual.
 - GB VRM validation: user-friendly strict GB pattern; plates uppercased and spaces stripped.
-- Service cardsÔøΩ ÔøΩPrice from ÔøΩXÔøΩ reads live from DB; Admin changes reflect instantly. Pricing table added under cards with extra spacing and a small A1 logo above the heading.
+- Service cardsí ìPrice from £Xî reads live from DB; Admin changes reflect instantly. Pricing table added under cards with extra spacing and a small A1 logo above the heading.
 - Cart Sidebar (desktop) and Mobile Cart Drawer implemented; after Continue, cart shows service, VRM, and price; Continue advances; Start again resets.
 - Date/Time compact summary shows service + VRM + price at the top.
 
-## User Clarifications (Nicolae) ÔøΩ decisions locked
+## User Clarifications (Nicolae) ó decisions locked
 
-- Card prices from DB; Small tier targets: ÔøΩ79.95, ÔøΩ119.95, ÔøΩ179.95 (set in Admin).
+- Card prices from DB; Small tier targets: £79.95, £119.95, £179.95 (set in Admin).
 - Manual entry fuel types: extended options list; informational only for now.
 - Primary CTA label: Continue (not Add to booking); include Change details link.
 - Pricing table placement: below cards with spacing; include A1 logo.
@@ -575,9 +575,9 @@ Implementation plan for Phase 3
 - Shared package crash (`ReferenceError: exports is not defined`): converted `@a1/shared` to dual CJS/ESM with proper exports map; API/Web import from `@a1/shared/pricing`.
 - Prisma migration quoting: fixed `"Booking"."serviceCode"` cast; dev reset via `pnpm.cmd --filter booking-api exec prisma migrate reset --force`; non-destructive via `migrate deploy` + `db seed`.
 
-### 2025-10-28 ÔøΩ Phase 4 groundwork (Codex session)
+### 2025-10-28 ñ Phase 4 groundwork (Codex session)
 
-- Replaced the legacy Vehicle step with a ÔøΩBooking summaryÔøΩ route that follows the vehicle modal and feeds directly into Date & Time. Updated `BookingWizard` to show the shortened four-step flow and to surface a persistent Login button in the header area.
+- Replaced the legacy Vehicle step with a ìBooking summaryî route that follows the vehicle modal and feeds directly into Date & Time. Updated `BookingWizard` to show the shortened four-step flow and to surface a persistent Login button in the header area.
 - Restyled the desktop cart sidebar and mobile drawer with richer service copy, VRM/make/tier metadata, and tighter navigation that records step completion against the new ordering.
 - Extended booking draft/customer typings in preparation for the details form (title, first/last name, multi-line address, SMS opt-in, terms flag). Began mirroring those fields in `CreateBookingDto`, Prisma schema, and booking service writes; follow-up validation/migrations still needed.
 - Removed the old `DetailsConfirmStep` component to make room for the Phase 4 confirm-booking experience (account login/register + structured details form). A fresh implementation is still required before the flow is functional.
@@ -612,11 +612,11 @@ Implementation plan for Phase 3
 
 ### 2025-10-28 - Confirm booking rebuild (Codex session)
 
-- Implemented the new ÔøΩConfirm bookingÔøΩ layout with a desktop two-column grid (forms + booking summary card) and numbered sections for Account information, Your details, and Booking details. Updated copy to ÔøΩConfirm bookingÔøΩ and ensured stepper/step titles match.
+- Implemented the new ìConfirm bookingî layout with a desktop two-column grid (forms + booking summary card) and numbered sections for Account information, Your details, and Booking details. Updated copy to ìConfirm bookingî and ensured stepper/step titles match.
 - Added inline login support: the header Login button opens a collapsible sign-in form inside the account card, authenticates in place, and collapses once the session is established. Account creation still runs register ? login while writing to the draft.
 - Persisted reminders, terms acceptance, and `bookingNotes` through the booking draft so returning users see their saved answers; normalised UK postcodes and trimmed data before submission.
 - Extended `CreateBookingDto` / `BookingsService` to accept the new `bookingNotes` payload and to timestamp `acceptedTermsAt`, keeping backend data aligned with the form.
-- Updated draft context/types to carry `loginPanelOpen`, avoided duplicate ÔøΩStart againÔøΩ buttons at the top, and refreshed summary cards to match the latest visual spec.
+- Updated draft context/types to carry `loginPanelOpen`, avoided duplicate ìStart againî buttons at the top, and refreshed summary cards to match the latest visual spec.
 - Build verification: `pnpm.cmd --filter booking-web build`, `pnpm.cmd --filter booking-api build`.
 
 ### Remaining work after 2025-10-28 updates
@@ -630,7 +630,7 @@ Implementation plan for Phase 3
 ### 2025-10-28 - Troubleshooting notes
 
 - **500 on POST `/holds` after choosing a time slot**
-  - Symptom: UI toasts ÔøΩInternal server errorÔøΩ, network tab shows `/holds` 500, and navigating to the confirm step occasionally crashes because the API is unavailable.
+  - Symptom: UI toasts ìInternal server errorî, network tab shows `/holds` 500, and navigating to the confirm step occasionally crashes because the API is unavailable.
   - Root cause: the Nest API watcher was already running from a previous session, so rerunning `pnpm.cmd --filter booking-api dev` started a second process that immediately failed with `EADDRINUSE: address already in use :::3000`. Because the command crashed, no API was listening and the web app logged 500s when it attempted to create a hold.
   - Fix: stop the stray Node process that still has port?3000 open (see commands below), then restart the API watcher in a fresh terminal.
 - **Port 3000 in use (Windows)**
@@ -646,9 +646,9 @@ Implementation plan for Phase 3
 **Summary of user direction**
 
 - Logged-in users should see a header profile pill showing their stored title/name (falling back to email) with menu actions: Edit details, View bookings, Log out. Each action should route into the My Account experience rather than inline modals.
-- The legacy contact/login panel on the confirm-booking step must be redesigned with the darker ÔøΩcardÔøΩ aesthetic, remove redundant summary panels, and require the full personal details inline when creating an account while logged out.
+- The legacy contact/login panel on the confirm-booking step must be redesigned with the darker ìcardî aesthetic, remove redundant summary panels, and require the full personal details inline when creating an account while logged out.
 - Account creation/confirmation must capture full customer profile details, store them on the `User` record (title, names, addresses, phones, marketing opt-in, notes, timestamps, registration IP), and log login sessions (IP/timestamp) in a dedicated table.
-- The My Account page needs a refresh: drop email verification messaging, retain the hero with welcome + ÔøΩBook another visitÔøΩ, add editable cards for profile details and change-password, show booking history cards that navigate to a dedicated booking detail view. Admins should be redirected to the admin dashboard instead of seeing this page. Booking detail view should expose the full booking summary with a ÔøΩBook another visitÔøΩ CTA.
+- The My Account page needs a refresh: drop email verification messaging, retain the hero with welcome + ìBook another visitî, add editable cards for profile details and change-password, show booking history cards that navigate to a dedicated booking detail view. Admins should be redirected to the admin dashboard instead of seeing this page. Booking detail view should expose the full booking summary with a ìBook another visitî CTA.
 - Replace Google reCAPTCHA with Cloudflare Turnstile across registration/confirmation, keep dev bypass, and expose an admin toggle to disable/enable it. Remove any lingering Google widget.
 - Confirmation emails should use new templates (customer + staff), send to all configured recipients plus `support@a1serviceexpert.com`, and match the brand styling using `logo-a1.png`.
 - Ensure the confirm button enables correctly once all data is valid, and wire confirmation emails + staff notifications post-confirmation.
@@ -668,7 +668,7 @@ Implementation plan for Phase 3
    - Replace reCAPTCHA widget with a Turnstile wrapper on the web app; adjust env typings and admin toggles.
    - Implement the new customer/staff confirmation email templates and ensure staff list includes `support@a1serviceexpert.com`.
 3. **Booking confirm step rebuild**
-   - Redesign the confirm step UI with the dark panels, enforce full profile capture for new accounts, handle login dropdown behaviour, and fix confirm-button enablement. Remove redundant ÔøΩYour bookingÔøΩ mid-panel.
+   - Redesign the confirm step UI with the dark panels, enforce full profile capture for new accounts, handle login dropdown behaviour, and fix confirm-button enablement. Remove redundant ìYour bookingî mid-panel.
 4. **Header/profile menu & routing**
    - Introduce the logged-in profile pill with dropdown actions, ensure routes take users to the appropriate account sections, and hide Dev Tools for non-admin users.
 5. **Account area refresh**
@@ -682,7 +682,7 @@ Each deliverable can be tackled in a focused session to keep changes reviewable 
 
 ### 2025-10-29 - Data & Auth foundation implementation (Codex)
 
-- Expanded the Prisma `User` model/migration to persist the full profile metadata (title, names, company, phones, address lines 1ÔøΩ3, city, county, postcode, marketing opt-in, notes, registration IP, profile timestamps) and introduced the `UserSession` table for login tracking.
+- Expanded the Prisma `User` model/migration to persist the full profile metadata (title, names, company, phones, address lines 1ñ3, city, county, postcode, marketing opt-in, notes, registration IP, profile timestamps) and introduced the `UserSession` table for login tracking.
 - Added profile validation helpers (`common/utils/profile.util.ts`, `common/validation/profile.constants.ts`) and refreshed auth DTOs/responses so registration captures the complete profile, auto-marks email addresses as verified, and surfaces the richer `PublicUser` shape.
 - Updated `AuthService` to sanitise inputs, normalise postcodes, persist registration IP/profile timestamps, and record login sessions (IP + user agent) alongside `lastLoginAt`; `AuthController` now delivers the expanded payload under Turnstile protection.
 - Created the account module with JWT-guarded `/account/profile` GET/PATCH endpoints and a `/account/change-password` PATCH handler, reusing the sanitisation utilities and Prisma updates.
@@ -722,7 +722,7 @@ Each deliverable can be tackled in a focused session to keep changes reviewable 
 - Analysed the existing `DetailsConfirmStep.tsx` flow: current form only collects name/email/phone/notes plus gating on login token; UI still uses the transitional layout rather than the darker card aesthetic.
 - Next implementation batches for Deliverable 3:
   1. Reshape wizard draft state to carry full profile fields (title, first/last names, address lines, marketing opt-in, password for new accounts) alongside account/login state.
-  2. Split the confirm view into stacked ÔøΩcardsÔøΩ: summary, account access/login, personal details, reminders/terms, payment CTA, ensuring responsive spacing.
+  2. Split the confirm view into stacked ìcardsî: summary, account access/login, personal details, reminders/terms, payment CTA, ensuring responsive spacing.
   3. Add inline registration for logged-out users capturing password + full profile, wiring to the updated `/auth/register` endpoint and storing returned token/user in wizard context.
   4. Ensure confirm CTA enables only when hold is active, validation passes, and either user is logged-in or registration succeeded; surface inline errors.
   5. Update API integration to send the richer `customer` payload and passwords where required, then refresh success UX (card with invoice/quote links, CTA to book again).
@@ -789,13 +789,13 @@ Each deliverable can be tackled in a focused session to keep changes reviewable 
 
 ### 2025-10-28 - Proposed sub-deliverables status (Codex)
 
-- 1. Data & Auth foundation ÔøΩ Complete. Prisma schema extended (full profile on User + UserSession), DTOs/services updated, /account/profile + /account/change-password live; API tests pass after migrations.
-- 2. Email service & Turnstile swap ÔøΩ Complete. Turnstile in web + API guards, admin copy/envs updated, branded customer/staff booking emails in place including support@a1serviceexpert.com. Email QA pending awaiting live Microsoft 365 mailbox credentials.
-- 3. Booking confirm step rebuild ÔøΩ Implemented. New dark summary card, inline login/register (Turnstile), full profile form, confirm gating (hold/captcha/terms). End-to-end validation still to run for guest/auth flows, hold expiry, and email delivery.
-- 4. Header/profile menu & routing ÔøΩ Complete. Logged-in profile pill + dropdown (account/admin/dev-for-admins), mobile parity, dev tools hidden for non-admins.
-- 5. Account area refresh ÔøΩ Complete. New profile editor (PATCH /account/profile), change-password card (PATCH /account/change-password), refreshed booking history with document chips, admin redirect to /admin.
-- 6. Booking detail view & history ÔøΩ Complete. Added GET /bookings/:id and BookingDetailPage at /account/bookings/:bookingId; account history links to detail page.
-- 7. QA & polish ÔøΩ Outstanding. Run full booking flows (guest/auth), verify Turnstile toggles/bypass, validate emails+PDF links once SMTP creds are live, sanity-check localStorage migration in real browsers, and capture screenshots.
+- 1. Data & Auth foundation ó Complete. Prisma schema extended (full profile on User + UserSession), DTOs/services updated, /account/profile + /account/change-password live; API tests pass after migrations.
+- 2. Email service & Turnstile swap ó Complete. Turnstile in web + API guards, admin copy/envs updated, branded customer/staff booking emails in place including support@a1serviceexpert.com. Email QA pending awaiting live Microsoft 365 mailbox credentials.
+- 3. Booking confirm step rebuild ó Implemented. New dark summary card, inline login/register (Turnstile), full profile form, confirm gating (hold/captcha/terms). End-to-end validation still to run for guest/auth flows, hold expiry, and email delivery.
+- 4. Header/profile menu & routing ó Complete. Logged-in profile pill + dropdown (account/admin/dev-for-admins), mobile parity, dev tools hidden for non-admins.
+- 5. Account area refresh ó Complete. New profile editor (PATCH /account/profile), change-password card (PATCH /account/change-password), refreshed booking history with document chips, admin redirect to /admin.
+- 6. Booking detail view & history ó Complete. Added GET /bookings/:id and BookingDetailPage at /account/bookings/:bookingId; account history links to detail page.
+- 7. QA & polish ó Outstanding. Run full booking flows (guest/auth), verify Turnstile toggles/bypass, validate emails+PDF links once SMTP creds are live, sanity-check localStorage migration in real browsers, and capture screenshots.
 
 ### 2025-10-28 - Next Tasks (QA) checklist (Codex)
 
@@ -836,7 +836,7 @@ Quick start for QA:
   - Optionally ensure VITE_USE_NEW_BOOKING_UI=true is present if you rely on that flag.
 - apps/booking-web/.env.example already includes VITE_TURNSTILE_SITE_KEY.
 - Notes:
-  - DonÔøΩt commit real secrets. Keep them in local .env files or the host secret manager.
+  - Donít commit real secrets. Keep them in local .env files or the host secret manager.
   - In Admin ? Settings, you can force CAPTCHA in dev. With TURNSTILE_SECRET set, the API enforces Turnstile; the web shows the widget when VITE_TURNSTILE_SITE_KEY is present, otherwise a dev checkbox fallback is used.
 
 ### 2025-10-28 - Turnstile env applied (Codex)
@@ -920,9 +920,9 @@ Login Modal
 - Disable Login until both fields have values.
 - On success: close modal only; keep the user on the confirm step with sections 2 and 3 still visible and editable.
 - Forgotten password: link in the modal opens a second modal with a single Email field and Continue button.
-  - Phase 1: front-end only; show success toast: "If the email exists, weÔøΩll send a reset link." (no backend yet).
+  - Phase 1: front-end only; show success toast: "If the email exists, weíll send a reset link." (no backend yet).
 
-Password Reset (Phase 2 ÔøΩ not implemented yet)
+Password Reset (Phase 2 ñ not implemented yet)
 
 - API endpoints to plan:
   - POST /auth/forgot-password ? issue token + email (branded via SMTP)
@@ -1001,7 +1001,7 @@ Dev & Config
 
 ---
 
-# Booking UI Redesign ÔøΩ Confirm Step Revamp (2025-10-29)
+# Booking UI Redesign ó Confirm Step Revamp (2025-10-29)
 
 Summary
 
@@ -1011,9 +1011,9 @@ Summary
 
 Files Touched (web)
 
-- apps/booking-web/src/features/booking/steps/DetailsConfirmStep.tsx ÔøΩ dark input styles, notes/marketing/terms inputs, login/forgot modals integration, single Turnstile usage, success redirect to `/account`.
-- apps/booking-web/src/features/booking/BookingWizard.tsx ÔøΩ already hides `CartSidebar` when step is `details-confirm`.
-- apps/booking-web/src/components/TurnstileWidget.tsx ÔøΩ already stable via ref-held callback; no change required.
+- apps/booking-web/src/features/booking/steps/DetailsConfirmStep.tsx ó dark input styles, notes/marketing/terms inputs, login/forgot modals integration, single Turnstile usage, success redirect to `/account`.
+- apps/booking-web/src/features/booking/BookingWizard.tsx ó already hides `CartSidebar` when step is `details-confirm`.
+- apps/booking-web/src/components/TurnstileWidget.tsx ó already stable via ref-held callback; no change required.
 
 Acceptance Checklist
 
@@ -1031,7 +1031,7 @@ Summary
 
 Changes
 
-- Made `county` optional in the Zod schema and UI label shows ÔøΩCounty (optional)ÔøΩ.
+- Made `county` optional in the Zod schema and UI label shows ìCounty (optional)î.
 - Relaxed `bookingReady` to not require an engine tier; relies on `pricePence` presence so fixed-price services are supported.
 - Normalised payload builders to send `county` only when provided.
 - Treated empty optional fields (landline, address lines, notes) as undefined during validation, so leaving them blank does not block the Confirm button.
@@ -1039,7 +1039,7 @@ Changes
 - Landline truly optional (no minimum length enforced).
 - Repeat password mismatch now shows immediately when either password field changes.
 - Submit path uses Zod validation (and sets RHF errors) to prevent accidental focusing of optional fields; focus now remains stable with clear inline error messages instead.
-- `marketingOptIn` treated as optional in schema to avoid any stray ÔøΩRequiredÔøΩ state on optional controls.
+- `marketingOptIn` treated as optional in schema to avoid any stray ìRequiredî state on optional controls.
  - Silenced profile fetch errors when unauthenticated or API not running (e.g., `Cannot GET /account/profile`) to keep the flow clean in dev.
 
 Files
@@ -1054,7 +1054,7 @@ QA
 
 Summary
 
-- Service cards restyled to dark theme like Confirm step with ÔøΩPrice from ÔøΩXÔøΩ sourced from `/catalog.lowestTierPricePence`.
+- Service cards restyled to dark theme like Confirm step with ìPrice from £Xî sourced from `/catalog.lowestTierPricePence`.
 - Selection pill with a check appears after the Vehicle modal successfully adds the vehicle; clicking it toggles deselect and clears service from the cart.
 - Fixed Price table switched to a dark panel and reads values from `/catalog` (DB source of truth) for consistency.
 - Vehicle modal (manual entry) gains a Back button to return to VRM lookup; summary Back also returns to VRM.
@@ -1065,7 +1065,7 @@ Next Actions
 
 QA
 
-- Cards display lowest tier price and ÔøΩNot availableÔøΩ for disabled services.
+- Cards display lowest tier price and ìNot availableî for disabled services.
 - Selecting a service opens Vehicle modal; after continue, pill shows Selected.
 - Deselect clears service/price from the cart; sidebar updates accordingly.
 
@@ -1075,12 +1075,12 @@ Summary
 
 - Cart total updates instantly when switching services after a vehicle is selected. The Vehicle modal recomputes `pricePence` for the current service via `/vehicles/recommend-tier` and writes it to the draft alongside `engineTierCode/Name`.
 - Cart panel pulses briefly on price change for visibility.
-- ÔøΩSearch againÔøΩ in the VRM path clears both the DVLA result and the VRM field; the duplicate Continue button was removed so only a single operational Continue remains.
+- ìSearch againî in the VRM path clears both the DVLA result and the VRM field; the duplicate Continue button was removed so only a single operational Continue remains.
 - Removed stray literal `\n\n` text under the service cards/table by normalising the Services step file.
 
 Admin Pricing Tools
 
-- Web Admin button ÔøΩApply fixed menu pricesÔøΩ upserts tier prices to:
+- Web Admin button ìApply fixed menu pricesî upserts tier prices to:
   - Service 1: 79.95, 89.95, 99.95, 109.95
   - Service 2: 119.95, 129.95, 139.95, 159.95
   - Service 3: 179.95, 179.95, 199.95, 219.95
@@ -1088,11 +1088,11 @@ Admin Pricing Tools
 
 Files
 
-- apps/booking-web/src/components/VehicleModal.tsx ÔøΩ always recompute price/tier on confirm; VRM ÔøΩSearch againÔøΩ reset.
-- apps/booking-web/src/components/CartSidebar.tsx ÔøΩ price change pulse.
-- apps/booking-web/src/features/booking/steps/ServicesStep.tsx ÔøΩ newline artefacts removed in DOM output.
-- apps/booking-web/src/features/admin/CatalogManager.tsx ÔøΩ ÔøΩApply fixed menu pricesÔøΩ button.
-- apps/booking-api/scripts/upsert-fixed-prices.ts ÔøΩ Prisma upsert helper.
+- apps/booking-web/src/components/VehicleModal.tsx ó always recompute price/tier on confirm; VRM ìSearch againî reset.
+- apps/booking-web/src/components/CartSidebar.tsx ó price change pulse.
+- apps/booking-web/src/features/booking/steps/ServicesStep.tsx ó newline artefacts removed in DOM output.
+- apps/booking-web/src/features/admin/CatalogManager.tsx ó ìApply fixed menu pricesî button.
+- apps/booking-api/scripts/upsert-fixed-prices.ts ó Prisma upsert helper.
 
 Suggested Assistant Prompt (for new chat sessions)
 
@@ -1103,358 +1103,6 @@ Suggested Assistant Prompt (for new chat sessions)
 4) When touching Admin/Services/Confirm steps, keep Turnstile and guards intact, ensure only one CAPTCHA is used, and avoid introducing flicker.
 5) Default to the dark card style from the Confirm step for new UI in the booking wizard.
 6) If a task would require schema or multi-line-item booking changes, pause and ask before proceeding."
-
-### 2025-10-30 - Logo swap and booking stepper redesign
-
-Summary
-
-- Replaced site-wide logo from `logo-a1.png` to `logo-new.png` (3D "A1 SERVICE EXPERT" branding) in both header and footer components.
-- Scaled footer logo to match header logo size (h-32 to h-40 across breakpoints) for visual consistency.
-- Redesigned booking wizard stepper from card-based panels to horizontal text-based navigation:
-  - Current step highlighted in orange (`text-orange-500`)
-  - Completed steps highlighted in green (`text-green-500`)
-  - Upcoming steps shown in muted slate (`text-slate-400`)
-  - All completed and current steps are clickable for backward navigation
-  - Hidden on mobile (`hidden md:block`) to maintain clean mobile UX
-  - Arrow separators (`‚Üí`) between steps for visual flow
-- Updated "Online Booking" header section to match dark card aesthetic:
-  - Dark slate background (`bg-slate-900`) with rounded corners (`rounded-3xl`)
-  - White heading and slate-300 subtitle for readability
-  - Integrated stepper within the dark header panel
-  - Login button styled with dark theme (slate-800 background, orange hover states)
-
-Files Modified
-
-- apps/booking-web/src/components/HeaderLogo.tsx
-- apps/booking-web/src/components/Footer.tsx
-- apps/booking-web/src/features/booking/BookingWizard.tsx
-
-Testing Notes
-
-- Verify new logo displays correctly in header (desktop h-40, mobile h-16) and footer (h-32 to h-40 across breakpoints)
-- Confirm stepper appears as horizontal text navigation on desktop with proper color states (orange for current, green for completed, slate for upcoming)
-- Test stepper navigation: clicking completed or current steps should navigate backward through the wizard
-- Verify stepper is completely hidden on mobile screens (below md breakpoint)
-- Check "Online Booking" header matches dark card theme with good contrast on both desktop and mobile
-- Ensure Login button styling aligns with dark theme and has proper hover states
-
-### 2025-10-30 - Stepper navigation improvements and mobile scroll behavior
-
-Summary
-
-- Added `clearCompletedStepsAfter` function to booking wizard state management that resets all steps after the clicked step when navigating backward.
-  - When clicking on a previous step (e.g., clicking "Services" from "Date & Time"), all subsequent steps are cleared from completed state (green ‚Üí default).
-  - This provides a "start fresh from this step" behavior that matches user expectations.
-- Enhanced mobile cart drawer Continue button to scroll to step content after navigation.
-  - Added smooth scroll to the `<section>` container (below "Online Booking" header) when Continue is pressed.
-  - 100ms delay ensures navigation completes before scroll is triggered.
-  - Applies to all step transitions: services ‚Üí pricing, pricing ‚Üí date-time, date-time ‚Üí confirm.
-- Fixed mobile cart drawer layout to ensure "Start again" and "Continue" buttons are always visible.
-  - Restructured drawer with flexbox layout: fixed header, scrollable content area, fixed button footer.
-  - Header has border-bottom separator.
-  - Content area (`flex-1 overflow-y-auto`) scrolls independently if booking details are long.
-  - Button footer has border-top separator and stays pinned at bottom of drawer.
-  - Added conditional rendering: drawer only shows when service is selected and not on confirm step.
-- Improved mobile sticky bar UX for better discoverability:
-  - Booking info button now has visible rounded background (`bg-slate-50`) with hover states.
-  - Added up chevron icon (‚Üë) to indicate the drawer is expandable.
-  - Entire left section is now an obvious button with `flex-1` width.
-  - Price display larger and bolder for better visibility.
-  - Continue button updated to `rounded-full` for consistency with site theme.
-- Redesigned Back buttons across all booking steps to match site theme:
-  - Changed from bordered style to filled rounded-full dark slate buttons.
-  - Added left arrow (‚Üê) for better UX.
-  - Hover state: transitions to orange-500 background with black text.
-  - Styling: `rounded-full bg-slate-800 px-6 py-2 text-sm font-semibold text-slate-100 hover:bg-orange-500 hover:text-black`.
-  - Applied to PriceStep, DateTimeStep, and DetailsConfirmStep.
-  - Also updated Start again and Confirm buttons on DetailsConfirmStep for consistency.
-
-Files Modified
-
-- apps/booking-web/src/features/booking/types.ts
-- apps/booking-web/src/features/booking/state.tsx
-- apps/booking-web/src/features/booking/BookingWizard.tsx
-- apps/booking-web/src/components/MobileCartDrawer.tsx
-- apps/booking-web/src/features/booking/steps/PriceStep.tsx
-- apps/booking-web/src/features/booking/steps/DateTimeStep.tsx
-- apps/booking-web/src/features/booking/steps/DetailsConfirmStep.tsx
-
-Testing Notes
-
-- Desktop stepper: Navigate to step 3, verify steps 1-2 are green. Click step 1, confirm step 2 turns from green to default slate.
-- Desktop stepper: From any step, click a previous step and verify all steps after it are cleared from completed state.
-- Mobile: Drawer only appears after selecting a service and not on confirm step.
-- Mobile: Complete steps 1-2, open cart drawer, press Continue, verify page scrolls smoothly to step content (below dark header).
-- Mobile: Verify "Start again" and "Continue" buttons are always visible at bottom of drawer regardless of content length.
-- Mobile: If booking details are long, verify content area scrolls while buttons stay fixed at bottom.
-- Back buttons: Verify all Back buttons use new dark rounded design with left arrow and orange hover state.
-- Both desktop and mobile: Ensure backward navigation works correctly and state is preserved for the clicked step and earlier.
-
-### 2025-10-30 - Services page dark theme redesign (primary and supporting services)
-
-Summary
-
-- Redesigned the entire services section on the Services page to match the dark theme aesthetic used throughout the site.
-
-**Primary Services Section (Service 1, 2, 3):**
-- Section container background changed from white to dark slate 900 (`bg-slate-900` with `border-slate-700` and `shadow-inner`).
-- Primary service cards (Service 1, 2, 3) redesigned:
-  - Background: White ‚Üí Dark slate 800 (`bg-slate-800` with `border-slate-700`)
-  - Enhanced shadows (`shadow-lg`)
-  - Hover: Border turns orange, slight lift, enhanced shadow
-  - Icon circles: h-12 ‚Üí h-14, orange tint default
-  - Icon hover effect: Lighter orange background (`bg-orange-500/20`), brighter orange icon (`text-orange-400`), orange ring (`ring-2 ring-orange-500`), glow shadow - keeps icon visible
-  - Typography: Service labels in orange-400, titles in white, summaries in slate-300, details in slate-400
-  - Bullet points changed to orange-500 for consistency
-  - Improved spacing and leading for better readability
-- Servicing notes box redesigned:
-  - Border: Dashed orange with transparency (`border-orange-500/30`)
-  - Background: Orange tint on dark (`bg-orange-500/5` with `backdrop-blur-sm`)
-  - Title in orange-400, notes in slate-300, fine print in slate-400
-  - Enhanced shadow (`shadow-lg`)
-  - Better spacing between items
-
-**Supporting Services Section ("More ways we keep you moving"):**
-- Section background changed from white to dark slate 900 (`bg-slate-900` with `border-slate-700`).
-- Section heading and subtitle updated to white/slate-300 for readability.
-- Service cards (12 total) redesigned with dark slate 800 backgrounds and slate-700 borders.
-- Card hover states: border turns orange, slight lift, enhanced shadow.
-- Icon circles: Orange tint default, filled orange with black icon on hover, increased to h-14.
-- Typography: White titles with orange hover, slate-400 descriptions with lighter hover.
-- Grid layout improved: 1 col mobile, 2 cols md, 3 cols lg, 4 cols xl.
-- All icons preserved for 12 services (Air Conditioning, Diagnostics, Brakes, Suspension, etc.).
-
-Files Modified
-
-- apps/booking-web/src/pages/ServicesPage.tsx
-
-Testing Notes
-
-- Verify entire services section has cohesive dark theme matching booking wizard.
-- Primary services: Confirm Service 1, 2, 3 cards display with dark backgrounds, proper spacing, and readable text.
-- Test primary card hover states: border turns orange, lift animation, icons fill orange with black centers.
-- Check servicing notes box: orange-tinted background, readable slate text, proper spacing.
-- Supporting services: Verify all 12 cards display with dark backgrounds and consistent styling.
-- Test supporting card hover states: same behavior as primary cards.
-- Verify responsive layout works across all breakpoints.
-- Check text readability: white/orange headings, slate-300/400 body text, proper contrast throughout.
-
-### 2025-10-30 - Cart sidebar redesign to match dark theme
-
-Summary
-
-- Redesigned the desktop cart sidebar on the booking wizard to match the dark theme aesthetic.
-- Sidebar container updated from light to dark:
-  - Background: White ‚Üí Dark slate 900 (`bg-slate-900`)
-  - Border: Orange-200 ‚Üí Slate-700 (`border-slate-700`)
-  - Shadow: Standard ‚Üí Inset shadow (`shadow-inner`)
-  - Corners: `rounded-xl` ‚Üí `rounded-3xl` for consistency
-- "Your booking" heading changed to white with better spacing (`mb-5`)
-- Booking summary card redesigned:
-  - Background: Orange-50 ‚Üí Dark slate 800 (`bg-slate-800`)
-  - Border: Added slate-700 border with `rounded-2xl`
-  - Enhanced shadow (`shadow-lg`)
-  - Pulse animation preserved for price changes
-- Typography updates:
-  - Labels (Service, Vehicle, Tier): Orange-600 ‚Üí Orange-400 with better tracking
-  - Values: Black ‚Üí White for readability
-  - Descriptions: Slate-700 ‚Üí Slate-400
-  - Total label: Slate-300
-  - Total price: Orange-400 (emphasized), larger size (`text-lg font-bold`)
-- Border divider: Orange-200 ‚Üí Slate-600
-- Button redesign:
-  - Continue button: `rounded` ‚Üí `rounded-full`, increased padding (`px-5 py-3`)
-  - Start again button: Light border ‚Üí Dark theme with slate-800 background, slate-600 border, orange hover states
-  - Consistent with other buttons across the site
-- Better spacing throughout (increased gaps and padding)
-
-Files Modified
-
-- apps/booking-web/src/components/CartSidebar.tsx
-
-Testing Notes
-
-- Verify cart sidebar displays with dark theme matching booking wizard header
-- Check text readability: white values, orange labels, slate descriptions
-- Test pulse animation on price changes (still works)
-- Verify Continue button: orange background, rounded-full, proper hover state
-- Verify Start again button: dark background with orange hover
-- Check responsive behavior and spacing
-- Ensure total price stands out with orange-400 color and larger size
-
-### 2025-10-30 - Vehicle modal redesign to match dark theme
-
-Summary
-
-- Completely redesigned the vehicle lookup modal to match the dark theme aesthetic throughout the booking wizard.
-
-**Modal Container:**
-- Background: White ‚Üí Dark slate 900 (`bg-slate-900`)
-- Border: Added slate-700 border
-- Corners: `rounded-lg` ‚Üí `rounded-3xl`
-- Shadow: Standard ‚Üí Enhanced `shadow-2xl`
-- Backdrop: Black/50 ‚Üí Black/70 for better contrast
-- Added padding to outer container (`p-4`)
-
-**Modal Header:**
-- Title: Slate-800 ‚Üí White, increased size (`text-xl`)
-- Added border-bottom separator (`border-b border-slate-700 pb-4`)
-- Close button: Redesigned as proper X icon in rounded circle with hover states
-
-**VRM Lookup Form:**
-- Label: Slate-700 ‚Üí Slate-300
-- VRM input: Enhanced UK number plate styling:
-  - Background: Yellow-200 ‚Üí Yellow-400 (more vivid)
-  - Text: Larger, bold, uppercase, wider tracking
-  - Border: Slate-300 ‚Üí Slate-600
-  - Focus ring: Orange-400 ‚Üí Orange-500
-- Search button: `rounded` ‚Üí `rounded-full`, updated text from "Continue" to "Search"
-- Help text: Slate-500 ‚Üí Slate-400
-- Manual entry link: Blue-700 ‚Üí Orange-400 with better hover
-
-**Manual Entry Form:**
-- All labels: Slate-700 ‚Üí Slate-300
-- All inputs/selects:
-  - Background: White ‚Üí Slate-800
-  - Border: Slate-300 ‚Üí Slate-600
-  - Text: Black ‚Üí White
-  - Placeholder: Slate-500
-  - Focus: Orange border with orange ring
-- Error messages: Red-600 ‚Üí Red-400 (better contrast on dark)
-- Help text: Slate-500 ‚Üí Slate-400
-- Grid spacing increased (`gap-4`)
-
-**Vehicle Summary Card (Both Forms):**
-- Background: Orange-50 ‚Üí Slate-800
-- Border: Slate-200 ‚Üí Slate-700
-- Corners: `rounded` ‚Üí `rounded-2xl`
-- Shadow: Added `shadow-lg`
-- Layout: Changed from paragraph list to key-value pairs with flexbox
-- Labels: Slate-400
-- Values: White with semibold weight
-- Price section: Border-top separator, larger text, orange-400 emphasis
-- Better spacing throughout (`space-y-2`, `space-y-3`)
-
-**Buttons:**
-- **Search again button**: Redesigned to match dark theme:
-  - `rounded-full` shape
-  - Dark slate-800 background
-  - Slate-600 border
-  - Slate-100 text
-  - Hover: Orange border, darker background, orange text
-  - Removed blue underline style
-- **Back buttons**: Same styling as "Search again"
-- **Continue buttons**: `rounded` ‚Üí `rounded-full`, increased padding
-- **Back to lookup**: Same dark theme styling
-- All buttons now consistent with site-wide button design
-
-**Error Messages:**
-- Red-600 ‚Üí Red-400 text
-- Added rounded background (`bg-red-500/10` with `rounded-lg` and `p-3`)
-
-**Overall Improvements:**
-- Better spacing throughout (increased gaps and padding)
-- Enhanced focus states with orange rings
-- Consistent rounded-full buttons
-- Improved readability with proper contrast
-- Mobile-responsive flex layouts for buttons
-- **Fixed mobile scrolling issue**: Modal now scrollable with `max-h-[90vh] overflow-y-auto`, preventing content from being cut off on small screens
-
-Files Modified
-
-- apps/booking-web/src/components/VehicleModal.tsx
-
-Testing Notes
-
-- Verify modal displays with dark slate background
-- Test VRM lookup: yellow input looks like UK number plate, search button works
-- Test manual entry: all fields have dark backgrounds with orange focus rings
-- Check vehicle summary card: key-value layout, price in orange, proper spacing
-- Verify "Search again" button: dark theme with orange hover (no blue underline)
-- Test "Back" and "Back to lookup" buttons: consistent dark styling
-- Check error messages: red text on tinted red background
-- Verify close X button works and has proper hover state
-- Test responsive layout: buttons stack on mobile, grid works properly
-- Check all form validations display correctly with red-400 text
-- **Mobile scrolling**: On small screens, verify modal content scrolls (not backdrop), can reach Continue button at bottom
-
-### 2025-10-30 - Homepage updates: Reviews link and "Get in touch" section redesign
-
-Summary
-
-- Updated Google Reviews link to new URL with enhanced tracking parameters.
-- Completely redesigned "Get in touch" section to match dark theme aesthetic.
-
-**Reviews Section:**
-- Updated Google Reviews link from old URL to new URL with proper tracking parameters
-
-**"Get in touch" Section Redesign:**
-- Section container: White ‚Üí Dark slate 900 (`bg-slate-900` with `border-slate-700` and `shadow-inner`)
-- Added section header with "CONTACT" label (orange-400, uppercase, tracked) and white "Get in touch" heading
-- Better spacing throughout (`space-y-8`)
-
-**Contact Cards (Left Column):**
-All information now in individual dark-themed cards:
-
-1. **Workshop Address Card:**
-   - Dark slate-800 background with slate-700 border
-   - Orange icon circle (orange-500/10 background)
-   - White heading, slate-400 address text
-   - Rounded-2xl corners, shadow-lg
-
-2. **Phone/WhatsApp Card:**
-   - Same dark styling
-   - Buttons redesigned: rounded-full, slate-800 bg, slate-600 border
-   - Hover: Orange border, slate-700 bg, orange-400 text
-   - Responsive: Stack vertically on mobile
-
-3. **Opening Hours Card:**
-   - Individual day/time items in nested dark cards
-   - Dark slate-900 background for each day
-   - Slate-600 borders, rounded-xl
-   - Days in slate-300, times in orange-400
-   - Grid layout (2 columns on sm+)
-
-4. **Social Media Card:**
-   - Facebook and Instagram icons
-   - Dark slate-900 backgrounds, slate-600 borders
-   - Orange-500 icon color
-   - Hover: Orange border, darker background
-
-**Booking Section (Right Column):**
-1. **"Ready to book?" Card:**
-   - Dark slate-800 background with proper spacing
-   - White heading, slate-400 body text
-   - Buttons: Rounded-full with consistent dark theme
-   - "Start booking": Orange-500 background
-   - "Contact us": Dark theme with orange hover
-
-2. **Map:**
-   - Taller height (h-80 instead of h-64)
-   - Rounded-2xl corners matching other cards
-   - Slate-700 border
-
-**Button Consistency:**
-- All buttons use `rounded-full` shape
-- Consistent padding and hover states
-- Dark theme buttons match site-wide design
-
-Files Modified
-
-- apps/booking-web/src/pages/HomePage.tsx
-
-Testing Notes
-
-- Verify Google Reviews link opens correct page with new URL
-- Check "Get in touch" section has dark slate background
-- Verify all contact information cards have proper dark styling
-- Test Call and WhatsApp buttons: dark theme with orange hover
-- Check opening hours grid: 2 columns on desktop, proper spacing
-- Verify social media icons have hover states
-- Test "Start booking" and "Contact us" buttons
-- Check map displays correctly with taller height
-- Verify responsive layout: cards stack on mobile
-- Ensure all text is readable with proper contrast
 
 ### 2025-10-29 - Booking summary card (PriceStep) redesign
 
@@ -1583,7 +1231,7 @@ Files Modified
 Testing Notes
 
 - Trigger a validation failure (e.g. submit the confirm step without agreeing to terms) and verify the API response includes detailed field paths in the `errors` array.
-- Confirm the frontend toast now surfaces the first field-specific validation detail (e.g. `Validation failed ÔøΩ customer.postcode: ...`).
+- Confirm the frontend toast now surfaces the first field-specific validation detail (e.g. `Validation failed ó customer.postcode: ...`).
 
 
 
@@ -1633,9 +1281,9 @@ Testing Notes
 Summary
 
 - After pnpm install, warnings are expected and safe to ignore for now:
-  - pnpm update available banner ÔøΩ informational only.
-  - eslint@8.57.0 deprecated ÔøΩ dev tooling; does not affect builds/runtime.
-  - A few deprecated transitive deps (glob/inflight/rimraf etc.) ÔøΩ tied to ESLint.
+  - pnpm update available banner ó informational only.
+  - eslint@8.57.0 deprecated ó dev tooling; does not affect builds/runtime.
+  - A few deprecated transitive deps (glob/inflight/rimraf etc.) ó tied to ESLint.
 
 Impact
 
@@ -1646,177 +1294,3 @@ Recommendations
 
 - Optional: update pnpm globally (pnpm add -g pnpm).
 - Optional: schedule an ESLint 9 migration later and align @typescript-eslint v8 config. Not urgent.
-\n+### 2025-10-30 - Footer dark theme + Cookie Policy page (Codex)
-\n+Summary
-\n+- Redesigned the site footer to match the dark theme used elsewhere (slate backgrounds, orange accents). Ensured the logo remains large and readable, updated heading colors, and adjusted divider/text colors for contrast.
-- Added a "Cookie Policy" link under Quick Links and created a new Cookie Policy page with sections covering what cookies are, types, examples used, and how to manage them.
-- Wired the new page into the router.
-\n+Files Modified / Added
-\n+- apps/booking-web/src/components/Footer.tsx
-- apps/booking-web/src/pages/CookiePolicyPage.tsx (new)
-- apps/booking-web/src/routes.tsx
-\n+Testing Notes
-\n+- Footer renders with dark background (`bg-slate-900`) and white/neutral text; orange accents on hover remain consistent.
-- Quick Links now include "Cookie Policy" and navigates to `/cookie-policy`.
-- Visit `/cookie-policy` to review content sections and example cookie table; outbound links open in a new tab.
-## [2025-10-30] Air Con packages section restyle (Codex)
-Summary
-- Restyled the Air Con page "Packages tailored to your vehicle" section to match the site‚Äôs dark theme: slate-900 section background, slate-800 cards, slate-700 borders, white headings, slate-300/400 body text, and orange hover/focus accents.
-- Converted the plain text CTA to a rounded-full orange button with accessible focus ring and subtle lift on hover.
-
-Files Modified
-- apps/booking-web/src/pages/AirConPage.tsx
-
-Testing Notes
-- Navigate to `/air-con`.
-- Verify the "Packages tailored to your vehicle" section uses a dark container and three dark cards.
-- Hover a card: it lifts slightly and the border turns orange; card text lightens.
-- CTA: rounded-full orange button, hover lightens, keyboard focus shows a clear orange ring.
-- Responsive: grid stacks to 1 column on mobile and 3 on `md`.
-## [2025-10-30] Air Con inspections + Diagnostics page dark restyle (Codex)
-Summary
-- Air Con: Restyled the "What we inspect every time" section to dark theme (slate-900 container, slate-700 border, white heading, slate-400 list, orange bullets) to match established patterns.
-- Diagnostics: Introduced a dark-themed version of the page with consistent sections and card styles. Updated routes to use the new component.
-
-Files Modified
-- apps/booking-web/src/pages/AirConPage.tsx
-- apps/booking-web/src/pages/DiagnosticsPageDark.tsx (new)
-- apps/booking-web/src/routes.tsx
-
-Testing Notes
-- Air Con page: `/air-con` ‚Üí verify the "What we inspect every time" section now uses dark styling and the right-hand highlight panel still overlays correctly.
-- Diagnostics page: `/diagnostics` ‚Üí confirm both main content sections are dark-themed:
-  - "What we deliver": slate-900 section, slate-700 border; list items in slate-400 with orange dots.
-  - Right card: slate-800 with slate-700 border and white text.
-  - "How to book": dark container, white heading, slate-300 body, orange primary CTA with focus ring and white-outlined secondary CTA.
-  - Hero remains unchanged and matches site pattern.
-## [2025-10-30] Contact page dark restyle + hero image swap (Codex)
-Summary
-- Restyled Contact page sections to match dark theme patterns: slate-900 containers with slate-700 borders, slate-800 list items, white headings, slate-300/400 body text, and orange accents.
-- Updated hero background image to local asset and improved CTA accessibility with focus-visible rings and hover lift.
-
-Files Modified
-- apps/booking-web/src/pages/ContactPage.tsx
-
-Testing Notes
-- Navigate to `/contact`.
-- Hero uses `apps/booking-web/src/assets/images/contact-us-bg-image.jpg`; overlay remains and text is readable.
-- ‚ÄúWorkshop/Call us/Opening hours‚Äù section uses dark container; opening hours list uses dark cards; phone number remains orange.
-- Form inputs use dark fields with clear focus rings; submit button is rounded-full orange with hover lift and focus ring.
-## [2025-10-30] Account page dark restyle + hide docs + verification UI removed (Codex)
-Summary
-- Restyled the Account page sections to the dark theme: slate-900 containers, slate-700 borders, slate-800 list items, white headings, and orange accents.
-- Booking history: removed the Documents chip list (invoice/quote no longer visible). Kept the View details button.
-- Updated status badges to dark-friendly colors.
-- Began removing email verification prompts: verification panel is disabled; backend already auto-verifies on registration. The only remaining UI reference is the inline status text; we can fully remove it next if desired.
-
-Files Modified
-- apps/booking-web/src/pages/AccountPage.tsx
-
-Testing Notes
-- Visit `/account` while logged in.
-- Verify dark styling across all account sections.
-- Booking history cards are dark; hovering View details shows orange border/text.
-- Documents section should not render for any booking.
-- Status badges render with subtle colored borders on dark background.
-- No verification alert panel should appear; if an inline ‚ÄúStatus: ‚Ä¶‚Äù remains, confirm it no longer blocks any action and say if you want that line hidden entirely.
-## [2025-10-30] Remove verify-email route (Codex)
-Summary
-- Removed the `/verify-email` route and its import from the web app so users never see verification messaging.
-- Left the page file in place for now due to a non-UTF8 encoding issue; it is unreachable and unused.
-
-Files Modified
-- apps/booking-web/src/routes.tsx
-
-Testing Notes
-- Navigate to `/verify-email` and confirm it is no longer routed (expect 404 or redirect per router defaults).
-## [2025-10-30] Normalize quotes on Account + Booking detail (Codex)
-Summary
-- Fixed mojibake smart quotes on Account and Booking Detail pages by replacing with ASCII apostrophes.
-- Booking Detail: replaced a corrupted back-arrow label with plain "Back to account".
-
-Files Modified
-- apps/booking-web/src/pages/AccountPage.tsx
-- apps/booking-web/src/pages/BookingDetailPage.tsx
-
-Testing Notes
-- Visit `/account` and ensure all text reads correctly: "we'll", "you're", "doesn't", "haven't", and "Loading...".
-- Visit `/account/bookings/:id` and confirm the "Back to account" link label renders correctly (no strange characters).
-## [2025-10-30] API: remove email verification helpers (Codex)
-Summary
-- Removed unused email verification helpers from the API: the verification email sender and URL builder.
-- Switched portal URL derivation to optional `PORTAL_BASE_URL` with a localhost fallback; no dependency on verification envs.
-- Cleaned `.env.example` by removing `EMAIL_VERIFICATION_URL` and `EXPOSE_VERIFICATION_TOKEN`.
-
-Files Modified
-- apps/booking-api/src/email/email.service.ts
-- apps/booking-api/.env.example
-
-Testing Notes
-- Build the API and send a booking confirmation to verify links render (they use the booking URL builder, unaffected by removal).
-- If you want a custom portal base, set `PORTAL_BASE_URL` in the API environment.
-
-## [2025-10-30] Account page rebuild (fix JSX + encoding) (Codex)
-Summary
-- Rebuilt `AccountPage.tsx` to resolve JSX errors, missing state setters, and mojibake artifacts.
-- Preserved dark theme styling and removed document chips; kept ‚ÄúView details‚Äù.
-- Restored `profileStatus`/`bookingsStatus` logic with clean loading/error states.
-
-Files Modified
-- apps/booking-web/src/pages/AccountPage.tsx
-
-Testing Notes
-- Visit `/account` logged in: verify no TypeScript/JSX errors, all sections render, and copy is clean (no weird characters).
-## [2025-10-30] Booking Detail page dark restyle (Codex)
-Summary
-- Restyled `/account/bookings/:id` to match the dark theme: slate-900 sections, slate-800 cards, slate-700 borders, white headings, slate-300 body text, and orange accents.
-- Updated status badges for dark readability; refined loading and error states to dark variants.
-
-Files Modified
-- apps/booking-web/src/pages/BookingDetailPage.tsx
-
-Testing Notes
-- Visit `/account/bookings/:id`:
-  - Hero header is dark with orange accents; "Back to account" and "Book another visit" buttons styled consistently.
-  - "Services & totals" uses dark cards; amounts are readable; notes card is dark.
-  - "Vehicle & contact" uses dark styling; labels in slate-400, values white/slate-300.
-  - "Documents" section uses dark cards; link shows orange underline; empty state uses dashed dark card.
-  - Status badges are legible on dark backgrounds.
-## [2025-10-30] Admin Panel dark restyle (Codex)
-Summary
-- Restyled the admin dashboard to the site‚Äôs dark theme with orange accents.
-- Admin header uses a dark gradient hero with white headings and a bordered Logout button.
-- Converted Catalog, Calendar, Recipients, and Settings sections to dark cards: slate-900 containers, slate-800 list items, slate-700 borders, white/soft slate text.
-- Updated inputs to dark fields and buttons to rounded-full orange with hover lift; destructive actions use subtle red borders.
-
-Files Modified
-- apps/booking-web/src/pages/AdminPage.tsx
-- apps/booking-web/src/features/admin/CatalogManager.tsx
-- apps/booking-web/src/features/admin/CalendarManager.tsx
-- apps/booking-web/src/features/admin/RecipientsManager.tsx
-- apps/booking-web/src/features/admin/SettingsManager.tsx
-
-Testing Notes
-- Visit `/admin` with an ADMIN/STAFF account:
-  - Header: dark gradient, white heading, logout button with orange hover.
-  - Catalog: dark cards; forms and lists styled dark; tier line shows "Sort order X ¬∑ Max CC Y".
-  - Calendar: exception/extra slots sections are dark; inputs/buttons styled; delete buttons use red accents.
-  - Recipients: dark form and list; add/remove flows work.
-  - Settings: general form, DVLA integration, and test lookup all use dark styling; currency symbol shows as `¬£`.
-\n## 2025-10-31 ‚Äì Admin panel contrast fixes (tiers/prices + settings)
-
-Summary:
-- Improved readability in Admin by aligning remaining light-theme bits to the site‚Äôs dark card pattern.
-- CatalogManager: darkened Engine Tiers and Service Prices rows, labels, inputs, and buttons; fixed mojibake in tier summary line.
-- SettingsManager: darkened remaining labels/inputs/selects/textarea and helper + message text.
-
-Files Modified:
-- apps/booking-web/src/features/admin/CatalogManager.tsx
-- apps/booking-web/src/features/admin/SettingsManager.tsx
-
-Testing Notes:
-- Visit `/admin` and scan all sections.
-- Catalog ‚Üí Engine tiers: labels are slate-400, inputs use slate-800/700 and text-slate-200; list rows are slate-800 with white headings; action buttons readable with orange hover.
-- Catalog ‚Üí Service prices: helper text slate-400; rows slate-800 with white names and slate-400 prices; Update button readable.
-- Settings ‚Üí General: confirm ‚ÄúConfirm rate limit/day‚Äù, Turnstile selects, and Company address use dark inputs; helper/message text uses slate-300/400.
-- Calendar/Recipients verified already in dark pattern; no further changes required.
