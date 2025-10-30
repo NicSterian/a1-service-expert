@@ -100,10 +100,28 @@ export function VehicleModal(props: { open: boolean; onClose: () => void; onAdde
     finally{ setBusy(false); }
   });
 
-  const handleConfirm = ()=>{
+  const handleConfirm = async ()=>{
     if(!summary) return;
     const cleanedModel = sanitizeModel(summary.model);
-    updateDraft({ vehicle: { vrm: summary.vrm, make: summary.make ?? undefined, model: cleanedModel ?? undefined, engineSizeCc: summary.engineSizeCc ?? undefined }, engineTierCode: summary.engineTierCode ?? undefined, engineTierName: summary.engineTierName ?? undefined, pricePence: typeof summary.pricePence==='number'? summary.pricePence: undefined });
+    let price = typeof summary.pricePence === 'number' ? summary.pricePence : undefined;
+    let tierCode = summary.engineTierCode ?? undefined;
+    let tierName = summary.engineTierName ?? undefined;
+    try {
+      if (serviceId && summary.engineSizeCc) {
+        const rec = await apiPost<RecommendTierResponse>('/vehicles/recommend-tier', { serviceId: serviceId, engineSizeCc: summary.engineSizeCc });
+        if (typeof rec.pricePence === 'number') price = rec.pricePence;
+        if (rec.engineTierCode) tierCode = rec.engineTierCode;
+        if (rec.engineTierName) tierName = rec.engineTierName ?? undefined;
+      }
+    } catch {
+      // keep existing values if recommend-tier fails
+    }
+    updateDraft({
+      vehicle: { vrm: summary.vrm, make: summary.make ?? undefined, model: cleanedModel ?? undefined, engineSizeCc: summary.engineSizeCc ?? undefined },
+      engineTierCode: tierCode,
+      engineTierName: tierName,
+      pricePence: price,
+    });
     onAdded();
   };
 
@@ -121,17 +139,21 @@ export function VehicleModal(props: { open: boolean; onClose: () => void; onAdde
       <div role="dialog" aria-modal="true" className="relative w-full max-w-2xl rounded-lg bg-white p-4 shadow-xl">
         <header className="mb-3 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-slate-800">Find your vehicle</h3>
-          <button type="button" aria-label="Close" onClick={onClose} className="rounded p-1 text-slate-500 hover:bg-slate-100">✕</button>
+          <button type="button" aria-label="Close" onClick={onClose} className="rounded p-1 text-slate-500 hover:bg-slate-100">?</button>
         </header>
 
         {active==='vrm' ? (
           <form className="space-y-3" onSubmit={handleLookup} noValidate>
             <label className="block text-sm font-medium text-slate-700">Vehicle registration</label>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input type="text" placeholder="Enter your registration" className="flex-1 rounded border border-slate-300 bg-yellow-200 px-3 py-2 text-slate-900 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-400" {...vrmForm.register('vrm')} />
-              <button type="submit" disabled={!vrmForm.formState.isValid || busy} className="rounded bg-orange-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50">Continue</button>
-            </div>
-            <div className="text-xs text-slate-500">We’ll use DVLA to look up your vehicle. You can enter details manually <button type="button" onClick={()=>setActive('manual')} className="text-blue-700 underline">here</button>.</div>
+            {!summary ? (
+              <>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input type="text" placeholder="Enter your registration" className="flex-1 rounded border border-slate-300 bg-yellow-200 px-3 py-2 text-slate-900 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-400" {...vrmForm.register('vrm')} />
+                  <button type="submit" disabled={!vrmForm.formState.isValid || busy} className="rounded bg-orange-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50">Continue</button>
+                </div>
+                <div className="text-xs text-slate-500">We'll use DVLA to look up your vehicle. You can enter details manually <button type="button" onClick={()=>setActive('manual')} className="text-blue-700 underline">here</button>.</div>
+              </>
+            ) : null}
             {busy ? <LoadingIndicator label="Searching DVLA…" />: null}
             {error ? <p className="text-sm text-red-600">{error}</p>: null}
             {summary ? (
@@ -144,7 +166,7 @@ export function VehicleModal(props: { open: boolean; onClose: () => void; onAdde
                 <p>{`Engine size: ${summary.engineSizeCc ? `${summary.engineSizeCc} cc` : 'Unknown'}`}</p>
                 {typeof summary.pricePence==='number' ? (<p>{`Price: ${gbCurrency.format(summary.pricePence/100)}`}</p>) : null}
                 <div className="mt-3 flex justify-end gap-2">
-                  <button type="button" onClick={()=>setActive('vrm')} className="text-sm text-blue-700 underline">Search again</button>
+                  <button type="button" onClick={()=>{ setSummary(null); vrmForm.reset({ vrm: '' }); }} className="text-sm text-blue-700 underline">Search again</button>
                   <button type="button" onClick={handleConfirm} disabled={!canContinue} className="rounded bg-orange-500 px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50">Continue</button>
                 </div>
               </div>
@@ -208,12 +230,15 @@ export function VehicleModal(props: { open: boolean; onClose: () => void; onAdde
                 <p>{`Engine size: ${summary.engineSizeCc ? `${summary.engineSizeCc} cc` : 'Unknown'}`}</p>
                 {typeof summary.pricePence==='number' ? (<p>{`Price: ${gbCurrency.format(summary.pricePence/100)}`}</p>) : null}
                 <div className="mt-3 flex justify-end gap-2">
-                  <button type="button" onClick={()=>setSummary(null)} className="text-sm text-blue-700 underline">Change details</button>
+                  <button type="button" onClick={()=>{ setSummary(null); setActive('vrm'); }} className="text-sm text-blue-700 underline">Back to lookup</button>
                   <button type="button" onClick={handleConfirm} disabled={!canContinue} className="rounded bg-orange-500 px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50">Continue</button>
                 </div>
               </div>
             ) : (
-              <div className="flex justify-end"><button type="submit" disabled={!manualForm.formState.isValid || busy} className="rounded bg-orange-500 px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50">Continue</button></div>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={()=>setActive('vrm')} className="rounded border border-slate-300 px-4 py-2 text-sm text-slate-700">Back</button>
+                <button type="submit" disabled={!manualForm.formState.isValid || busy} className="rounded bg-orange-500 px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50">Continue</button>
+              </div>
             )}
           </form>
         )}
@@ -221,3 +246,5 @@ export function VehicleModal(props: { open: boolean; onClose: () => void; onAdde
     </div>
   );
 }
+
+

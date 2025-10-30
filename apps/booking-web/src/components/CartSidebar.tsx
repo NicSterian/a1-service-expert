@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useBookingWizard } from '../features/booking/state';
 
@@ -14,11 +14,29 @@ export function CartSidebar() {
   const tierName = draft.engineTierName ?? null;
   const vrm = draft.vehicle?.vrm ?? '';
   const make = draft.vehicle?.make ?? 'Not set';
-  const price =
-    typeof draft.pricePence === 'number' ? gbCurrency.format(draft.pricePence / 100) : null;
+  const price = typeof draft.pricePence === 'number' ? gbCurrency.format(draft.pricePence / 100) : null;
+
+  const prevPriceRef = useRef<number | null>(null);
+  const [pulse, setPulse] = useState(false);
+  useEffect(() => {
+    if (typeof draft.pricePence === 'number') {
+      if (prevPriceRef.current !== null && prevPriceRef.current !== draft.pricePence) {
+        setPulse(true);
+        const t = setTimeout(() => setPulse(false), 600);
+        return () => clearTimeout(t);
+      }
+      prevPriceRef.current = draft.pricePence;
+    }
+  }, [draft.pricePence]);
+
+  const isOnDateTimeStep = location.pathname.includes('/date-time');
 
   const canContinue =
-    Boolean(draft.serviceId) && Boolean(draft.vehicle?.vrm) && typeof draft.pricePence === 'number';
+    Boolean(draft.serviceId) &&
+    Boolean(draft.vehicle?.vrm) &&
+    typeof draft.pricePence === 'number' &&
+    // On date-time step, also require date and time to be selected
+    (!isOnDateTimeStep || (Boolean(draft.date) && Boolean(draft.time)));
 
   const handleContinue = () => {
     if (!canContinue) return;
@@ -29,7 +47,7 @@ export function CartSidebar() {
       return;
     }
 
-    if (location.pathname.includes('/date-time')) {
+    if (isOnDateTimeStep) {
       markStepComplete('date-time');
       navigate('/online-booking/details-confirm');
       return;
@@ -48,7 +66,7 @@ export function CartSidebar() {
     <aside className="rounded-xl border-2 border-orange-200 bg-white p-5 shadow-md">
       <h3 className="mb-4 text-lg font-semibold text-brand-black">Your booking</h3>
 
-      <div className="space-y-3 rounded-lg bg-orange-50 p-4 text-sm text-brand-black">
+      <div className={`space-y-3 rounded-lg bg-orange-50 p-4 text-sm text-brand-black ${pulse ? 'animate-pulse' : ''}`}>
         <div>
           <p className="text-xs uppercase text-orange-600">Service</p>
           <p className="text-base font-semibold leading-tight">{serviceName}</p>

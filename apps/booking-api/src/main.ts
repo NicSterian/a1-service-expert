@@ -12,6 +12,26 @@ function getCorsOrigins(): (string | RegExp)[] {
   return env.split(',').map((origin) => origin.trim()).filter(Boolean);
 }
 
+type FormattedValidationError = {
+  field: string;
+  errors: string[];
+};
+
+const formatValidationErrors = (errors: any[], parentPath = ''): FormattedValidationError[] => {
+  if (!Array.isArray(errors) || errors.length === 0) {
+    return [];
+  }
+
+  return errors.flatMap((error) => {
+    const property: string | undefined = error?.property;
+    const path = property ? (parentPath ? `${parentPath}.${property}` : property) : parentPath;
+    const constraints = error?.constraints ? Object.values(error.constraints) : [];
+    const children = formatValidationErrors(error?.children ?? [], path);
+    const current: FormattedValidationError[] = constraints.length ? [{ field: path, errors: constraints.map(String) }] : [];
+    return [...current, ...children];
+  });
+};
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
@@ -27,10 +47,7 @@ async function bootstrap() {
       transformOptions: { enableImplicitConversion: true },
       validationError: { target: false },
       exceptionFactory: (errors) => {
-        const formatted = errors.map((error) => ({
-          field: error.property,
-          errors: Object.values(error.constraints ?? {}),
-        }));
+        const formatted = formatValidationErrors(errors);
         return new BadRequestException({
           message: 'Validation failed',
           errors: formatted,

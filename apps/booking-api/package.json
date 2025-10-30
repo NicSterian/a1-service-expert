@@ -4,9 +4,9 @@
     "version":  "0.0.1",
     "description":  "NestJS API for the A1 Service Expert booking platform",
     "scripts":  {
-                    "dev":  "nest start --watch --entryFile main",
+                    "dev":  "nest start --watch --entryFile apps/booking-api/src/main",
                     "build":  "nest build",
-                    "start":  "node dist/main.js",
+                    "start":  "node dist/apps/booking-api/src/main.js",
                     "prisma:g":  "prisma generate",
                     "prisma:migrate":  "prisma migrate dev",
                     "prisma:seed":  "prisma db seed",

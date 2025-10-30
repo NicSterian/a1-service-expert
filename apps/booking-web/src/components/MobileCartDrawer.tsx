@@ -12,8 +12,15 @@ export function MobileCartDrawer() {
 
   const price =
     typeof draft.pricePence === 'number' ? gbCurrency.format(draft.pricePence / 100) : 'N/A';
+
+  const isOnDateTimeStep = location.pathname.includes('/date-time');
+
   const canContinue =
-    Boolean(draft.serviceId) && Boolean(draft.vehicle?.vrm) && typeof draft.pricePence === 'number';
+    Boolean(draft.serviceId) &&
+    Boolean(draft.vehicle?.vrm) &&
+    typeof draft.pricePence === 'number' &&
+    // On date-time step, also require date and time to be selected
+    (!isOnDateTimeStep || (Boolean(draft.date) && Boolean(draft.time)));
 
   const handleContinue = () => {
     if (!canContinue) return;
@@ -25,7 +32,7 @@ export function MobileCartDrawer() {
       return;
     }
 
-    if (location.pathname.includes('/date-time')) {
+    if (isOnDateTimeStep) {
       markStepComplete('date-time');
       navigate('/online-booking/details-confirm');
       setOpen(false);

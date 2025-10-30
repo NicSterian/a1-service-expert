@@ -7,9 +7,29 @@ import HeaderLogo from './components/HeaderLogo';
 import Footer from './components/Footer';
 import BackToTop from './components/BackToTop';
 
-interface CurrentUser {
+interface PublicUser {
+  id: number;
   email: string;
   role: string;
+  emailVerified: boolean;
+  title: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  companyName: string | null;
+  mobileNumber: string | null;
+  landlineNumber: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  addressLine3: string | null;
+  city: string | null;
+  county: string | null;
+  postcode: string | null;
+  marketingOptIn: boolean;
+  notes: string | null;
+  profileUpdatedAt: string | null;
+  lastLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 type NavLinkItem = {
@@ -32,7 +52,7 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isLoggedIn, setIsLoggedIn] = useState(Boolean(getAuthToken()));
-  const [user, setUser] = useState<CurrentUser | null>(null);
+  const [user, setUser] = useState<PublicUser | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
@@ -57,13 +77,19 @@ function App() {
       }
 
       try {
-        const response = await apiGet<{ user: CurrentUser }>('/auth/me');
+        const response = await apiGet<{ user: PublicUser }>('/auth/me');
         if (!cancelled) {
           setUser(response.user);
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
           setUser(null);
+          // If token is invalid or expired, clear it
+          const errorMsg = String((error as Error)?.message ?? '');
+          if (errorMsg.toLowerCase().includes('unauthorized') || errorMsg.toLowerCase().includes('invalid token')) {
+            clearAuthToken();
+            setIsLoggedIn(false);
+          }
         }
       }
     };
@@ -133,7 +159,10 @@ function App() {
     };
   }, [profileMenuOpen]);
 
-  const userInitial = user?.email?.[0]?.toUpperCase() ?? '?';
+  const userInitial = user?.firstName?.[0]?.toUpperCase() ?? user?.lastName?.[0]?.toUpperCase() ?? user?.email?.[0]?.toUpperCase() ?? '?';
+  const userDisplayName = user?.firstName && user?.lastName
+    ? `${user.firstName} ${user.lastName}`.trim()
+    : user?.email ?? 'User';
 
   const renderNavLink = (link: NavLinkItem, variant: 'desktop' | 'mobile') => {
     const isActive = location.pathname === link.to;
@@ -250,7 +279,7 @@ function App() {
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-orange/90 text-xs font-bold text-slate-900">
                       {userInitial}
                     </span>
-                    <span className="hidden md:inline">{user?.email}</span>
+                    <span className="hidden md:inline">{userDisplayName}</span>
                     <span aria-hidden className={`transition ${profileMenuOpen ? 'rotate-180' : ''}`}>
                       <svg viewBox="0 0 24 24" className="h-3 w-3" fill="currentColor">
                         <path d="M12 15.5a1 1 0 0 1-.64-.23l-6-5a1 1 0 1 1 1.28-1.54L12 13.27l5.36-4.54a1 1 0 0 1 1.28 1.54l-6 5a1 1 0 0 1-.64.23Z" />

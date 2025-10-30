@@ -1,5 +1,6 @@
-import { FormEvent, useEffect, useState } from 'react';
-import { apiDelete, apiGet, apiPatch, apiPost } from '../../lib/api';
+﻿import { FormEvent, useEffect, useState } from 'react';
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from '../../lib/api';
+import toast from 'react-hot-toast';
 
 interface Service {
   id: number;
@@ -85,6 +86,43 @@ export function CatalogManager() {
     setServices(svc);
     setTiers(et);
     setPrices(pr);
+  };
+
+  const applyFixedMenuPrices = async () => {
+    try {
+      const svcByCode = new Map<string, number>();
+      services.forEach((s) => svcByCode.set(s.code, s.id));
+      const tierByName = new Map<string, number>();
+      tiers.forEach((t) => tierByName.set(t.name, t.id));
+
+      const table: Array<{ code: string; tier: string; pence: number }> = [
+        { code: 'SERVICE_1', tier: 'Small', pence: 7995 },
+        { code: 'SERVICE_1', tier: 'Medium', pence: 8995 },
+        { code: 'SERVICE_1', tier: 'Large', pence: 9995 },
+        { code: 'SERVICE_1', tier: 'Ex-Large', pence: 10995 },
+        { code: 'SERVICE_2', tier: 'Small', pence: 11995 },
+        { code: 'SERVICE_2', tier: 'Medium', pence: 12995 },
+        { code: 'SERVICE_2', tier: 'Large', pence: 13995 },
+        { code: 'SERVICE_2', tier: 'Ex-Large', pence: 15995 },
+        { code: 'SERVICE_3', tier: 'Small', pence: 17995 },
+        { code: 'SERVICE_3', tier: 'Medium', pence: 17995 },
+        { code: 'SERVICE_3', tier: 'Large', pence: 19995 },
+        { code: 'SERVICE_3', tier: 'Ex-Large', pence: 21995 },
+      ];
+
+      const ops = table.map((row) => {
+        const sid = svcByCode.get(row.code);
+        const tid = tierByName.get(row.tier);
+        if (!sid || !tid) return null;
+        return apiPut('/admin/catalog/prices', { serviceId: sid, engineTierId: tid, amountPence: row.pence });
+      }).filter(Boolean) as Array<Promise<unknown>>;
+
+      await Promise.all(ops);
+      await refresh();
+      toast.success('Fixed menu prices applied');
+    } catch (err) {
+      toast.error((err as Error)?.message ?? 'Failed to apply prices');
+    }
   };
 
   const handleCreateService = async (event: FormEvent) => {
@@ -320,7 +358,7 @@ export function CatalogManager() {
                   <li key={tier.id} className="flex items-center justify-between rounded border border-slate-200 p-3">
                     <div>
                       <p className="font-semibold text-brand-black">{tier.name}</p>
-                      <p className="text-xs text-slate-500">Sort order {tier.sortOrder} • Max CC {tier.maxCc ?? '—'}</p>
+                      <p className="text-xs text-slate-500">Sort order {tier.sortOrder} â€¢ Max CC {tier.maxCc ?? 'â€”'}</p>
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -359,7 +397,10 @@ export function CatalogManager() {
 
             <div className="space-y-3 rounded border border-slate-200 bg-white p-4">
               <h3 className="text-lg font-medium text-brand-black">Service prices</h3>
-              <p className="text-xs text-slate-500">Click a price to update it (stored in pence).</p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500">Click a price to update it (stored in pence).</p>
+                <button type="button" onClick={applyFixedMenuPrices} className="rounded bg-brand-orange px-2 py-1 text-xs text-white hover:bg-orange-500">Apply fixed menu prices</button>
+              </div>
               <ul className="space-y-2 text-sm">
                 {prices.map((price) => (
                   <li key={`${price.serviceId}-${price.engineTierId}`} className="flex items-center justify-between rounded border border-slate-200 p-3">
@@ -387,3 +428,4 @@ export function CatalogManager() {
     </section>
   );
 }
+

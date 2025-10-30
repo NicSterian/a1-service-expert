@@ -1,4 +1,4 @@
-﻿import {
+import {
   BadRequestException,
   ConflictException,
   Injectable,
@@ -311,7 +311,7 @@ export class BookingsService {
     const addressLine2 = sanitiseString(dto.customer.addressLine2);
     const addressLine3 = sanitiseString(dto.customer.addressLine3);
     const customerCity = sanitiseString(dto.customer.city) ?? dto.customer.city.trim();
-    const customerCounty = sanitiseString(dto.customer.county) ?? dto.customer.county.trim();
+    const customerCounty = sanitiseString(dto.customer.county) ?? dto.customer.county?.trim() ?? null;
     const customerPostcode = normalisePostcode(dto.customer.postcode);
     const marketingOptIn = dto.customer.marketingOptIn ?? false;
     const acceptedTermsAt = dto.customer.acceptedTerms ? new Date() : null;
@@ -512,7 +512,14 @@ export class BookingsService {
       ),
     ]);
 
-    await this.sendConfirmationEmails(result.booking, finalInvoice, finalQuote, result.totalAmountPence);
+    try {
+      await this.sendConfirmationEmails(result.booking, finalInvoice, finalQuote, result.totalAmountPence);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send booking confirmation emails for booking ${result.booking.id}`,
+        (error as Error)?.stack ?? String(error),
+      );
+    }
 
     return this.presentConfirmation(result.booking, finalInvoice, finalQuote, {
       totalAmountPence: result.totalAmountPence,
