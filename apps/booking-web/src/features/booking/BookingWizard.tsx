@@ -1,9 +1,10 @@
-﻿import { ReactNode, useEffect } from 'react';
+﻿import { ReactNode, useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { BookingWizardProvider, useBookingWizard } from './state';
 import { CartSidebar } from '../../components/CartSidebar';
 import { MobileCartDrawer } from '../../components/MobileCartDrawer';
 import type { BookingStep } from './types';
+import { AUTH_EVENT_NAME, getAuthToken } from '../../lib/auth';
 
 const steps: Array<{ id: BookingStep; label: string; description: string; route: string }> = [
   { id: 'services', label: 'Services', description: 'Choose your service package', route: '.' },
@@ -78,10 +79,21 @@ function BookingWizardShell() {
   const locationStep = useCurrentStepFromLocation();
   const navigate = useNavigate();
   const { setCurrentStep, setLoginPanelOpen } = useBookingWizard();
+  const [isLoggedIn, setIsLoggedIn] = useState(Boolean(getAuthToken()));
 
   useEffect(() => {
     setCurrentStep(locationStep);
   }, [locationStep, setCurrentStep]);
+
+  useEffect(() => {
+    const handleAuthChange = () => setIsLoggedIn(Boolean(getAuthToken()));
+    window.addEventListener(AUTH_EVENT_NAME, handleAuthChange);
+    window.addEventListener('storage', handleAuthChange);
+    return () => {
+      window.removeEventListener(AUTH_EVENT_NAME, handleAuthChange);
+      window.removeEventListener('storage', handleAuthChange);
+    };
+  }, []);
 
   const handleLogin = () => {
     setLoginPanelOpen(true);
@@ -102,13 +114,15 @@ function BookingWizardShell() {
             <h1 className="text-3xl font-semibold text-brand-black">Online Booking</h1>
             <p className="text-slate-600">Follow the steps below to reserve your service slot.</p>
           </div>
-          <button
-            type="button"
-            onClick={handleLogin}
-            className="self-start rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand-orange hover:text-brand-orange"
-          >
-            Login
-          </button>
+          {!isLoggedIn ? (
+            <button
+              type="button"
+              onClick={handleLogin}
+              className="self-start rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand-orange hover:text-brand-orange"
+            >
+              Login
+            </button>
+          ) : null}
         </div>
         <Stepper />
       </header>
@@ -119,7 +133,7 @@ function BookingWizardShell() {
             <Outlet />
           </div>
           <div className="hidden lg:block">
-            <CartSidebar />
+            {locationStep !== 'details-confirm' ? <CartSidebar /> : null}
           </div>
         </div>
         <MobileCartDrawer />

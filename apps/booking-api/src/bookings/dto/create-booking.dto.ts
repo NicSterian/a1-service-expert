@@ -82,9 +82,10 @@ export class CustomerDetailsDto {
   @IsNotEmpty()
   city!: string;
 
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
-  county!: string;
+  county?: string;
 
   @IsString()
   @IsNotEmpty()

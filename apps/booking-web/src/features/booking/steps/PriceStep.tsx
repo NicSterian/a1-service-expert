@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { SERVICE_DETAILS, type ServiceCode } from '@a1/shared/pricing';
 import { useBookingWizard } from '../state';
@@ -12,7 +11,7 @@ const priceFormatter = new Intl.NumberFormat('en-GB', {
 
 export function PriceStep() {
   const navigate = useNavigate();
-  const { draft, markStepComplete } = useBookingWizard();
+  const { draft } = useBookingWizard();
   const { catalog } = useCatalogSummary();
 
   const hasService = Boolean(draft.serviceId && draft.serviceName);
@@ -25,17 +24,6 @@ export function PriceStep() {
     typeof draft.pricePence === 'number'
       ? priceFormatter.format(draft.pricePence / 100)
       : null;
-
-  const canContinue = hasService && typeof draft.pricePence === 'number';
-
-  const handleContinue = () => {
-    if (!canContinue) {
-      toast.error('Vehicle details are required before continuing.');
-      return;
-    }
-    markStepComplete('pricing');
-    navigate('../date-time');
-  };
 
   const handleBack = () => {
     navigate('..');
@@ -73,10 +61,10 @@ export function PriceStep() {
         </p>
       </header>
 
-      <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="space-y-4 rounded-3xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-inner">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="flex flex-1 items-start gap-3">
-            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-brand-black text-white">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-orange-500 text-black">
               <svg
                 aria-hidden="true"
                 width="24"
@@ -102,13 +90,13 @@ export function PriceStep() {
               </svg>
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-brand-black">
+              <h3 className="text-lg font-semibold text-white">
                 {draft.serviceName ?? serviceDetails?.name}
               </h3>
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-slate-300">
                 {draft.serviceDescription ?? serviceDetails?.description}
               </p>
-              <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-slate-500">
+              <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-slate-400">
                 {(serviceDetails?.disclaimers ?? [
                   'Up to 5 litres of standard oil included. Certain oil types may incur an additional charge.',
                   'Additional costs for parts only and will not incur any labour charges.',
@@ -120,50 +108,42 @@ export function PriceStep() {
           </div>
 
           <div className="flex flex-col items-end gap-2 text-right">
-            <div className="text-xs uppercase text-orange-600">Tier</div>
-            <div className="text-base font-semibold text-brand-black">{tier}</div>
-            <div className="text-xs uppercase text-orange-600">Total</div>
-            <div className="text-xl font-bold text-brand-black">{priceText ?? 'Contact us'}</div>
+            <div className="text-xs uppercase text-orange-400">Tier</div>
+            <div className="text-base font-semibold text-white">{tier}</div>
+            <div className="text-xs uppercase text-orange-400">Total</div>
+            <div className="text-xl font-bold text-orange-400">{priceText ?? 'Contact us'}</div>
             {catalog ? (
-              <div className="text-[11px] text-slate-500">
+              <div className="text-[11px] text-slate-400">
                 Catalog prices applied automatically.
               </div>
             ) : null}
           </div>
         </div>
 
-        <div className="grid gap-3 rounded-lg bg-slate-50 p-4 text-sm text-slate-700 md:grid-cols-3">
+        <div className="grid gap-3 rounded-2xl bg-slate-800/60 p-4 text-sm md:grid-cols-3">
           <div>
-            <p className="text-xs uppercase text-slate-500">Vehicle</p>
-            <p className="font-semibold uppercase tracking-wide text-brand-black">{vrm}</p>
-            <p>{make}</p>
+            <p className="text-xs uppercase text-slate-400">Vehicle</p>
+            <p className="font-semibold uppercase tracking-wide text-white">{vrm}</p>
+            <p className="text-slate-300">{make}</p>
           </div>
           <div>
-            <p className="text-xs uppercase text-slate-500">Engine size</p>
-            <p className="font-semibold text-brand-black">{engineSize}</p>
+            <p className="text-xs uppercase text-slate-400">Engine size</p>
+            <p className="font-semibold text-white">{engineSize}</p>
           </div>
           <div>
-            <p className="text-xs uppercase text-slate-500">Price tier</p>
-            <p className="font-semibold text-brand-black">{tier}</p>
+            <p className="text-xs uppercase text-slate-400">Price tier</p>
+            <p className="font-semibold text-white">{tier}</p>
           </div>
         </div>
       </section>
 
-      <div className="flex justify-between">
+      <div className="flex justify-start">
         <button
           type="button"
           onClick={handleBack}
-          className="rounded border border-slate-300 px-4 py-2 text-slate-700 hover:border-slate-400"
+          className="rounded border border-slate-600 px-4 py-2 text-slate-700 hover:border-brand-orange hover:text-brand-orange"
         >
           Back
-        </button>
-        <button
-          type="button"
-          disabled={!canContinue}
-          onClick={handleContinue}
-          className="rounded bg-brand-orange px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Continue
         </button>
       </div>
     </div>
