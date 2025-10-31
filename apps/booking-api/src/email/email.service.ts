@@ -179,7 +179,7 @@ export class EmailService {
 
   private getPortalBaseUrl(): string {
     const fallback = 'http://localhost:5173';
-    const envUrl = this.configService.get<string>('EMAIL_VERIFICATION_URL');
+    const envUrl = this.configService.get<string>('PORTAL_BASE_URL');
     if (!envUrl) {
       return fallback;
     }
@@ -483,36 +483,7 @@ export class EmailService {
     return parts.join(' - ');
   }
 
-  async sendVerificationEmail(email: string, token: string): Promise<void> {
-    const transporter = await this.getTransporter();
-    const config = this.loadConfig();
-    const verificationUrl = this.buildVerificationUrl(token);
-
-    if (!transporter || !config) {
-      this.logger.log(`Verification link for ${email}: ${verificationUrl}`);
-      return;
-    }
-
-    try {
-      await transporter.sendMail({
-        from: this.getFromHeader(config),
-        to: email,
-        subject: 'Verify your email address',
-        html: `
-        <p>Hi,</p>
-        <p>Please verify your email address to finish creating your account.</p>
-        <p><a href="${verificationUrl}">Verify Email</a></p>
-        <p>If the button does not work, copy and paste this URL into your browser:</p>
-        <p>${verificationUrl}</p>
-        <p>This link expires in 24 hours.</p>
-        `,
-        text: `Hi,\n\nPlease verify your email address to finish creating your account.\n${verificationUrl}\n\nThis link expires in 24 hours.`,
-      });
-    } catch (error) {
-      this.logger.error('Failed to send verification email via SMTP', error as Error);
-      this.logger.log(`Verification link for ${email}: ${verificationUrl}`);
-    }
-  }
+  // Verification emails are not used; users are auto-verified on registration.
 
   async sendBookingConfirmation(payload: BookingConfirmationEmail): Promise<void> {
     const transporter = await this.getTransporter();
@@ -609,13 +580,5 @@ export class EmailService {
     }
   }
 
-  private buildVerificationUrl(token: string): string {
-    const base = this.configService.get<string>('EMAIL_VERIFICATION_URL');
-    const defaultUrl = 'http://localhost:5173/verify-email';
-    const url = base ?? defaultUrl;
-
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}token=${encodeURIComponent(token)}`;
-  }
 }
 

@@ -97,6 +97,7 @@ export type BookingWizardContextValue = {
   updateDraft: (patch: Partial<BookingDraft>) => void;
   setCurrentStep: (step: BookingStep) => void;
   markStepComplete: (step: BookingStep) => void;
+  clearCompletedStepsAfter: (step: BookingStep) => void;
   setCatalog: (catalog: CatalogSummary | null) => void;
   reset: () => void;
   loginPanelOpen: boolean;

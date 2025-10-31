@@ -28,3 +28,7 @@ yarn-error.log*
 tmp/
 
 !**/.env.example
+
+# Temp scratch files
+temp_*.txt
+

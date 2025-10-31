@@ -5,14 +5,14 @@ import { AdminPage } from "./pages/AdminPage";
 import { AirConPage } from "./pages/AirConPage";
 import { ContactPage } from "./pages/ContactPage";
 import { DevPage } from "./pages/DevPage";
-import { DiagnosticsPage } from "./pages/DiagnosticsPage";
+import { DiagnosticsPage } from "./pages/DiagnosticsPageDark";
 import { HomePage } from "./pages/HomePage";
 import { ServicesPage } from "./pages/ServicesPage";
 import { TermsPage } from "./pages/TermsPage";
 import { PrivacyPage } from "./pages/PrivacyPage";
+import { CookiePolicyPage } from "./pages/CookiePolicyPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
-import { VerifyEmailPage } from "./pages/VerifyEmailPage";
 import {
   BookingWizard,
   DateTimeStep,
@@ -46,13 +46,13 @@ export const routes: RouteObject[] = [
       { path: "contact", element: <ContactPage /> },
       { path: "login", element: <LoginPage /> },
       { path: "register", element: <RegisterPage /> },
-      { path: "verify-email", element: <VerifyEmailPage /> },
       { path: "account", element: <AccountPage /> },
       { path: "account/bookings/:bookingId", element: <BookingDetailPage /> },
       { path: "dev", element: <DevPage /> },
       { path: "admin", element: <AdminPage /> },
       { path: "terms", element: <TermsPage /> },
       { path: "privacy", element: <PrivacyPage /> },
+      { path: "cookie-policy", element: <CookiePolicyPage /> },
     ],
   },
 ];

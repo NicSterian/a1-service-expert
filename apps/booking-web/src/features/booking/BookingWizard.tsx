@@ -33,45 +33,53 @@ function useCurrentStepFromLocation(): BookingStep {
 
 function Stepper() {
   const navigate = useNavigate();
-  const { currentStep, completedSteps } = useBookingWizard();
+  const { currentStep, completedSteps, clearCompletedStepsAfter } = useBookingWizard();
   const currentIndex = steps.findIndex((step) => step.id === currentStep);
 
   const handleNavigate = (target: (typeof steps)[number]) => {
     const stepIndex = steps.findIndex((step) => step.id === target.id);
     const isEnabled = stepIndex <= currentIndex || completedSteps.has(target.id);
     if (!isEnabled) return;
+
+    // Clear completed steps after the target step
+    clearCompletedStepsAfter(target.id);
+
     navigate(target.route === '.' ? '.' : target.route);
   };
 
   return (
-    <ol className="grid gap-3 sm:grid-cols-4">
-      {steps.map((step, index) => {
-        const isActive = step.id === currentStep;
-        const isCompleted = completedSteps.has(step.id);
-        const isEnabled = index <= currentIndex + 1 || isCompleted;
+    <nav className="hidden md:block" aria-label="Booking progress">
+      <ol className="flex items-center gap-2">
+        {steps.map((step, index) => {
+          const isActive = step.id === currentStep;
+          const isCompleted = completedSteps.has(step.id);
+          const isEnabled = index <= currentIndex || isCompleted;
+          const showSeparator = index < steps.length - 1;
 
-        return (
-          <li key={step.id}>
-            <button
-              type="button"
-              onClick={() => handleNavigate(step)}
-              disabled={!isEnabled}
-              className={`group flex w-full flex-col rounded border px-4 py-3 text-left transition
-                ${isActive ? 'border-brand-orange bg-orange-50 text-brand-orange' : 'border-slate-200 bg-white text-slate-700'}
-                ${!isEnabled ? 'cursor-not-allowed opacity-60' : 'hover:border-brand-orange hover:text-brand-orange'}`}
-            >
-              <span className="flex items-center gap-2 text-sm font-semibold">
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border text-xs font-bold">
-                  {isCompleted && !isActive ? 'Done' : index + 1}
-                </span>
+          return (
+            <li key={step.id} className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleNavigate(step)}
+                disabled={!isEnabled}
+                className={`text-sm font-semibold transition-colors
+                  ${isActive ? 'text-orange-500' : ''}
+                  ${isCompleted && !isActive ? 'text-green-500' : ''}
+                  ${!isActive && !isCompleted ? 'text-slate-400' : ''}
+                  ${isEnabled ? 'hover:text-orange-400 cursor-pointer' : 'cursor-not-allowed'}
+                `}
+                aria-current={isActive ? 'step' : undefined}
+              >
                 {step.label}
-              </span>
-              <span className="mt-1 text-xs text-slate-500 group-hover:text-current">{step.description}</span>
-            </button>
-          </li>
-        );
-      })}
-    </ol>
+              </button>
+              {showSeparator && (
+                <span className="text-slate-300" aria-hidden="true">→</span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
   );
 }
 
@@ -108,23 +116,25 @@ function BookingWizardShell() {
 
   return (
     <div className="space-y-8">
-      <header className="space-y-4">
-        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
-          <div>
-            <h1 className="text-3xl font-semibold text-brand-black">Online Booking</h1>
-            <p className="text-slate-600">Follow the steps below to reserve your service slot.</p>
+      <header className="rounded-3xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-inner">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+          <div className="flex-1">
+            <h1 className="text-3xl font-semibold text-white">Online Booking</h1>
+            <p className="mt-2 text-slate-300">Follow the steps below to reserve your service slot.</p>
           </div>
           {!isLoggedIn ? (
             <button
               type="button"
               onClick={handleLogin}
-              className="self-start rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand-orange hover:text-brand-orange"
+              className="self-start rounded border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-orange-500 hover:bg-slate-700 hover:text-orange-400"
             >
               Login
             </button>
           ) : null}
         </div>
-        <Stepper />
+        <div className="mt-6">
+          <Stepper />
+        </div>
       </header>
 
       <section className="">

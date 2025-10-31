@@ -306,7 +306,7 @@ export function HomePage() {
             </p>
           </div>
           <a
-            href="https://www.google.com/search?q=A1+Service+Expert+Reviews&lrd=0x48779b0069361c17:0x2dd4b577752db42e,1,,,,"
+            href="https://www.google.com/search?sca_esv=71556d6a5c4e6ebd&biw=1920&bih=919&sxsrf=AE3TifMMSd-Aa1u0MVvJ6kx9a5mCwvC63A:1761776758304&si=AMgyJEtREmoPL4P1I5IDCfuA8gybfVI2d5Uj7QMwYCZHKDZ-E6Cc0JZFW8GvDJqoDKvNJqaN45uQIr6pXmsJ9i_v_Bj762C2XjqtI82x2tjEYLmOrUPV-dU1NnCjVuVeHyAV9ekeYAW_7vSNn9DYMOy4YkTxxIK5Yw%3D%3D&q=A1+Service+Expert+Reviews&sa=X&ved=2ahUKEwi7vejuucqQAxXqSEEAHbbnEWcQ0bkNegQIHxAE"
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-3 self-start rounded-full bg-brand-orange px-5 py-3 text-sm font-semibold text-slate-900 transition hover:-translate-y-0.5 hover:bg-orange-500"
@@ -322,64 +322,72 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="space-y-6 rounded-3xl bg-white p-8 shadow-sm">
-        <h2 className="text-3xl font-semibold text-brand-black">Get in touch</h2>
+      <section className="space-y-8 rounded-3xl border border-slate-700 bg-slate-900 p-8 shadow-inner sm:p-12">
+        <div className="space-y-3">
+          <p className="text-sm font-semibold uppercase tracking-[0.4em] text-orange-400">Contact</p>
+          <h2 className="text-3xl font-semibold text-white">Get in touch</h2>
+        </div>
         <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="space-y-4 text-sm text-slate-600">
-            <div className="flex items-start gap-3">
-              <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-brand-orange/15 text-brand-orange">
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+          <div className="space-y-6">
+            <div className="flex items-start gap-4 rounded-2xl border border-slate-700 bg-slate-800 p-5 shadow-lg">
+              <span className="mt-1 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-orange-500/10 text-orange-500">
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s-6-5.686-6-10A6 6 0 0 1 18 11c0 4.314-6 10-6 10Zm0-9a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
                 </svg>
               </span>
-              <div>
-                <p className="font-semibold text-brand-black">Workshop</p>
-                <p>11 Cunliffe Dr, Kettering NN16 8LD</p>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-white">Workshop</p>
+                <p className="text-sm text-slate-400">11 Cunliffe Dr, Kettering NN16 8LD</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-orange/15 text-brand-orange">
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+
+            <div className="flex flex-col gap-3 rounded-2xl border border-slate-700 bg-slate-800 p-5 shadow-lg sm:flex-row">
+              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-orange-500/10 text-orange-500">
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 0 1 2-2h2.28a2 2 0 0 1 1.94 1.515l.74 2.964a2 2 0 0 1-.97 2.26l-1.21.726a11 11 0 0 0 5.1 5.1l.73-1.21a2 2 0 0 1 2.26-.97l2.96.74A2 2 0 0 1 21 18.72V21a2 2 0 0 1-2 2h-1c-8.284 0-15-6.716-15-15V5Z" />
                 </svg>
               </span>
-              <a href="tel:07394433889" className="inline-flex items-center gap-1 rounded-full border border-brand-orange px-4 py-2 font-semibold text-brand-orange transition hover:-translate-y-0.5 hover:bg-brand-orange hover:text-white">
-                Call 07394 433889
-              </a>
-              <a
-                href="https://wa.me/447394433889"
-                target="_blank"
-                rel="noreferrer"
-                aria-label="Chat on WhatsApp"
-                title="Chat on WhatsApp"
-                className="inline-flex items-center gap-2 rounded-full border border-brand-orange px-4 py-2 font-semibold text-brand-orange transition hover:-translate-y-0.5 hover:bg-brand-orange hover:text-white"
-              >
-                <span aria-hidden className="inline-flex"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><path d="M20.52 3.48A11.94 11.94 0 0 0 12.06 0C5.47 0 .1 5.37.1 12c0 2.12.56 4.14 1.62 5.94L0 24l6.2-1.6A11.86 11.86 0 0 0 12.06 24c6.58 0 11.94-5.37 11.94-12 0-3.2-1.25-6.2-3.48-8.52Zm-8.46 18.5c-1.86 0-3.63-.5-5.2-1.47l-.37-.22-3.68.95.98-3.58-.24-.37A9.65 9.65 0 0 1 2.3 12c0-5.38 4.38-9.76 9.76-9.76 2.6 0 5.06 1 6.9 2.83a9.66 9.66 0 0 1 2.86 6.93c0 5.38-4.38 9.76-9.76 9.76Zm5.63-7.3c-.3-.15-1.78-.88-2.06-.98-.28-.1-.49-.15-.7.15-.2.3-.8.98-.98 1.18-.2.2-.36.23-.66.08-.3-.15-1.25-.46-2.38-1.46-.88-.78-1.48-1.74-1.66-2.04-.18-.3 0-.47.14-.62.14-.14.3-.36.46-.54.15-.18.2-.3.3-.5.1-.2.05-.38-.03-.54-.08-.15-.7-1.68-.96-2.3-.25-.6-.5-.5-.7-.51h-.6c-.2 0-.54.07-.82.38-.28.3-1.08 1.06-1.08 2.58 0 1.5 1.1 2.94 1.26 3.14.15.2 2.12 3.24 5.14 4.54.72.3 1.28.48 1.72.62.72.23 1.38.2 1.9.12.58-.08 1.78-.72 2.03-1.4.26-.7.26-1.3.2-1.4-.08-.12-.28-.2-.58-.35Z"/></svg></span>
-                WhatsApp
-              </a>
+              <div className="flex flex-1 flex-col gap-2 sm:flex-row">
+                <a href="tel:07394433889" className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-600 bg-slate-800 px-5 py-2.5 text-sm font-semibold text-slate-100 transition hover:border-orange-500 hover:bg-slate-700 hover:text-orange-400">
+                  Call 07394 433889
+                </a>
+                <a
+                  href="https://wa.me/447394433889"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Chat on WhatsApp"
+                  title="Chat on WhatsApp"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-600 bg-slate-800 px-5 py-2.5 text-sm font-semibold text-slate-100 transition hover:border-orange-500 hover:bg-slate-700 hover:text-orange-400"
+                >
+                  <span aria-hidden className="inline-flex"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><path d="M20.52 3.48A11.94 11.94 0 0 0 12.06 0C5.47 0 .1 5.37.1 12c0 2.12.56 4.14 1.62 5.94L0 24l6.2-1.6A11.86 11.86 0 0 0 12.06 24c6.58 0 11.94-5.37 11.94-12 0-3.2-1.25-6.2-3.48-8.52Zm-8.46 18.5c-1.86 0-3.63-.5-5.2-1.47l-.37-.22-3.68.95.98-3.58-.24-.37A9.65 9.65 0 0 1 2.3 12c0-5.38 4.38-9.76 9.76-9.76 2.6 0 5.06 1 6.9 2.83a9.66 9.66 0 0 1 2.86 6.93c0 5.38-4.38 9.76-9.76 9.76Zm5.63-7.3c-.3-.15-1.78-.88-2.06-.98-.28-.1-.49-.15-.7.15-.2.3-.8.98-.98 1.18-.2.2-.36.23-.66.08-.3-.15-1.25-.46-2.38-1.46-.88-.78-1.48-1.74-1.66-2.04-.18-.3 0-.47.14-.62.14-.14.3-.36.46-.54.15-.18.2-.3.3-.5.1-.2.05-.38-.03-.54-.08-.15-.7-1.68-.96-2.3-.25-.6-.5-.5-.7-.51h-.6c-.2 0-.54.07-.82.38-.28.3-1.08 1.06-1.08 2.58 0 1.5 1.1 2.94 1.26 3.14.15.2 2.12 3.24 5.14 4.54.72.3 1.28.48 1.72.62.72.23 1.38.2 1.9.12.58-.08 1.78-.72 2.03-1.4.26-.7.26-1.3.2-1.4-.08-.12-.28-.2-.58-.35Z"/></svg></span>
+                  WhatsApp
+                </a>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold text-brand-black">Opening hours</p>
-              <ul className="mt-2 grid gap-1 sm:grid-cols-2">
+
+            <div className="space-y-4 rounded-2xl border border-slate-700 bg-slate-800 p-5 shadow-lg">
+              <p className="text-sm font-semibold text-white">Opening hours</p>
+              <ul className="grid gap-2 sm:grid-cols-2">
                 {openingHours.map((entry) => (
-                  <li key={entry.day} className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600">
-                    <span>{entry.day}</span>
-                    <span className="text-brand-orange">{entry.time}</span>
+                  <li key={entry.day} className="flex items-center justify-between gap-2 rounded-xl border border-slate-600 bg-slate-900 px-4 py-2.5 text-xs font-medium">
+                    <span className="text-slate-300">{entry.day}</span>
+                    <span className="text-orange-400">{entry.time}</span>
                   </li>
                 ))}
               </ul>
             </div>
-            <div>
-              <p className="font-semibold text-brand-black">Follow us</p>
-              <div className="mt-2 flex gap-3">
+
+            <div className="space-y-4 rounded-2xl border border-slate-700 bg-slate-800 p-5 shadow-lg">
+              <p className="text-sm font-semibold text-white">Follow us</p>
+              <div className="flex gap-3">
                 <a
                   href="https://www.facebook.com/p/A1-Service-Expert-61559306016998/"
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-brand-orange text-brand-orange transition hover:-translate-y-0.5 hover:bg-brand-orange hover:text-white"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-600 bg-slate-900 text-orange-500 transition hover:border-orange-500 hover:bg-slate-700"
                   aria-label="Facebook"
                 >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
                     <path d="M22 12a10 10 0 1 0-11.5 9.87v-6.99H7.9V12h2.6V9.79c0-2.57 1.53-4 3.86-4 1.12 0 2.29.2 2.29.2v2.52h-1.29c-1.27 0-1.66.79-1.66 1.6V12h2.83l-.45 2.88h-2.38v6.99A10 10 0 0 0 22 12Z" />
                   </svg>
                 </a>
@@ -387,43 +395,47 @@ export function HomePage() {
                   href="https://www.instagram.com/a1service.expert/?hl=en"
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-brand-orange text-brand-orange transition hover:-translate-y-0.5 hover:bg-brand-orange hover:text-white"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-600 bg-slate-900 text-orange-500 transition hover:border-orange-500 hover:bg-slate-700"
                   aria-label="Instagram"
                 >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
                     <path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm10 2H7a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3Zm-5 3.5A5.5 5.5 0 1 1 6.5 13 5.5 5.5 0 0 1 12 7.5Zm0 2A3.5 3.5 0 1 0 15.5 13 3.5 3.5 0 0 0 12 9.5Zm5-2.75a1.25 1.25 0 1 1-1.25 1.25A1.25 1.25 0 0 1 17 6.75Z" />
                   </svg>
                 </a>
               </div>
             </div>
           </div>
-          <div className="space-y-4 text-sm text-slate-600">
-            <p className="font-semibold text-brand-black">Ready to book?</p>
-            <p>
-              Use our online booking tool for instant availability, or drop us a message via the contact form and our service advisors will get straight back to you.
-            </p>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Link
-                to="/online-booking"
-                className="inline-flex items-center justify-center rounded bg-brand-orange px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-orange-500"
-              >
-                Start booking
-              </Link>
-              <Link
-                to="/contact"
-                className="inline-flex items-center justify-center rounded border border-brand-orange px-4 py-2 text-sm font-semibold text-brand-orange transition hover:-translate-y-0.5 hover:bg-orange-50"
-              >
-                Contact us
-              </Link>
+
+          <div className="space-y-6">
+            <div className="space-y-4 rounded-2xl border border-slate-700 bg-slate-800 p-6 shadow-lg">
+              <p className="text-base font-semibold text-white">Ready to book?</p>
+              <p className="text-sm leading-relaxed text-slate-400">
+                Use our online booking tool for instant availability, or drop us a message via the contact form and our service advisors will get straight back to you.
+              </p>
+              <div className="flex flex-col gap-3">
+                <Link
+                  to="/online-booking"
+                  className="inline-flex items-center justify-center rounded-full bg-orange-500 px-6 py-3 text-sm font-semibold text-black transition hover:bg-orange-400"
+                >
+                  Start booking
+                </Link>
+                <Link
+                  to="/contact"
+                  className="inline-flex items-center justify-center rounded-full border border-slate-600 bg-slate-800 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-orange-500 hover:bg-slate-700 hover:text-orange-400"
+                >
+                  Contact us
+                </Link>
+              </div>
             </div>
-            <div className="overflow-hidden rounded-3xl border border-slate-200">
+
+            <div className="overflow-hidden rounded-2xl border border-slate-700 shadow-lg">
               <iframe
                 title="A1 Service Expert location"
                 src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2432.370825002624!2d-0.717838823409184!3d52.40985247201358!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x48779b0069361c17%3A0x2dd4b577752db42e!2s11%20Cunliffe%20Dr%2C%20Kettering%20NN16%208LD!5e0!3m2!1sen!2suk!4v1700000000000!5m2!1sen!2suk"
                 loading="lazy"
                 allowFullScreen
                 referrerPolicy="no-referrer-when-downgrade"
-                className="h-64 w-full border-0"
+                className="h-80 w-full border-0"
               />
             </div>
           </div>
