@@ -256,55 +256,55 @@ export function SettingsManager() {
 
       <form
         onSubmit={handleGeneralSubmit}
-        className="grid gap-4 rounded border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-3"
+        className="grid gap-4 rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-inner sm:grid-cols-2 lg:grid-cols-3"
       >
         <div className="sm:col-span-1">
-          <label className="block text-xs font-semibold text-slate-600">Company name</label>
+          <label className="block text-xs font-semibold text-slate-400">Company name</label>
           <input
             value={settings.companyName ?? ''}
             onChange={(event) => update('companyName', event.target.value)}
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
           />
         </div>
         <div className="sm:col-span-1">
-          <label className="block text-xs font-semibold text-slate-600">Company phone</label>
+          <label className="block text-xs font-semibold text-slate-400">Company phone</label>
           <input
             value={settings.companyPhone ?? ''}
             onChange={(event) => update('companyPhone', event.target.value)}
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
           />
         </div>
         <div className="sm:col-span-1">
-          <label className="block text-xs font-semibold text-slate-600">VAT number</label>
+          <label className="block text-xs font-semibold text-slate-400">VAT number</label>
           <input
             value={settings.vatNumber ?? ''}
             onChange={(event) => update('vatNumber', event.target.value)}
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
           />
         </div>
         <div className="sm:col-span-1">
-          <label className="block text-xs font-semibold text-slate-600">VAT rate (%)</label>
+          <label className="block text-xs font-semibold text-slate-400">VAT rate (%)</label>
           <input
             type="number"
             inputMode="decimal"
             step="0.01"
             value={settings.vatRatePercent}
             onChange={(event) => update('vatRatePercent', event.target.value)}
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
             required
           />
         </div>
         <div className="sm:col-span-1">
-          <label className="block text-xs font-semibold text-slate-600">Timezone</label>
+          <label className="block text-xs font-semibold text-slate-400">Timezone</label>
           <input
             value={settings.timezone}
             onChange={(event) => update('timezone', event.target.value)}
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
             required
           />
         </div>
         <div className="sm:col-span-1">
-          <label className="block text-xs font-semibold text-slate-600">Default slots (comma separated)</label>
+          <label className="block text-xs font-semibold text-slate-400">Default slots (comma separated)</label>
           <input
             value={settings.defaultSlotsJson.join(',')}
             onChange={(event) =>
@@ -316,98 +316,98 @@ export function SettingsManager() {
                   .filter(Boolean),
               )
             }
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
           />
         </div>
         <div className="sm:col-span-1">
-          <label className="block text-xs font-semibold text-slate-600">Hold minutes</label>
+          <label className="block text-xs font-semibold text-slate-400">Hold minutes</label>
           <input
             type="number"
             value={settings.holdMinutes}
             onChange={(event) => update('holdMinutes', Number(event.target.value))}
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
             required
           />
         </div>
         <div className="sm:col-span-1">
-          <label className="block text-xs font-semibold text-slate-600">Bank holiday region</label>
+          <label className="block text-xs font-semibold text-slate-400">Bank holiday region</label>
           <input
             value={settings.bankHolidayRegion}
             onChange={(event) => update('bankHolidayRegion', event.target.value)}
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
             required
           />
         </div>
         <div className="sm:col-span-1">
-          <label className="block text-xs font-semibold text-slate-600">Logo URL</label>
+          <label className="block text-xs font-semibold text-slate-400">Logo URL</label>
           <input
             value={settings.logoUrl ?? ''}
             onChange={(event) => update('logoUrl', event.target.value)}
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
           />
         </div>
         <div className="sm:col-span-1">
-          <label className="block text-xs font-semibold text-slate-600">VRM rate limit/min</label>
+          <label className="block text-xs font-semibold text-slate-400">VRM rate limit/min</label>
           <input
             type="number"
             value={settings.vrmLookupRateLimitPerMinute ?? ''}
             onChange={(event) =>
               update('vrmLookupRateLimitPerMinute', event.target.value ? Number(event.target.value) : null)
             }
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
           />
         </div>
         <div className="sm:col-span-1">
-          <label className="block text-xs font-semibold text-slate-600">Signup rate limit/hour</label>
+          <label className="block text-xs font-semibold text-slate-400">Signup rate limit/hour</label>
           <input
             type="number"
             value={settings.signupRateLimitPerHour ?? ''}
             onChange={(event) =>
               update('signupRateLimitPerHour', event.target.value ? Number(event.target.value) : null)
             }
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
           />
         </div>
         <div className="sm:col-span-1">
-          <label className="block text-xs font-semibold text-slate-600">Confirm rate limit/day</label>
+          <label className="block text-xs font-semibold text-slate-400">Confirm rate limit/day</label>
           <input
             type="number"
             value={settings.bookingConfirmRateLimitPerDay ?? ''}
             onChange={(event) =>
               update('bookingConfirmRateLimitPerDay', event.target.value ? Number(event.target.value) : null)
             }
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
           />
         </div>
         <div className="sm:col-span-1">
-          <label className="block text-xs font-semibold text-slate-600">Turnstile enabled</label>
+          <label className="block text-xs font-semibold text-slate-400">Turnstile enabled</label>
           <select
             value={settings.captchaEnabled ? 'true' : 'false'}
             onChange={(event) => update('captchaEnabled', event.target.value === 'true')}
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
           >
             <option value="true">Enabled</option>
             <option value="false">Disabled</option>
           </select>
         </div>
         <div className="sm:col-span-1">
-          <label className="block text-xs font-semibold text-slate-600">Require Turnstile in dev</label>
+          <label className="block text-xs font-semibold text-slate-400">Require Turnstile in dev</label>
           <select
             value={settings.captchaRequireInDev ? 'true' : 'false'}
             onChange={(event) => update('captchaRequireInDev', event.target.value === 'true')}
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
           >
             <option value="true">Yes</option>
             <option value="false">No</option>
           </select>
-          <p className="mt-1 text-xs text-slate-500">Force Turnstile locally to validate the configuration.</p>
+          <p className="mt-1 text-xs text-slate-400">Force Turnstile locally to validate the configuration.</p>
         </div>
         <div className="sm:col-span-3">
-          <label className="block text-xs font-semibold text-slate-600">Company address</label>
+          <label className="block text-xs font-semibold text-slate-400">Company address</label>
           <textarea
             value={settings.companyAddress ?? ''}
             onChange={(event) => update('companyAddress', event.target.value)}
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
             rows={2}
           />
         </div>
@@ -420,98 +420,98 @@ export function SettingsManager() {
             {savingGeneral ? 'Saving...' : 'Save settings'}
           </button>
           <div className="space-y-1 text-xs">
-            {message ? <p className="text-slate-600">{message}</p> : null}
+            {message ? <p className="text-slate-300">{message}</p> : null}
             {error ? <p className="text-red-600">{error}</p> : null}
           </div>
         </div>
       </form>
 
-      <div className="space-y-4 rounded border border-slate-200 bg-white p-4">
+      <div className="space-y-4 rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-inner">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-brand-black">DVLA Integration</h3>
-            <p className="text-xs text-slate-600">
+            <h3 className="text-lg font-semibold text-white">DVLA Integration</h3>
+            <p className="text-xs text-slate-300">
               API key is stored encrypted. Paste a new key to rotate it, or submit an empty field to clear it.
             </p>
           </div>
-          <span className={`text-xs font-medium ${settings.dvlaApiKeyConfigured ? 'text-emerald-600' : 'text-slate-500'}`}>
+          <span className={`text-xs font-medium ${settings.dvlaApiKeyConfigured ? 'text-emerald-300' : 'text-slate-400'}`}>
             Status: {dvlaStatusLabel}
           </span>
         </div>
 
         <form onSubmit={handleDvlaSave} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-600">DVLA API key</label>
+            <label className="block text-xs font-semibold text-slate-400">DVLA API key</label>
             <input
               type="password"
               value={dvlaKeyInput}
               onChange={(event) => setDvlaKeyInput(event.target.value)}
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
               placeholder="Paste key"
               autoComplete="off"
             />
-            <p className="mt-1 text-xs text-slate-500">Submit blank to remove the stored key.</p>
+            <p className="mt-1 text-xs text-slate-400">Submit blank to remove the stored key.</p>
           </div>
 
           <div className="flex flex-wrap items-start gap-3 text-xs">
             <button
               type="submit"
-              className="rounded bg-brand-orange px-3 py-2 text-white hover:bg-orange-500 disabled:opacity-60"
+              className="rounded-full bg-brand-orange px-3 py-2 font-semibold text-slate-950 hover:-translate-y-0.5 hover:bg-orange-400 disabled:opacity-60"
               disabled={savingDvlaKey}
             >
               {savingDvlaKey ? 'Saving...' : 'Save DVLA key'}
             </button>
             <div className="space-y-1">
-              {dvlaKeyMessage ? <p className="text-slate-600">{dvlaKeyMessage}</p> : null}
-              {dvlaKeyError ? <p className="text-red-600">{dvlaKeyError}</p> : null}
+              {dvlaKeyMessage ? <p className="text-slate-300">{dvlaKeyMessage}</p> : null}
+              {dvlaKeyError ? <p className="text-red-400">{dvlaKeyError}</p> : null}
             </div>
           </div>
         </form>
 
-        <form className="rounded border border-slate-200 bg-slate-50 p-3" onSubmit={handleDvlaTest}>
-          <h4 className="text-sm font-semibold text-brand-black">Test lookup</h4>
-          <p className="mt-1 text-xs text-slate-600">
+        <form className="rounded-2xl border border-slate-700 bg-slate-900 p-3" onSubmit={handleDvlaTest}>
+          <h4 className="text-sm font-semibold text-white">Test lookup</h4>
+          <p className="mt-1 text-xs text-slate-300">
             Run a dry DVLA lookup without caching or storing vehicle data.
           </p>
           <div className="mt-3 space-y-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-600">Registration</label>
+              <label className="block text-xs font-semibold text-slate-400">Registration</label>
               <input
                 value={dvlaTestReg}
                 onChange={(event) => setDvlaTestReg(event.target.value)}
-                className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm uppercase"
+                className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm uppercase text-slate-200"
                 placeholder="AA11AAA"
               />
             </div>
             <div className="flex flex-wrap items-start gap-3 text-xs">
               <button
                 type="submit"
-                className="rounded border border-brand-orange px-3 py-2 text-brand-orange hover:bg-orange-50 disabled:opacity-60"
+                className="rounded-full border border-brand-orange px-3 py-2 text-brand-orange hover:-translate-y-0.5 hover:bg-orange-50 disabled:opacity-60"
                 disabled={testingDvla}
               >
                 {testingDvla ? 'Testing...' : 'Test lookup'}
               </button>
               <div className="space-y-1">
-                {dvlaTestMessage ? <p className="text-slate-600">{dvlaTestMessage}</p> : null}
-                {dvlaTestError ? <p className="text-red-600">{dvlaTestError}</p> : null}
+                {dvlaTestMessage ? <p className="text-slate-300">{dvlaTestMessage}</p> : null}
+                {dvlaTestError ? <p className="text-red-400">{dvlaTestError}</p> : null}
               </div>
             </div>
             {dvlaTestResult?.data ? (
-              <dl className="grid gap-2 text-xs text-slate-700 sm:grid-cols-2">
+              <dl className="grid gap-2 text-xs text-slate-300 sm:grid-cols-2">
                 <div>
-                  <dt className="font-semibold text-slate-600">Make</dt>
+                  <dt className="font-semibold text-slate-400">Make</dt>
                   <dd>{dvlaTestResult.data.make ?? 'Unknown'}</dd>
                 </div>
                 <div>
-                  <dt className="font-semibold text-slate-600">Model</dt>
+                  <dt className="font-semibold text-slate-400">Model</dt>
                   <dd>{dvlaTestResult.data.model ?? 'Unknown'}</dd>
                 </div>
                 <div>
-                  <dt className="font-semibold text-slate-600">Engine size (cc)</dt>
+                  <dt className="font-semibold text-slate-400">Engine size (cc)</dt>
                   <dd>{dvlaTestResult.data.engineSizeCc ?? 'Unknown'}</dd>
                 </div>
                 <div>
-                  <dt className="font-semibold text-slate-600">Recommended tier</dt>
+                  <dt className="font-semibold text-slate-400">Recommended tier</dt>
                   <dd>
                     {dvlaTestResult.data.recommendation?.engineTierName ??
                       (dvlaTestResult.data.recommendation?.engineTierId
@@ -520,7 +520,7 @@ export function SettingsManager() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="font-semibold text-slate-600">Estimated price</dt>
+                  <dt className="font-semibold text-slate-400">Estimated price</dt>
                   <dd>{formatPricePence(dvlaTestResult.data.recommendation?.pricePence)}</dd>
                 </div>
               </dl>
@@ -531,6 +531,7 @@ export function SettingsManager() {
     </section>
   );
 }
+
 
 
 

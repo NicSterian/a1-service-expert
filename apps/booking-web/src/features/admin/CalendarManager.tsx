@@ -110,31 +110,31 @@ export function CalendarManager() {
         <p className="text-sm text-red-600">{error}</p>
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
-          <div className="space-y-3 rounded border border-slate-200 bg-white p-4">
-            <h3 className="text-lg font-medium text-brand-black">Exception dates</h3>
+          <div className="space-y-3 rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-inner">
+            <h3 className="text-lg font-medium text-white">Exception dates</h3>
             <form onSubmit={handleCreateException} className="grid gap-2 sm:grid-cols-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-600">Date</label>
+                <label className="block text-xs font-semibold text-slate-400">Date</label>
                 <input
                   type="date"
                   value={exceptionForm.date}
                   onChange={(event) => setExceptionForm((prev) => ({ ...prev, date: event.target.value }))}
-                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                  className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
                   required
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-slate-600">Reason</label>
+                <label className="block text-xs font-semibold text-slate-400">Reason</label>
                 <input
                   value={exceptionForm.reason}
                   onChange={(event) => setExceptionForm((prev) => ({ ...prev, reason: event.target.value }))}
-                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                  className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
                 />
               </div>
               <div className="sm:col-span-3">
                 <button
                   type="submit"
-                  className="rounded bg-brand-orange px-3 py-2 text-sm text-white hover:bg-orange-500"
+                  className="rounded-full bg-brand-orange px-3 py-2 text-sm font-semibold text-slate-950 transition hover:-translate-y-0.5 hover:bg-orange-400"
                 >
                   Add exception
                 </button>
@@ -143,15 +143,15 @@ export function CalendarManager() {
 
             <ul className="space-y-2 text-sm">
               {exceptions.map((exception) => (
-                <li key={exception.id} className="flex items-center justify-between rounded border border-slate-200 p-3">
+                <li key={exception.id} className="flex items-center justify-between rounded border border-slate-700 bg-slate-800 p-3">
                   <div>
-                    <p className="font-semibold text-brand-black">{exception.date.slice(0, 10)}</p>
-                    {exception.reason ? <p className="text-xs text-slate-600">{exception.reason}</p> : null}
+                    <p className="font-semibold text-white">{exception.date.slice(0, 10)}</p>
+                    {exception.reason ? <p className="text-xs text-slate-300">{exception.reason}</p> : null}
                   </div>
                   <button
                     type="button"
                     onClick={() => handleDeleteException(exception.id)}
-                    className="rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:border-red-400"
+                    className="rounded border border-red-500/30 px-2 py-1 text-xs text-red-300 hover:border-red-400"
                   >
                     Delete
                   </button>
@@ -160,33 +160,33 @@ export function CalendarManager() {
             </ul>
           </div>
 
-          <div className="space-y-3 rounded border border-slate-200 bg-white p-4">
-            <h3 className="text-lg font-medium text-brand-black">Extra slots</h3>
+          <div className="space-y-3 rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-inner">
+            <h3 className="text-lg font-medium text-white">Extra slots</h3>
             <form onSubmit={handleCreateExtraSlot} className="grid gap-2 sm:grid-cols-2">
               <div>
-                <label className="block text-xs font-semibold text-slate-600">Date</label>
+                <label className="block text-xs font-semibold text-slate-400">Date</label>
                 <input
                   type="date"
                   value={extraSlotForm.date}
                   onChange={(event) => setExtraSlotForm((prev) => ({ ...prev, date: event.target.value }))}
-                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                  className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
                   required
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600">Time (HH:mm)</label>
+                <label className="block text-xs font-semibold text-slate-400">Time (HH:mm)</label>
                 <input
                   type="time"
                   value={extraSlotForm.time}
                   onChange={(event) => setExtraSlotForm((prev) => ({ ...prev, time: event.target.value }))}
-                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                  className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
                   required
                 />
               </div>
               <div className="sm:col-span-2">
                 <button
                   type="submit"
-                  className="rounded bg-brand-orange px-3 py-2 text-sm text-white hover:bg-orange-500"
+                  className="rounded-full bg-brand-orange px-3 py-2 text-sm font-semibold text-slate-950 transition hover:-translate-y-0.5 hover:bg-orange-400"
                 >
                   Add extra slot
                 </button>
@@ -196,23 +196,23 @@ export function CalendarManager() {
             <button
               type="button"
               onClick={handleImportBankHolidays}
-              className="rounded border border-slate-300 px-3 py-2 text-sm hover:border-brand-orange"
+              className="rounded border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:border-orange-500"
             >
               Import bank holidays
             </button>
 
             <ul className="space-y-2 text-sm">
               {extraSlots.map((slot) => (
-                <li key={slot.id} className="flex items-center justify-between rounded border border-slate-200 p-3">
+                <li key={slot.id} className="flex items-center justify-between rounded border border-slate-700 bg-slate-800 p-3">
                   <div>
-                    <p className="font-semibold text-brand-black">
+                    <p className="font-semibold text-white">
                       {slot.date.slice(0, 10)} at {slot.time}
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => handleDeleteExtraSlot(slot.id)}
-                    className="rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:border-red-400"
+                    className="rounded border border-red-500/30 px-2 py-1 text-xs text-red-300 hover:border-red-400"
                   >
                     Delete
                   </button>

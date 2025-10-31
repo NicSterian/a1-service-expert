@@ -693,10 +693,10 @@ export function DetailsConfirmStep() {
           </div>
           <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex gap-3">
-              <button type="button" onClick={handleBack} className="rounded border border-slate-600 px-4 py-2 text-sm text-slate-100 transition hover:border-brand-orange hover:text-brand-orange">Back</button>
-              <button type="button" onClick={handleStartAgain} className="rounded border border-slate-600 px-4 py-2 text-sm text-slate-100 transition hover:border-brand-orange hover:text-brand-orange">Start again</button>
+              <button type="button" onClick={handleBack} className="rounded-full bg-slate-800 px-6 py-2 text-sm font-semibold text-slate-100 transition hover:bg-orange-500 hover:text-black">← Back</button>
+              <button type="button" onClick={handleStartAgain} className="rounded-full border border-slate-600 bg-slate-900 px-6 py-2 text-sm font-semibold text-slate-100 transition hover:border-orange-500 hover:bg-slate-800 hover:text-orange-400">Start again</button>
             </div>
-            <button type="submit" disabled={disableConfirmButton} title={disabledTitle} className="inline-flex items-center justify-center gap-2 rounded bg-brand-orange px-5 py-2 text-sm font-semibold text-white transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-70">{confirming ? 'Confirming...' : 'Confirm'}</button>
+            <button type="submit" disabled={disableConfirmButton} title={disabledTitle} className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-orange px-6 py-2 text-sm font-semibold text-black transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-70">{confirming ? 'Confirming...' : 'Confirm'}</button>
           </div>
         </section>
       </form>

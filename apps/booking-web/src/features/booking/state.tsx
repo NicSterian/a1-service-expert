@@ -315,6 +315,21 @@ export function BookingWizardProvider({ children }: { children: React.ReactNode 
       });
     };
 
+    const clearCompletedStepsAfter = (step: BookingStep) => {
+      const stepOrder: BookingStep[] = ['services', 'pricing', 'date-time', 'details-confirm'];
+      const targetIndex = stepOrder.indexOf(step);
+
+      setCompletedSteps((prev) => {
+        const next = new Set(prev);
+        stepOrder.forEach((s, idx) => {
+          if (idx > targetIndex) {
+            next.delete(s);
+          }
+        });
+        return next;
+      });
+    };
+
     const reset = () => {
       setDraft({ ...EMPTY_DRAFT });
       setCurrentStep(initialStep);
@@ -331,6 +346,7 @@ export function BookingWizardProvider({ children }: { children: React.ReactNode 
       updateDraft,
       setCurrentStep,
       markStepComplete,
+      clearCompletedStepsAfter,
       setCatalog,
       reset,
       loginPanelOpen,

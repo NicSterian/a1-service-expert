@@ -141,9 +141,9 @@ export function PriceStep() {
         <button
           type="button"
           onClick={handleBack}
-          className="rounded border border-slate-600 px-4 py-2 text-slate-700 hover:border-brand-orange hover:text-brand-orange"
+          className="rounded-full bg-slate-800 px-6 py-2 text-sm font-semibold text-slate-100 transition hover:bg-orange-500 hover:text-black"
         >
-          Back
+          ← Back
         </button>
       </div>
     </div>

@@ -47,14 +47,14 @@ export function AirConPage() {
         </div>
       </section>
 
-      <section className="grid gap-8 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm lg:grid-cols-[1.2fr_0.8fr]">
+      <section className="grid gap-8 rounded-3xl border border-slate-700 bg-slate-900 p-8 shadow-inner lg:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-4">
-          <h2 className="text-2xl font-semibold text-brand-black">What we inspect every time</h2>
-          <ul className="space-y-2 text-sm text-slate-600">
+          <h2 className="text-2xl font-semibold text-white">What we inspect every time</h2>
+          <ul className="space-y-2.5 text-sm text-slate-400">
             {airConHighlights.map((item) => (
-              <li key={item} className="flex items-start gap-2">
-                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-brand-orange" />
-                <span>{item}</span>
+              <li key={item} className="flex items-start gap-3">
+                <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-orange-500" />
+                <span className="leading-relaxed">{item}</span>
               </li>
             ))}
           </ul>
@@ -71,16 +71,20 @@ export function AirConPage() {
         </div>
       </section>
 
-      <section className="space-y-6 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold text-brand-black">Packages tailored to your vehicle</h2>
+      <section className="space-y-6 rounded-3xl border border-slate-700 bg-slate-900 p-8 shadow-inner">
+        <h2 className="text-2xl font-semibold text-white">Packages tailored to your vehicle</h2>
         <div className="grid gap-6 md:grid-cols-3">
           {packages.map((pkg) => (
-            <article key={pkg.title} className="flex h-full flex-col rounded-3xl border border-slate-200 p-6 shadow-sm transition-transform duration-200 hover:-translate-y-1 hover:shadow-xl">
-              <h3 className="text-lg font-semibold text-brand-black">{pkg.title}</h3>
-              <p className="mt-3 flex-1 text-sm text-slate-600">{pkg.copy}</p>
+            <article
+              key={pkg.title}
+              className="group flex h-full flex-col rounded-3xl border border-slate-700 bg-slate-800 p-6 shadow-lg transition-all duration-200 hover:-translate-y-1 hover:border-orange-500 hover:shadow-xl"
+            >
+              <h3 className="text-lg font-semibold text-white transition-colors duration-200 group-hover:text-orange-400">{pkg.title}</h3>
+              <p className="mt-3 flex-1 text-sm leading-relaxed text-slate-400 transition-colors duration-200 group-hover:text-slate-300">{pkg.copy}</p>
               <Link
                 to="/online-booking"
-                className="mt-6 inline-flex items-center text-sm font-semibold text-brand-orange transition hover:-translate-y-0.5 hover:underline"
+                aria-label={`Schedule ${pkg.title}`}
+                className="mt-6 inline-flex items-center justify-center rounded-full bg-brand-orange px-5 py-2 text-sm font-semibold text-slate-950 transition hover:-translate-y-0.5 hover:bg-orange-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
               >
                 Schedule now
               </Link>
