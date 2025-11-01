@@ -129,6 +129,20 @@ export class EmailService {
     return this.transporter;
   }
 
+  async sendInvoiceEmail(to: string, subject: string, text: string, html?: string): Promise<void> {
+    const transporter = await this.getTransporter();
+    const config = this.loadConfig();
+    if (!transporter || !config) {
+      this.logger.log(`Would send invoice email to ${to}: ${subject}`);
+      return;
+    }
+    try {
+      await transporter.sendMail({ from: this.getFromHeader(config), to, subject, text, html: html ?? text });
+    } catch (error) {
+      this.logger.error('Failed to send invoice email via SMTP', error as Error);
+    }
+  }
+
   private getFromHeader(config: SmtpConfig): string {
     const safeName = config.fromName.replace(/"/g, "'");
     return `"${safeName}" <${config.fromEmail}>`;

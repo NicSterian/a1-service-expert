@@ -9,7 +9,9 @@ export function PricingTable(props: { catalog: CatalogSummary | null; variant?: 
   if (!catalog) return null;
 
   const tiers = [...catalog.engineTiers].sort((a,b)=>a.sortOrder-b.sortOrder);
-  const services = [...catalog.services].filter((s)=>!!s.code);
+  const services = [...catalog.services]
+    .filter((s)=> !!s.code && (s.showInPricingTable ?? false))
+    .sort((a,b)=> (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
   const priceMap = new Map<string, number>();
   catalog.prices.forEach((p)=>{

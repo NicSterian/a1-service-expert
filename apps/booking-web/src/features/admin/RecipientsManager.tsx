@@ -62,8 +62,8 @@ export function RecipientsManager() {
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-2xl font-semibold text-brand-black">Notification recipients</h2>
-        <p className="text-sm text-slate-600">Control who receives booking notifications.</p>
+        <h2 className="text-2xl font-semibold text-white">Notification recipients</h2>
+        <p className="text-sm text-slate-400">Control who receives booking notifications.</p>
       </div>
 
       <div className="space-y-3 rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-inner">

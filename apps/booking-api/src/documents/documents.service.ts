@@ -8,10 +8,13 @@ import {
   SequenceKey,
   Settings,
 } from '@prisma/client';
-import PDFDocument from 'pdfkit';
-import { createWriteStream, promises as fs } from 'fs';
-import { join } from 'path';
+// pdfkit is CommonJS; use require-style import to get constructor
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const PDFDocument = require('pdfkit');
+import { createWriteStream, promises as fs, existsSync } from 'fs';
+import { join, basename, dirname } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
+import { PdfService } from '../pdf/pdf.service';
 
 export type DocumentSummary = {
   bookingId: number;
@@ -47,6 +50,7 @@ export class DocumentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly pdfService: PdfService,
   ) {}
 
   async issueQuoteForBooking(params: IssueDocumentParams): Promise<Document> {
@@ -74,7 +78,15 @@ export class DocumentsService {
 
     await this.generatePdf(filePath, document, summary, totals, settings);
 
-    const pdfUrl = this.buildDownloadUrl(document.id);
+    // Extra safety: ensure file is present before exposing URL
+    try {
+      await fs.stat(filePath);
+    } catch (e) {
+      this.logger.error(`PDF not found after generation: ${filePath}`);
+      throw e;
+    }
+
+    const pdfUrl = this.buildPublicUrl(`${document.number}.pdf`);
 
     return this.prisma.document.update({
       where: { id: document.id },
@@ -120,9 +132,25 @@ export class DocumentsService {
   }
 
   private formatDocumentNumber(key: SequenceKey, year: number, counter: number): string {
+    // Default formats
     const prefix = key === SequenceKey.QUOTE ? 'QUO' : 'INV';
-    const sequence = counter.toString().padStart(4, '0');
-    return `${prefix}-${year}-${sequence}`;
+    const defaultFormat = `${prefix}-{{YYYY}}-{{0000}}`;
+    const yearStr = String(year);
+    const pad = (n: number, len: number) => n.toString().padStart(len, '0');
+    const apply = (fmt: string) => fmt
+      .replace(/\{\{YYYY\}\}/g, yearStr)
+      .replace(/\{\{0+\}\}/g, (m) => pad(counter, m.length - 4));
+    try {
+      if (key === SequenceKey.INVOICE) {
+        // Try custom invoice number format from settings
+        const settings = (global as any).__a1SettingsCache as Settings | undefined;
+        const fmt = settings?.invoiceNumberFormat;
+        if (fmt && fmt.includes('{{')) {
+          return apply(fmt);
+        }
+      }
+    } catch {}
+    return apply(defaultFormat);
   }
 
   private async nextSequence(
@@ -153,7 +181,7 @@ export class DocumentsService {
     if (configured && configured.trim().length > 0) {
       return configured.trim();
     }
-    return join(process.cwd(), 'storage', 'documents');
+    return join(process.cwd(), 'storage', 'invoices');
   }
 
   private getDocumentFilePathFromDir(dir: string, document: Document): string {
@@ -161,13 +189,10 @@ export class DocumentsService {
     return join(dir, filename);
   }
 
-  private buildDownloadUrl(documentId: number): string {
-    const base = this.configService.get<string>('DOCUMENTS_BASE_URL');
-    const path = `/documents/${documentId}/download`;
-    if (!base || base.trim().length === 0) {
-      return path;
-    }
-    return `${base.replace(/\/+$/, '')}${path}`;
+  private buildPublicUrl(filename: string): string {
+    const configured = (this.configService.get<string>('DOCUMENTS_BASE_URL') || '').trim();
+    const base = (configured || 'http://localhost:3000').replace(/\/+$/, '');
+    return `${base}/files/invoices/${filename}`;
   }
 
   private async generatePdf(
@@ -177,67 +202,56 @@ export class DocumentsService {
     totals: { totalAmountPence: number; vatAmountPence: number },
     settings: Settings,
   ) {
-    await fs.mkdir(join(filePath, '..'), { recursive: true }).catch(() => undefined);
+    await fs.mkdir(dirname(filePath), { recursive: true }).catch(() => undefined);
+    const payloadLines = (document as any)?.payload?.lines as
+      | Array<{ description: string; quantity: number; unitPricePence: number; vatRatePercent?: number }>
+      | undefined;
+    const lines = Array.isArray(payloadLines) && payloadLines.length > 0
+      ? payloadLines.map((l) => ({
+          description: l.description,
+          qty: Number(l.quantity ?? 1),
+          unitPricePence: Number(l.unitPricePence ?? 0),
+          vatPercent: Number(l.vatRatePercent ?? 0),
+          totalPence: Math.round(Number(l.quantity ?? 1) * Number(l.unitPricePence ?? 0) * (1 + Number(l.vatRatePercent ?? 0) / 100)),
+        }))
+      : [{
+          description: `${summary.serviceName}${summary.engineTierName ? ` (${summary.engineTierName})` : ''}`,
+          qty: 1,
+          unitPricePence: Math.max(0, totals.totalAmountPence - totals.vatAmountPence),
+          vatPercent: 0,
+          totalPence: totals.totalAmountPence,
+        }];
 
-    const doc = new PDFDocument({ size: 'A4', margin: 50 });
-    const stream = createWriteStream(filePath);
-    doc.pipe(stream);
-
-    const formattedTotal = this.formatCurrency(totals.totalAmountPence);
-    const formattedVat = this.formatCurrency(totals.vatAmountPence);
-    const netAmount = this.formatCurrency(totals.totalAmountPence - totals.vatAmountPence);
-
-    doc.fontSize(20).text('A1 Service Expert', { align: 'left' });
-    if (settings.companyAddress) {
-      doc.fontSize(10).moveDown(0.5).text(settings.companyAddress, { width: 250 });
-    }
-    if (settings.companyPhone) {
-      doc.fontSize(10).text(`Phone: ${settings.companyPhone}`);
-    }
-    if (settings.vatNumber) {
-      doc.fontSize(10).text(`VAT: ${settings.vatNumber}`);
-    }
-
-    doc.moveDown();
-    doc.fontSize(16).text(document.type === 'INVOICE' ? 'Invoice' : 'Quote', { align: 'left' });
-    doc.fontSize(10).text(`Document number: ${document.number}`);
-    doc.fontSize(10).text(`Date: ${new Date().toLocaleDateString('en-GB')}`);
-    doc.fontSize(10).text(`Booking reference: ${summary.bookingId}`);
-
-    doc.moveDown();
-    doc.fontSize(12).text('Customer details', { underline: true });
-    doc.fontSize(10).text(summary.customerName);
-    doc.fontSize(10).text(summary.customerEmail);
-    doc.fontSize(10).text(summary.customerPhone);
-
-    doc.moveDown();
-    doc.fontSize(12).text('Booking details', { underline: true });
-    doc.fontSize(10).text(`Appointment: ${summary.slotDate.toLocaleDateString('en-GB')} at ${summary.slotTime}`);
-    doc.fontSize(10).text(`Service: ${summary.serviceName}${summary.engineTierName ? ` (${summary.engineTierName})` : ''}`);
-
-    doc.moveDown();
-    doc.fontSize(12).text('Charges', { underline: true });
-    doc.fontSize(10).text(`Net amount: ${netAmount}`);
-    doc.fontSize(10).text(`VAT: ${formattedVat}`);
-    doc.fontSize(10).text(`Total: ${formattedTotal}`);
-
-    if (document.type === 'QUOTE' && document.validUntil) {
-      doc.moveDown();
-      doc.fontSize(10).text(`Quote valid until: ${document.validUntil.toLocaleDateString('en-GB')}`);
-    }
-
-    doc.moveDown();
-    doc.fontSize(9).fillColor('gray').text('Thank you for choosing A1 Service Expert.', { align: 'center' });
-
-    doc.end();
-
-    await new Promise<void>((resolve, reject) => {
-      stream.on('finish', resolve);
-      stream.on('error', reject);
-    }).catch((error) => {
-      this.logger.error(`Failed to generate PDF for document ${document.id}`, error as Error);
-      throw error;
-    });
+    const subtotal = lines.reduce((s, l) => s + Math.round((l.qty ?? 1) * (l.unitPricePence ?? 0)), 0);
+    const data = {
+      company: {
+        name: settings.companyName ?? 'A1 Service Expert',
+        address1: settings.companyAddress ?? '',
+        phone: settings.companyPhone ?? undefined,
+        logoUrl: (() => { const p = this.resolveLogoPath(settings.logoUrl || null); return p ? `file://${p}` : undefined; })(),
+        companyNo: (settings as any).companyRegNumber ?? undefined,
+      },
+      customer: { name: summary.customerName, email: summary.customerEmail },
+      invoice: {
+        number: document.number,
+        issueDate: document.issuedAt ?? new Date(),
+        dueDate: document.dueAt ?? undefined,
+        currency: 'GBP',
+        status: document.status,
+        paymentMethod: (document as any).paymentMethod ?? undefined,
+        paidAt: document.status === 'PAID' ? (document as any).paidAt ?? document.updatedAt : undefined,
+      },
+      vat: { enabled: (settings as any).vatRegistered ?? false },
+      lines,
+      totals: {
+        subtotalPence: subtotal,
+        vatPence: Math.max(0, totals.vatAmountPence ?? 0),
+        totalPence: Math.max(subtotal, totals.totalAmountPence ?? subtotal),
+      },
+      branding: { primary: ((settings as any).brandPrimaryColor as string) || '#f97316' },
+      notes: (document as any)?.payload?.paymentNotes ?? undefined,
+    };
+    await this.pdfService.renderInvoiceToFile(data, filePath);
   }
 
   private formatCurrency(amountPence: number): string {
@@ -245,6 +259,14 @@ export class DocumentsService {
       style: 'currency',
       currency: 'GBP',
     }).format(amountPence / 100);
+  }
+
+  private resolveLogoPath(logoUrl: string | null): string | null {
+    if (!logoUrl) return null;
+    // Expecting /admin/settings/logo/<filename>
+    const file = basename(logoUrl);
+    if (!file) return null;
+    return join(process.cwd(), 'storage', 'uploads', file);
   }
 }
 

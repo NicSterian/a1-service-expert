@@ -15,13 +15,14 @@ export class CatalogService {
   getServices() {
     return this.prisma.service.findMany({
       where: { isActive: true },
-      orderBy: { name: 'asc' },
+      // Cast to any to accommodate generated types before migration
+      orderBy: ([{ sortOrder: 'asc' }, { name: 'asc' }] as any),
     });
   }
 
   getAllServices() {
     return this.prisma.service.findMany({
-      orderBy: { name: 'asc' },
+      orderBy: ([{ sortOrder: 'asc' }, { name: 'asc' }] as any),
     });
   }
 
@@ -50,7 +51,7 @@ export class CatalogService {
     const [services, engineTiers] = await Promise.all([
       this.prisma.service.findMany({
         where: { isActive: true },
-        orderBy: { name: 'asc' },
+        orderBy: ([{ sortOrder: 'asc' }, { name: 'asc' }] as any),
       }),
       this.prisma.engineTier.findMany({
         orderBy: { sortOrder: 'asc' },
@@ -65,6 +66,9 @@ export class CatalogService {
       pricingMode: service.pricingMode,
       fixedPricePence: typeof service.fixedPricePence === 'number' ? service.fixedPricePence : null,
       footnotes: service.footnotes ?? null,
+      showInWizard: (service as any).showInWizard ?? false,
+      showInPricingTable: (service as any).showInPricingTable ?? false,
+      sortOrder: (service as any).sortOrder ?? 0,
     }));
 
     const engineTiersSummary = engineTiers.map((tier) => ({
@@ -165,6 +169,9 @@ export class CatalogService {
     if (dto.isActive !== undefined) {
       data.isActive = dto.isActive;
     }
+    if (dto.showInWizard !== undefined) (data as any).showInWizard = dto.showInWizard;
+    if (dto.showInPricingTable !== undefined) (data as any).showInPricingTable = dto.showInPricingTable;
+    if (dto.sortOrder !== undefined) (data as any).sortOrder = dto.sortOrder;
 
     try {
       return await this.prisma.service.update({

@@ -2,6 +2,7 @@
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { apiGet } from '../lib/api';
 import { getToken } from '../lib/auth';
+import { BookingSourceBadge } from '../features/admin/bookings/BookingSourceBadge';
 
 type BookingStatus =
   | 'DRAFT'
@@ -40,6 +41,7 @@ type BookingServiceLine = {
 type BookingDetailResponse = {
   id: number;
   status: BookingStatus;
+  source: 'ONLINE' | 'MANUAL';
   slotDate: string;
   slotTime: string;
   createdAt: string;
@@ -216,6 +218,7 @@ export function BookingDetailPage() {
             </p>
             <div className="flex flex-wrap items-center gap-2">
               {renderStatusBadge(booking.status)}
+              <BookingSourceBadge source={booking.source} />
               <span className="rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-white">
                 Total {formatCurrency(booking.totals.invoiceAmountPence ?? booking.totals.servicesAmountPence)}
               </span>

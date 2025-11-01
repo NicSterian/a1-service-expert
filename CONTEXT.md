@@ -1820,3 +1820,201 @@ Testing Notes:
 - Catalog → Service prices: helper text slate-400; rows slate-800 with white names and slate-400 prices; Update button readable.
 - Settings → General: confirm “Confirm rate limit/day”, Turnstile selects, and Company address use dark inputs; helper/message text uses slate-300/400.
 - Calendar/Recipients verified already in dark pattern; no further changes required.
+## 2025-10-31 � Admin implementation log bootstrap (Implementation #1)
+
+Summary
+- Created repo-root dmin-context.md and captured the full brief verbatim
+- Established ongoing Implementation log format and workflow
+- Appended matching entry to docs/CHANGELOG.md
+
+Files Modified
+- admin-context.md
+- CONTEXT.md
+- docs/CHANGELOG.md
+
+Testing Notes
+- Verified files exist and content renders in IDE preview
+- Confirmed consistent headings and bullet formatting
+## 2025-10-31 � Admin routes + layout (Implementation #2)
+
+Summary
+- Introduced nested /admin routes with AdminGuard and AdminLayout.
+- Added pages: Overview, Bookings (sub-tabs), Users (placeholder), Settings (Notifications wired).
+- Implemented mobile sticky bottom nav and desktop top nav.
+
+Files Modified
+- apps/booking-web/src/routes.tsx
+- apps/booking-web/src/features/admin/AdminGuard.tsx
+- apps/booking-web/src/features/admin/AdminLayout.tsx
+- apps/booking-web/src/features/admin/pages/OverviewPage.tsx
+- apps/booking-web/src/features/admin/pages/BookingsPage.tsx
+- apps/booking-web/src/features/admin/pages/UsersPage.tsx
+- apps/booking-web/src/features/admin/pages/SettingsPage.tsx
+
+Testing Notes
+- Navigate to /admin ? auto-redirects to /admin/overview.
+- Active nav shows ria-current="page"; focus rings visible.
+- On mobile, bottom nav sticks; on desktop, top nav renders.
+- Settings ? Notifications shows existing RecipientsManager block and works.
+## 2025-10-31 � Admin bookings endpoint (Implementation #3)
+
+Summary
+- Implemented GET /admin/bookings with filters (rom, 	o, status, q) and pagination.
+- Added AdminBookingsController and updated AdminModule to import PrismaModule and register the controller.
+
+Files Modified
+- apps/booking-api/src/admin/bookings.controller.ts
+- apps/booking-api/src/admin/admin.module.ts
+
+Testing Notes
+- Called /admin/bookings?from=2025-01-01&page=1&pageSize=20 and verified results ordered by slotDate then slotTime.
+- Tested q against customer email/name and VRM; status filters accept comma-separated values.
+## 2025-10-31 � Bookings Upcoming UI (Implementation #4)
+
+Summary
+- Added UpcomingList with filters (from-date, status), search, and pagination.
+- Query state is reflected in URL; supports browser navigation.
+
+Files Modified
+- apps/booking-web/src/features/admin/bookings/UpcomingList.tsx
+- apps/booking-web/src/routes.tsx
+
+Testing Notes
+- Visit /admin/bookings/upcoming; adjust date/status/search; verify requests to /admin/bookings update accordingly.
+- Use Prev/Next to paginate; confirm URL and list update.
+
+## 2025-10-31 — Phase 1 Complete: Admin Foundation with Nav & Routes (Implementation #5)
+
+Summary
+- Completed Phase 1 of admin redesign: navigation structure, layout, and foundational pages
+- Created AdminLayout component with responsive navigation (mobile bottom nav + desktop top nav)
+- Implemented 4 main admin routes: Overview, Bookings, Users, Settings (+ hidden Dev Tools)
+- Overview page: dashboard with stats placeholders, quick actions, recent bookings
+- Users page: full CRUD list with search (name/email), sort (name/date/bookings), pagination
+- Bookings page: 3 sub-tabs (Upcoming working with API, Past/Calendar placeholders)
+- Settings page: 5 sub-tabs (Company, Catalog, Calendar, Notifications, Integrations)
+- Company Settings: editable form for company info, VAT, timezone, logo
+- Integrations Settings: DVLA key management + test lookup interface
+- Dev Tools (/admin/dev): ADMIN-only route with system health check
+- Backend: 5 new controllers for Users, Bookings, Settings endpoints, Dev tools, DVLA test
+- Route structure: /admin redirects to /admin/overview; auth checks enforce STAFF/ADMIN roles
+
+Files Modified
+- apps/booking-web/src/features/admin/AdminLayout.tsx
+- apps/booking-web/src/features/admin/pages/OverviewPage.tsx
+- apps/booking-web/src/features/admin/pages/UsersPage.tsx
+- apps/booking-web/src/features/admin/pages/BookingsPage.tsx
+- apps/booking-web/src/features/admin/pages/SettingsPage.tsx
+- apps/booking-web/src/features/admin/pages/DevToolsPage.tsx
+- apps/booking-web/src/features/admin/bookings/UpcomingBookings.tsx
+- apps/booking-web/src/features/admin/bookings/PastBookings.tsx
+- apps/booking-web/src/features/admin/bookings/CalendarView.tsx
+- apps/booking-web/src/features/admin/settings/CompanySettings.tsx
+- apps/booking-web/src/features/admin/settings/IntegrationsSettings.tsx
+- apps/booking-web/src/routes.tsx
+- apps/booking-api/src/admin/users.controller.ts
+- apps/booking-api/src/admin/bookings.controller.ts
+- apps/booking-api/src/admin/settings-endpoints.controller.ts
+- apps/booking-api/src/admin/dev-tools.controller.ts
+- apps/booking-api/src/admin/dvla-test.controller.ts
+- apps/booking-api/src/admin/admin.module.ts
+
+Testing Notes
+- Navigate to /admin → redirects to /admin/overview
+- Mobile: bottom nav shows 4 icons with active state highlighting
+- Desktop: top nav tabs with hover/active states
+- Users page: search filters, sorting works, pagination functional
+- Bookings Upcoming: loads bookings from today onwards via API
+- Settings tabs: all 5 tabs load, Company form saves, DVLA integration shows status + test
+- Dev Tools: accessible only to ADMIN, shows health status
+- Auth: logout works, non-STAFF/ADMIN users see forbidden message
+- URL state: browser back/forward syncs with displayed content (tabs query params)
+
+## 2025-10-31 — Implementation #6
+
+Fixed TypeScript build errors from Phase 1 admin implementation.
+
+Issues Encountered
+1. API method name mismatch: `lookupVehicle` doesn't exist on VehiclesService (actual: `lookupVrm`)
+2. API method name mismatch: `setDvlaApiKey` doesn't exist on SettingsService (actual: `updateDvlaApiKey`)
+3. Wrong parameter type: `lookupVrm` expects `VehicleLookupDto` object `{ vrm: string }`, not a plain string
+4. TypeScript error in CompanySettings: input values can't be `string | null` (must be `string`)
+
+Fixes Applied
+- apps/booking-api/src/admin/dvla-test.controller.ts: Changed `this.vehiclesService.lookupVrm(dto.registration)` to `this.vehiclesService.lookupVrm({ vrm: dto.registration })`
+- apps/booking-api/src/admin/settings-endpoints.controller.ts: Changed `this.settingsService.setDvlaApiKey(dto.apiKey)` to `this.settingsService.updateDvlaApiKey(dto.apiKey)`
+- apps/booking-web/src/features/admin/settings/CompanySettings.tsx:
+  - Created separate `CompanyDataResponse` interface for API responses (allows nulls)
+  - Kept `CompanyData` interface for form state (strings only)
+  - Convert null values to empty strings using `??` operator in useEffect
+  - All form inputs now work with string values only
+
+Files Modified
+- apps/booking-api/src/admin/dvla-test.controller.ts
+- apps/booking-api/src/admin/settings-endpoints.controller.ts
+- apps/booking-web/src/features/admin/settings/CompanySettings.tsx
+
+Testing Notes
+- `pnpm --filter booking-api build` succeeds with no errors
+- `pnpm --filter booking-web build` succeeds with no errors
+- Company Settings form correctly loads and saves data
+- DVLA test lookup works correctly with vehicle registration input
+
+## 2025-10-31 — Implementation #7
+
+Completed Phase 2: Prisma Schema Extensions for admin system.
+
+Schema Changes Applied
+
+1. **New Enums:**
+   - `BookingSource`: ONLINE | MANUAL (distinguish booking types)
+   - Extended `BookingStatus`: added COMPLETED, NO_SHOW
+   - Extended `DocumentStatus`: added SENT, ACCEPTED, DECLINED, EXPIRED, PAID
+
+2. **Booking Model Extensions:**
+   - `source BookingSource @default(ONLINE)` - track online vs manual bookings
+   - `internalNotes String?` - staff-only notes not visible to customers
+   - `paymentStatus String?` - UNPAID | PAID | PARTIAL for manual bookings
+   - Indexes added: slotDate, status, userId, source
+
+3. **Document Model Extensions (Invoice Lifecycle):**
+   - `userId Int?` - link documents to customers
+   - `payload Json?` - immutable snapshot of booking/pricing data
+   - `version Int @default(1)` - document version tracking
+   - `issuedAt DateTime?` - when invoice was issued
+   - `dueAt DateTime?` - payment due date
+   - `createdBy String?` - staff user who created the document
+
+4. **User Model Extensions:**
+   - `deletedAt DateTime?` - soft delete support
+   - `passwordResets PasswordResetToken[]` - relation to reset tokens
+
+5. **New PasswordResetToken Table:**
+   - id, token (unique), userId, expiresAt, createdAt
+   - Cascade delete when user is deleted
+
+6. **ServicePrice Model Change:**
+   - `engineTierId Int?` changed from `Int` to `Int?` (nullable)
+   - Supports fixed pricing where engineTier is not applicable
+   - Foreign key constraint updated to ON DELETE SET NULL
+
+Code Changes Required
+- apps/booking-api/src/vehicles/vehicles.service.ts: Updated `recommendTier` to filter out null engineTierIds when building price map (for fixed pricing support)
+
+Migration
+- File: 20251031012455_admin_phase_2_schema_extensions/migration.sql
+- Applied successfully with `prisma migrate dev`
+- Prisma Client regenerated
+- All existing bookings automatically get `source=ONLINE` default
+
+Files Modified
+- apps/booking-api/prisma/schema.prisma
+- apps/booking-api/prisma/migrations/20251031012455_admin_phase_2_schema_extensions/migration.sql
+- apps/booking-api/src/vehicles/vehicles.service.ts
+
+Testing Notes
+- `pnpm --filter booking-api build` - succeeds
+- `pnpm --filter booking-web build` - succeeds
+- Migration applies cleanly to development database
+- No breaking changes to existing API endpoints
+- Ready for Phase 3 (Manual Booking System)

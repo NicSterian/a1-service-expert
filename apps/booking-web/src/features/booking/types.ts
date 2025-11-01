@@ -11,6 +11,9 @@ export type CatalogServiceSummary = {
   fixedPricePence?: number | null;
   footnotes?: string | null;
   lowestTierPricePence?: number | null;
+  showInWizard?: boolean;
+  showInPricingTable?: boolean;
+  sortOrder?: number;
 };
 
 export type CatalogEngineTierSummary = {
@@ -143,6 +146,5 @@ export type ConfirmBookingResponse = {
     quote: BookingDocumentSummary;
   };
 };
-
 
 

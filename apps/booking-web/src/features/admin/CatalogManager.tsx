@@ -8,6 +8,11 @@ interface Service {
   name: string;
   description?: string | null;
   isActive: boolean;
+  pricingMode?: 'TIERED' | 'FIXED';
+  fixedPricePence?: number | null;
+  showInWizard?: boolean;
+  showInPricingTable?: boolean;
+  sortOrder?: number;
 }
 
 interface EngineTier {
@@ -40,7 +45,13 @@ export function CatalogManager() {
   const [tiers, setTiers] = useState<EngineTier[]>([]);
   const [prices, setPrices] = useState<ServicePrice[]>([]);
 
-  const [serviceForm, setServiceForm] = useState({ code: '', name: '', description: '' });
+  const [serviceForm, setServiceForm] = useState({
+    code: '',
+    name: '',
+    description: '',
+    pricingMode: 'TIERED' as 'TIERED' | 'FIXED',
+    fixedPrice: '',
+  });
   const [tierForm, setTierForm] = useState({ name: '', maxCc: '', sortOrder: '' });
 
   useEffect(() => {
@@ -131,12 +142,19 @@ export function CatalogManager() {
       setError('Service code and name are required.');
       return;
     }
-    await apiPost('/admin/catalog/services', {
+    const payload: any = {
       code: serviceForm.code.trim(),
       name: serviceForm.name.trim(),
       description: serviceForm.description.trim() || undefined,
-    });
-    setServiceForm({ code: '', name: '', description: '' });
+      pricingMode: serviceForm.pricingMode,
+    };
+    if (serviceForm.pricingMode === 'FIXED') {
+      const cleaned = serviceForm.fixedPrice.replace(/[^0-9.]/g, '');
+      const amount = cleaned ? Math.round(Number(cleaned) * 100) : 0;
+      payload.fixedPricePence = amount;
+    }
+    await apiPost('/admin/catalog/services', payload);
+    setServiceForm({ code: '', name: '', description: '', pricingMode: 'TIERED', fixedPrice: '' });
     await refresh();
   };
 
@@ -154,11 +172,77 @@ export function CatalogManager() {
     await refresh();
   };
 
+  const editServiceDescription = async (service: Service) => {
+    const current = service.description ?? '';
+    const desc = window.prompt('Edit service description', current);
+    if (desc === null) return;
+    await apiPatch(`/admin/catalog/services/${service.id}`, { description: desc.trim() || null });
+    await refresh();
+  };
+
+  const toggleShowInWizard = async (service: Service) => {
+    await apiPatch(`/admin/catalog/services/${service.id}`, { showInWizard: !service.showInWizard });
+    await refresh();
+  };
+
+  const toggleShowInTable = async (service: Service) => {
+    await apiPatch(`/admin/catalog/services/${service.id}`, { showInPricingTable: !service.showInPricingTable });
+    await refresh();
+  };
+
+  const moveService = async (service: Service, dir: -1 | 1) => {
+    const current = service.sortOrder ?? 0;
+    const next = current + dir;
+    await apiPatch(`/admin/catalog/services/${service.id}`, { sortOrder: next });
+    await refresh();
+  };
+
   const deleteService = async (service: Service) => {
     if (!window.confirm(`Delete service "${service.name}"?`)) {
       return;
     }
     await apiDelete(`/admin/catalog/services/${service.id}`);
+    await refresh();
+  };
+
+  const setServicePricingMode = async (service: Service) => {
+    const next = window.prompt('Set pricing mode: TIERED or FIXED', service.pricingMode ?? 'TIERED');
+    if (!next) return;
+    const mode = next.toUpperCase() === 'FIXED' ? 'FIXED' : 'TIERED';
+    await apiPatch(`/admin/catalog/services/${service.id}`, { pricingMode: mode });
+    await refresh();
+  };
+
+  const setServiceFixedPrice = async (service: Service) => {
+    const initial = typeof service.fixedPricePence === 'number' ? String(service.fixedPricePence / 100) : '';
+    const value = window.prompt(`Set fixed price (GBP) for ${service.name}`, initial);
+    if (value === null) return;
+    const cleaned = value.replace(/[^0-9.]/g, '');
+    if (!cleaned) return;
+    const pounds = Number(cleaned);
+    if (!Number.isFinite(pounds) || pounds < 0) {
+      toast.error('Invalid price');
+      return;
+    }
+    await apiPatch(`/admin/catalog/services/${service.id}`, { fixedPricePence: Math.round(pounds * 100) });
+    await refresh();
+  };
+
+  const priceFor = (serviceId: number, engineTierId: number) => {
+    const p = prices.find((x) => x.serviceId === serviceId && x.engineTierId === engineTierId);
+    return p?.amountPence ?? null;
+  };
+
+  const setTierPrice = async (service: Service, tier: EngineTier) => {
+    const current = priceFor(service.id, tier.id);
+    const value = window.prompt(`Set price for ${service.name} / ${tier.name} (pence)`, String(current ?? 0));
+    if (value === null) return;
+    const amount = Number(value);
+    if (!Number.isFinite(amount) || amount < 0) {
+      toast.error('Invalid price');
+      return;
+    }
+    await apiPut('/admin/catalog/prices', { serviceId: service.id, engineTierId: tier.id, amountPence: amount });
     await refresh();
   };
 
@@ -223,8 +307,8 @@ export function CatalogManager() {
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-2xl font-semibold text-brand-black">Catalog</h2>
-        <p className="text-sm text-slate-600">Manage services, tiers, and pricing.</p>
+        <h2 className="text-2xl font-semibold text-white">Catalog</h2>
+        <p className="text-sm text-slate-400">Manage services, tiers, and pricing.</p>
       </div>
 
       {loading ? (
@@ -263,6 +347,27 @@ export function CatalogManager() {
                   rows={2}
                 />
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-400">Pricing Mode</label>
+                <select
+                  value={serviceForm.pricingMode}
+                  onChange={(e) => setServiceForm((prev) => ({ ...prev, pricingMode: e.target.value as 'TIERED' | 'FIXED' }))}
+                  className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
+                >
+                  <option value="TIERED">Tiered</option>
+                  <option value="FIXED">Fixed</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-400">Fixed price (GBP)</label>
+                <input
+                  value={serviceForm.fixedPrice}
+                  onChange={(e) => setServiceForm((prev) => ({ ...prev, fixedPrice: e.target.value }))}
+                  placeholder="0.00"
+                  className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
+                  disabled={serviceForm.pricingMode !== 'FIXED'}
+                />
+              </div>
               <div className="sm:col-span-2">
                 <button
                   type="submit"
@@ -275,22 +380,42 @@ export function CatalogManager() {
 
             <ul className="space-y-2 text-sm">
               {services.map((service) => (
-                <li key={service.id} className="flex items-start justify-between gap-3 rounded border border-slate-700 bg-slate-800 p-3">
-                  <div>
-                    <p className="font-semibold text-white">
-                      {service.name}{' '}
-                      <span className="text-xs text-slate-400">({service.code})</span>
-                    </p>
-                    {service.description ? <p className="text-xs text-slate-300">{service.description}</p> : null}
-                    <p className="text-xs text-slate-400">Status: {service.isActive ? 'Active' : 'Inactive'}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2 text-xs">
-                <button
+                <li key={service.id} className="space-y-3 rounded border border-slate-700 bg-slate-800 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-white">{service.name}</p>
+                      {service.description ? (
+                        <p className="mt-1 text-xs leading-relaxed text-slate-300">{service.description}</p>
+                      ) : null}
+                      <p className="mt-1 text-[11px] text-slate-500">Code: <span className="font-mono">{service.code}</span></p>
+                      <p className="text-xs text-slate-400">Status: {service.isActive ? 'Active' : 'Inactive'}</p>
+                      <p className="text-xs text-slate-400">Pricing: {service.pricingMode ?? 'TIERED'}{service.pricingMode === 'FIXED' ? ` @ ${formatPrice(service.fixedPricePence ?? 0)}` : ''}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                        <button type="button" onClick={() => toggleShowInWizard(service)} className={`rounded border px-2 py-1 ${service.showInWizard ? 'border-emerald-500 text-emerald-300' : 'border-slate-700 text-slate-300'} hover:border-orange-500`}>
+                          {service.showInWizard ? 'In Wizard' : 'Add to Wizard'}
+                        </button>
+                        <button type="button" onClick={() => toggleShowInTable(service)} className={`rounded border px-2 py-1 ${service.showInPricingTable ? 'border-emerald-500 text-emerald-300' : 'border-slate-700 text-slate-300'} hover:border-orange-500`}>
+                          {service.showInPricingTable ? 'In Pricing Table' : 'Add to Pricing Table'}
+                        </button>
+                        <span className="text-slate-500">Order: {service.sortOrder ?? 0}</span>
+                        <button type="button" onClick={() => moveService(service, -1)} className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:border-orange-500">Up</button>
+                        <button type="button" onClick={() => moveService(service, 1)} className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:border-orange-500">Down</button>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2 text-xs">
+                    <button
                       type="button"
                       onClick={() => renameService(service)}
                       className="rounded border border-slate-700 px-2 py-1 text-white hover:border-orange-500"
                     >
                       Rename
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editServiceDescription(service)}
+                      className="rounded border border-slate-700 px-2 py-1 text-white hover:border-orange-500"
+                    >
+                      Edit description
                     </button>
                     <button
                       type="button"
@@ -301,12 +426,52 @@ export function CatalogManager() {
                     </button>
                     <button
                       type="button"
+                      onClick={() => setServicePricingMode(service)}
+                      className="rounded border border-slate-700 px-2 py-1 text-white hover:border-orange-500"
+                    >
+                      Set pricing mode
+                    </button>
+                    {service.pricingMode === 'FIXED' && (
+                      <button
+                        type="button"
+                        onClick={() => setServiceFixedPrice(service)}
+                        className="rounded border border-slate-700 px-2 py-1 text-white hover:border-orange-500"
+                      >
+                        Set fixed price
+                      </button>
+                    )}
+                    <button
+                      type="button"
                       onClick={() => deleteService(service)}
                       className="rounded border border-red-500/30 px-2 py-1 text-red-300 hover:border-red-400"
                     >
                       Delete
                     </button>
+                    </div>
                   </div>
+
+                  {service.pricingMode !== 'FIXED' && (
+                    <div className="rounded-lg border border-slate-700 bg-slate-900 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Tier prices</p>
+                      <div className="flex flex-wrap gap-2">
+                        {tiers.map((tier) => {
+                          const p = priceFor(service.id, tier.id);
+                          return (
+                            <button
+                              key={tier.id}
+                              type="button"
+                              onClick={() => setTierPrice(service, tier)}
+                              className="inline-flex max-w-full items-center gap-1 truncate rounded border border-slate-700 bg-slate-800 px-2 py-1 text-left text-[11px] text-slate-200 hover:border-orange-500"
+                              title={`${tier.name} ${typeof p === 'number' ? formatPrice(p) : '-'}`}
+                            >
+                              <span className="text-slate-400 truncate">{tier.name}</span>
+                              <span className="font-semibold text-white truncate">{typeof p === 'number' ? formatPrice(p) : '-'}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -395,33 +560,7 @@ export function CatalogManager() {
               </ul>
             </div>
 
-            <div className="space-y-3 rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-inner">
-              <h3 className="text-lg font-medium text-white">Service prices</h3>
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-400">Click a price to update it (stored in pence).</p>
-                <button type="button" onClick={applyFixedMenuPrices} className="rounded bg-brand-orange px-2 py-1 text-xs text-white hover:bg-orange-500">Apply fixed menu prices</button>
-              </div>
-              <ul className="space-y-2 text-sm">
-                {prices.map((price) => (
-                  <li key={`${price.serviceId}-${price.engineTierId}`} className="flex items-center justify-between rounded border border-slate-700 bg-slate-800 p-3">
-                    <div>
-                      <p className="font-semibold text-white">
-                        {price.service?.name ?? `Service ${price.serviceId}`}{' '}
-                        / {price.engineTier?.name ?? `Tier ${price.engineTierId}`}
-                      </p>
-                      <p className="text-xs text-slate-400">{formatPrice(price.amountPence)}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => updatePrice(price)}
-                      className="rounded border border-slate-700 px-2 py-1 text-xs text-white hover:border-orange-500"
-                    >
-                      Update price
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {/* Service prices list removed in favour of per-service tier editors above */}
           </div>
         </div>
       )}

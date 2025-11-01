@@ -5,7 +5,8 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { BookingStatus, Document, Prisma, ServicePricingMode, User } from '@prisma/client';
+import { BookingSource, BookingStatus, Document, DocumentType, Prisma, ServicePricingMode, User } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
 import { DocumentSummary, DocumentsService } from '../documents/documents.service';
 import { EmailService } from '../email/email.service';
 import { HoldsService } from '../holds/holds.service';
@@ -15,6 +16,7 @@ import { VehiclesService } from '../vehicles/vehicles.service';
 import { toUtcDate } from '../common/date-utils';
 import { normalisePostcode, sanitisePhone, sanitiseString } from '../common/utils/profile.util';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { CreateManualBookingDto } from '../admin/dto/create-manual-booking.dto';
 import {
   EngineTierCode,
   mapEngineTierNameToCode,
@@ -30,6 +32,18 @@ type BookingWithServices = Prisma.BookingGetPayload<{
       };
     };
     documents?: true;
+  };
+}>;
+
+type BookingWithDocuments = Prisma.BookingGetPayload<{
+  include: {
+    services: {
+      include: {
+        service: true;
+        engineTier: true;
+      };
+    };
+    documents: true;
   };
 }>;
 
@@ -151,6 +165,7 @@ export class BookingsService {
     return {
       id: booking.id,
       status: booking.status,
+      source: booking.source,
       slotDate: booking.slotDate.toISOString(),
       slotTime: booking.slotTime,
       createdAt: booking.createdAt.toISOString(),
@@ -593,6 +608,25 @@ export class BookingsService {
     };
   }
 
+  private buildDocumentSummary(booking: BookingWithDocuments): DocumentSummary {
+    const primaryService = booking.services[0];
+
+    return {
+      bookingId: booking.id,
+      slotDate: booking.slotDate,
+      slotTime: booking.slotTime,
+      customerName: booking.customerName,
+      customerEmail: booking.customerEmail,
+      customerPhone: booking.customerPhone,
+      serviceName: primaryService?.service.name ?? 'Service',
+      engineTierName: primaryService?.engineTier?.name ?? null,
+    };
+  }
+
+  private computeServicesTotal(booking: { services: { unitPricePence: number }[] }): number {
+    return booking.services.reduce((sum, service) => sum + service.unitPricePence, 0);
+  }
+
   private async sendConfirmationEmails(
     booking: BookingWithServices,
     invoice: Document,
@@ -646,6 +680,840 @@ export class BookingsService {
       adminRecipients: recipients.map((recipient) => recipient.email),
     });
   }
+
+  async getBookingForAdmin(bookingId: number) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        services: {
+          orderBy: { id: 'asc' },
+          include: {
+            service: true,
+            engineTier: true,
+          },
+        },
+        documents: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            mobileNumber: true,
+            landlineNumber: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    const services = booking.services.map((service) => ({
+      id: service.id,
+      serviceId: service.serviceId,
+      serviceName: service.service?.name ?? null,
+      serviceCode: service.service?.code ?? null,
+      pricingMode: service.service?.pricingMode ?? null,
+      engineTierId: service.engineTierId,
+      engineTierName: service.engineTier?.name ?? null,
+      unitPricePence: service.unitPricePence,
+    }));
+
+    const servicesAmountPence = booking.services.reduce((sum, service) => sum + service.unitPricePence, 0);
+
+    const invoiceDocuments = booking.documents.filter((doc) => doc.type === DocumentType.INVOICE);
+    const latestInvoice = invoiceDocuments.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null;
+
+    const statusHistory = [
+      {
+        status: booking.status,
+        changedAt: booking.updatedAt.toISOString(),
+      },
+    ];
+
+    return {
+      id: booking.id,
+      status: booking.status,
+      source: booking.source,
+      paymentStatus: booking.paymentStatus ?? null,
+      internalNotes: booking.internalNotes ?? null,
+      notes: booking.notes ?? null,
+      slotDate: booking.slotDate.toISOString(),
+      slotTime: booking.slotTime,
+      createdAt: booking.createdAt.toISOString(),
+      updatedAt: booking.updatedAt.toISOString(),
+      holdId: booking.holdId ?? null,
+      services,
+      customer: {
+        name: booking.customerName,
+        email: booking.customerEmail,
+        phone: booking.customerPhone,
+        mobile: booking.customerMobile,
+        landline: booking.customerLandline,
+        company: booking.customerCompany,
+        title: booking.customerTitle,
+        firstName: booking.customerFirstName,
+        lastName: booking.customerLastName,
+        addressLine1: booking.customerAddressLine1,
+        addressLine2: booking.customerAddressLine2,
+        addressLine3: booking.customerAddressLine3,
+        city: booking.customerCity,
+        county: booking.customerCounty,
+        postcode: booking.customerPostcode,
+        wantsSmsReminder: booking.wantsSmsReminder,
+        profile: booking.user,
+      },
+      vehicle: {
+        registration: booking.vehicleRegistration,
+        make: booking.vehicleMake,
+        model: booking.vehicleModel,
+        engineSizeCc: booking.vehicleEngineSizeCc,
+      },
+      totals: {
+        servicesAmountPence,
+        invoiceAmountPence: latestInvoice?.totalAmountPence ?? null,
+        invoiceVatAmountPence: latestInvoice?.vatAmountPence ?? null,
+      },
+      documents: booking.documents
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .map((document) => ({
+          id: document.id,
+          type: document.type,
+          status: document.status,
+          number: document.number,
+          totalAmountPence: document.totalAmountPence,
+          vatAmountPence: document.vatAmountPence,
+          pdfUrl: document.pdfUrl,
+          issuedAt: document.issuedAt ? document.issuedAt.toISOString() : null,
+          dueAt: document.dueAt ? document.dueAt.toISOString() : null,
+          createdAt: document.createdAt.toISOString(),
+          updatedAt: document.updatedAt.toISOString(),
+        })),
+      statusHistory,
+    };
+  }
+
+  async adminUpdateStatus(bookingId: number, status: BookingStatus) {
+    const allowed = new Set<BookingStatus>([
+      BookingStatus.CONFIRMED,
+      BookingStatus.CANCELLED,
+      BookingStatus.COMPLETED,
+      BookingStatus.NO_SHOW,
+      BookingStatus.HELD,
+    ]);
+
+    if (!allowed.has(status)) {
+      throw new BadRequestException('Status cannot be updated to the requested value.');
+    }
+
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: {
+        id: true,
+        status: true,
+        holdId: true,
+      },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    if (booking.status === status) {
+      return this.getBookingForAdmin(bookingId);
+    }
+
+    const shouldReleaseHold =
+      !!booking.holdId &&
+      (status === BookingStatus.CANCELLED || status === BookingStatus.COMPLETED || status === BookingStatus.NO_SHOW);
+
+    await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        status,
+        holdId: shouldReleaseHold ? null : booking.holdId,
+      },
+    });
+
+    if (shouldReleaseHold && booking.holdId) {
+      try {
+        await this.holdsService.releaseHold(booking.holdId);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to release hold ${booking.holdId} when updating booking ${bookingId}: ${(error as Error).message}`,
+        );
+      }
+    }
+
+    return this.getBookingForAdmin(bookingId);
+  }
+
+  async adminUpdateInternalNotes(bookingId: number, internalNotes: string | null) {
+    const bookingExists = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: { id: true },
+    });
+
+    if (!bookingExists) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    const cleaned = sanitiseString(internalNotes ?? undefined);
+
+    await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: { internalNotes: cleaned },
+    });
+
+    return this.getBookingForAdmin(bookingId);
+  }
+
+  async adminUpdatePaymentStatus(bookingId: number, paymentStatus: string | null) {
+    const allowedPaymentStatuses = new Set(['UNPAID', 'PAID', 'PARTIAL']);
+
+    const normalized = paymentStatus ? paymentStatus.toUpperCase() : null;
+    if (normalized && !allowedPaymentStatuses.has(normalized)) {
+      throw new BadRequestException('Invalid payment status.');
+    }
+
+    const bookingExists = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: { id: true },
+    });
+
+    if (!bookingExists) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: { paymentStatus: normalized },
+    });
+
+    return this.getBookingForAdmin(bookingId);
+  }
+
+  async adminIssueInvoice(bookingId: number) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        services: {
+          include: {
+            service: true,
+            engineTier: true,
+          },
+        },
+        documents: true,
+      },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    if (!booking.services.length) {
+      throw new BadRequestException('Booking has no services configured.');
+    }
+
+    const typedBooking = booking as BookingWithDocuments;
+    const settings = await this.settingsService.getSettings();
+    const vatRatePercent = Number(settings.vatRatePercent);
+    const totalAmountPence = this.computeServicesTotal(typedBooking);
+    const vatAmountPence = this.calculateVatFromGross(totalAmountPence, vatRatePercent);
+
+    let invoice = await this.documentsService.issueInvoiceForBooking({
+      bookingId: booking.id,
+      totalAmountPence,
+      vatAmountPence,
+    });
+
+    invoice = await this.documentsService.finalizeDocument(
+      invoice,
+      this.buildDocumentSummary(typedBooking),
+      {
+        totalAmountPence,
+        vatAmountPence,
+      },
+      settings,
+    );
+
+    if (!invoice.issuedAt) {
+      invoice = await this.prisma.document.update({
+        where: { id: invoice.id },
+        data: { issuedAt: new Date() },
+      });
+    }
+
+    return this.getBookingForAdmin(bookingId);
+  }
+
+  async adminEmailInvoice(bookingId: number) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        services: {
+          include: {
+            service: true,
+            engineTier: true,
+          },
+        },
+        documents: true,
+      },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    if (!booking.services.length) {
+      throw new BadRequestException('Booking has no services configured.');
+    }
+
+    if (!booking.customerEmail) {
+      throw new BadRequestException('Booking does not have a customer email address.');
+    }
+
+    const typedBooking = booking as BookingWithDocuments;
+    const totalAmountPence = this.computeServicesTotal(typedBooking);
+
+    let invoice = typedBooking.documents
+      .filter((document) => document.type === DocumentType.INVOICE)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+
+    if (!invoice) {
+      throw new BadRequestException('No invoice found. Issue an invoice before emailing.');
+    }
+
+    if (!invoice.pdfUrl || invoice.pdfUrl.startsWith('pending://')) {
+      const settings = await this.settingsService.getSettings();
+      const vatRatePercent = Number(settings.vatRatePercent);
+      const vatAmountPence = this.calculateVatFromGross(totalAmountPence, vatRatePercent);
+
+      invoice = await this.documentsService.finalizeDocument(
+        invoice,
+        this.buildDocumentSummary(typedBooking),
+        {
+          totalAmountPence,
+          vatAmountPence,
+        },
+        settings,
+      );
+
+      if (!invoice.issuedAt) {
+        invoice = await this.prisma.document.update({
+          where: { id: invoice.id },
+          data: { issuedAt: new Date() },
+        });
+      }
+    }
+
+    const recipients = await this.prisma.notificationRecipient.findMany();
+    const primaryService = typedBooking.services[0];
+
+    await this.emailService.sendBookingConfirmation({
+      bookingId: typedBooking.id,
+      slotDate: typedBooking.slotDate,
+      slotTime: typedBooking.slotTime,
+      service: {
+        name: primaryService?.service.name ?? 'Service',
+        engineTier: primaryService?.engineTier?.name ?? null,
+      },
+      totals: {
+        pricePence: totalAmountPence,
+      },
+      vehicle: {
+        registration: typedBooking.vehicleRegistration,
+        make: typedBooking.vehicleMake,
+        model: typedBooking.vehicleModel,
+        engineSizeCc: typedBooking.vehicleEngineSizeCc,
+      },
+      customer: {
+        email: typedBooking.customerEmail,
+        name: typedBooking.customerName,
+        title: typedBooking.customerTitle,
+        firstName: typedBooking.customerFirstName,
+        lastName: typedBooking.customerLastName,
+        companyName: typedBooking.customerCompany,
+        phone: typedBooking.customerPhone,
+        mobile: typedBooking.customerMobile,
+        landline: typedBooking.customerLandline,
+        addressLine1: typedBooking.customerAddressLine1,
+        addressLine2: typedBooking.customerAddressLine2,
+        addressLine3: typedBooking.customerAddressLine3,
+        city: typedBooking.customerCity,
+        county: typedBooking.customerCounty,
+        postcode: typedBooking.customerPostcode,
+        notes: typedBooking.notes ?? null,
+      },
+      documents: {
+        invoiceNumber: invoice.number,
+        invoiceUrl: invoice.pdfUrl,
+      },
+      adminRecipients: recipients.map((recipient) => recipient.email),
+    });
+
+    return this.getBookingForAdmin(bookingId);
+  }
+
+  /**
+   * Create a manual booking (admin/staff only)
+   * Bypasses hold system, creates user if needed, sets source to MANUAL
+   */
+  async createManualBooking(dto: CreateManualBookingDto) {
+    const settings = await this.settingsService.getSettings();
+    const vatRatePercent = Number(settings.vatRatePercent);
+
+    // Parse scheduling
+    let slotDate: Date;
+    let slotTime: string;
+
+    if (dto.scheduling.mode === 'SLOT') {
+      if (!dto.scheduling.slotDate || !dto.scheduling.slotTime) {
+        throw new BadRequestException('slotDate and slotTime required for SLOT mode');
+      }
+      slotDate = toUtcDate(dto.scheduling.slotDate);
+      slotTime = dto.scheduling.slotTime;
+    } else {
+      // CUSTOM mode
+      if (!dto.scheduling.customDate) {
+        throw new BadRequestException('customDate required for CUSTOM mode');
+      }
+      const customDateTime = new Date(dto.scheduling.customDate);
+      slotDate = toUtcDate(customDateTime.toISOString().split('T')[0]);
+      slotTime = customDateTime.toISOString().split('T')[1].substring(0, 5); // HH:mm
+    }
+
+    // Check slot availability (only if SLOT mode)
+    if (dto.scheduling.mode === 'SLOT') {
+      const existing = await this.prisma.booking.findUnique({
+        where: { slotDate_slotTime: { slotDate, slotTime } },
+      });
+      if (existing) {
+        throw new ConflictException('Slot already booked');
+      }
+    }
+
+    // Validate and resolve services
+    if (!dto.services.length) {
+      throw new BadRequestException('At least one service is required');
+    }
+
+    const serviceItem = dto.services[0]; // Currently only supporting one service
+    const service = await this.prisma.service.findUnique({
+      where: { id: serviceItem.serviceId },
+    });
+
+    if (!service || !service.isActive) {
+      throw new BadRequestException('Selected service is not available');
+    }
+
+    const serviceCodeValue = service.code?.trim();
+    if (!serviceCodeValue) {
+      throw new BadRequestException('Selected service is not available');
+    }
+
+    // Determine pricing
+    let unitPricePence: number;
+    let resolvedEngineTierId: number | null = null;
+    let engineTierCode: EngineTierCode | null = null;
+
+    // If price override is provided, use it
+    if (serviceItem.priceOverridePence !== undefined && serviceItem.priceOverridePence !== null) {
+      unitPricePence = serviceItem.priceOverridePence;
+    } else if (service.pricingMode === ServicePricingMode.FIXED) {
+      if (typeof service.fixedPricePence !== 'number' || service.fixedPricePence <= 0) {
+        throw new BadRequestException('Service pricing is not configured correctly');
+      }
+      unitPricePence = service.fixedPricePence;
+    } else {
+      // TIERED pricing
+      if (!serviceItem.engineTierId) {
+        throw new BadRequestException('Engine tier is required for tiered services');
+      }
+
+      const servicePrice = await this.prisma.servicePrice.findUnique({
+        where: {
+          serviceId_engineTierId: {
+            serviceId: serviceItem.serviceId,
+            engineTierId: serviceItem.engineTierId,
+          },
+        },
+        include: { engineTier: true },
+      });
+
+      if (!servicePrice) {
+        throw new BadRequestException('Service pricing is not configured correctly');
+      }
+
+      unitPricePence = servicePrice.amountPence;
+      resolvedEngineTierId = servicePrice.engineTierId;
+
+      const tierName = servicePrice.engineTier?.name ?? null;
+      const tierSortOrder = servicePrice.engineTier?.sortOrder ?? null;
+      engineTierCode = mapEngineTierNameToCode(tierName) ?? mapEngineTierSortOrderToCode(tierSortOrder);
+    }
+
+    // Find or create user by email
+    const customerEmail = dto.customer.email?.trim().toLowerCase();
+    let user: User | null = null;
+
+    if (customerEmail) {
+      user = await this.prisma.user.findUnique({
+        where: { email: customerEmail },
+      });
+    }
+
+    // If no user found and no email, create a guest user with a random password hash
+    if (!user) {
+      const guestEmail = customerEmail || `guest-${Date.now()}-${Math.random().toString(36).substring(7)}@local.booking`;
+      const randomPassword = `manual-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const passwordHash = await bcrypt.hash(randomPassword, 12);
+      user = await this.prisma.user.create({
+        data: {
+          email: guestEmail,
+          passwordHash,
+          firstName: dto.customer.name,
+          mobileNumber: dto.customer.phone,
+          emailVerified: true,
+        },
+      });
+    }
+
+    // Normalize vehicle registration
+    const vehicleRegistration = dto.vehicle.registration.trim().toUpperCase();
+    const normalizedEngineSize = this.normalizeEngineSize(dto.vehicle.engineSizeCc);
+
+    // Prepare customer data
+    const customerName = sanitiseString(dto.customer.name) ?? dto.customer.name.trim();
+    const customerPhone = sanitisePhone(dto.customer.phone) ?? dto.customer.phone.trim();
+    const addressLine1 = dto.customer.addressLine1 ? sanitiseString(dto.customer.addressLine1) : null;
+    const customerCity = dto.customer.city ? sanitiseString(dto.customer.city) : null;
+    const customerPostcode = dto.customer.postcode ? normalisePostcode(dto.customer.postcode) : null;
+
+    // Create booking and related entities in transaction
+    const result = await this.prisma.$transaction(async (tx) => {
+      const booking = await tx.booking.create({
+        data: {
+          userId: user!.id,
+          status: BookingStatus.CONFIRMED,
+          source: BookingSource.MANUAL,
+          slotDate,
+          slotTime,
+          holdId: null,
+          customerName,
+          customerEmail: customerEmail ?? user!.email,
+          customerPhone,
+          customerMobile: customerPhone,
+          customerAddressLine1: addressLine1,
+          customerCity,
+          customerPostcode,
+          vehicleRegistration,
+          vehicleMake: dto.vehicle.make ? sanitiseString(dto.vehicle.make) : null,
+          vehicleModel: dto.vehicle.model ? sanitiseString(dto.vehicle.model) : null,
+          vehicleEngineSizeCc: normalizedEngineSize,
+          serviceCode: serviceCodeValue,
+          engineTierCode,
+          servicePricePence: unitPricePence,
+          notes: dto.internalNotes ? sanitiseString(dto.internalNotes) : null,
+          acceptedTermsAt: new Date(), // Manual bookings auto-accept terms
+        },
+      });
+
+      await tx.bookingService.create({
+        data: {
+          bookingId: booking.id,
+          serviceId: service.id,
+          engineTierId: resolvedEngineTierId ?? undefined,
+          unitPricePence,
+        },
+      });
+
+      // Calculate totals
+      const totalAmountPence = unitPricePence;
+      const vatAmountPence = this.calculateVatFromGross(totalAmountPence, vatRatePercent);
+
+      // Create invoice and quote
+      let invoice: Document | null = null;
+      let quote: Document | null = null;
+      try {
+        [invoice, quote] = await Promise.all([
+          this.documentsService.issueInvoiceForBooking({
+            bookingId: booking.id,
+            totalAmountPence,
+            vatAmountPence,
+            tx,
+          }),
+          this.documentsService.issueQuoteForBooking({
+            bookingId: booking.id,
+            totalAmountPence,
+            vatAmountPence,
+            validUntil: this.computeQuoteValidUntil(),
+            tx,
+          }),
+        ]);
+      } catch (e) {
+        this.logger.warn(`Failed to issue docs for manual booking ${booking.id}: ${(e as Error).message}`);
+      }
+
+      return {
+        booking: await tx.booking.findUnique({
+          where: { id: booking.id },
+          include: {
+            services: {
+              include: {
+                service: true,
+                engineTier: true,
+              },
+            },
+            documents: true,
+          },
+        }),
+        invoice: invoice!,
+        quote: quote!,
+        totalAmountPence,
+        vatAmountPence,
+      };
+    });
+
+    if (!result.booking) {
+      throw new Error('Failed to create booking');
+    }
+
+    // Finalize documents
+    const bookingServiceItem = result.booking.services[0];
+    const summary: DocumentSummary = {
+      bookingId: result.booking.id,
+      slotDate: result.booking.slotDate,
+      slotTime: result.booking.slotTime,
+      customerName: result.booking.customerName,
+      customerEmail: result.booking.customerEmail,
+      customerPhone: result.booking.customerPhone,
+      serviceName: bookingServiceItem?.service.name ?? 'Service',
+      engineTierName: bookingServiceItem?.engineTier?.name ?? null,
+    };
+
+    let finalInvoice = result.invoice;
+    let finalQuote = result.quote;
+    try {
+      if (result.invoice && result.quote) {
+        [finalInvoice, finalQuote] = await Promise.all([
+          this.documentsService.finalizeDocument(
+            result.invoice,
+            summary,
+            {
+              totalAmountPence: result.totalAmountPence,
+              vatAmountPence: result.vatAmountPence,
+            },
+            settings,
+          ),
+          this.documentsService.finalizeDocument(
+            result.quote,
+            summary,
+            {
+              totalAmountPence: result.totalAmountPence,
+              vatAmountPence: result.vatAmountPence,
+            },
+            settings,
+          ),
+        ]);
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to finalize docs for manual booking ${result.booking.id}: ${(e as Error).message}`);
+    }
+
+    // Send confirmation emails (optional - can fail silently)
+    try {
+      if (finalInvoice && finalQuote) {
+        await this.sendConfirmationEmails(result.booking, finalInvoice, finalQuote, result.totalAmountPence);
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to send confirmation emails for manual booking ${result.booking.id}`,
+        (error as Error)?.stack ?? String(error),
+      );
+    }
+
+    return {
+      bookingId: result.booking.id,
+      reference: finalInvoice.number,
+      status: result.booking.status,
+      slotDate: result.booking.slotDate.toISOString(),
+      slotTime: result.booking.slotTime,
+    };
+  }
+
+  async adminSoftDeleteBooking(bookingId: number) {
+    const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
+    if (!booking) throw new NotFoundException('Booking not found');
+
+    await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        status: BookingStatus.CANCELLED,
+        holdId: null,
+        paymentStatus: 'DELETED',
+      },
+    });
+    return this.getBookingForAdmin(bookingId);
+  }
+
+  async adminRestoreBooking(bookingId: number) {
+    const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
+    if (!booking) throw new NotFoundException('Booking not found');
+
+    await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        paymentStatus: null,
+      },
+    });
+    return this.getBookingForAdmin(bookingId);
+  }
+
+  async adminHardDeleteBooking(bookingId: number) {
+    const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
+    if (!booking) throw new NotFoundException('Booking not found');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.bookingService.deleteMany({ where: { bookingId } });
+      await tx.document.deleteMany({ where: { bookingId } });
+      await tx.booking.delete({ where: { id: bookingId } });
+    });
+  }
+
+  async adminUpdateCustomer(
+    bookingId: number,
+    dto: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      mobile?: string;
+      landline?: string;
+      company?: string;
+      title?: string;
+      firstName?: string;
+      lastName?: string;
+      addressLine1?: string;
+      addressLine2?: string;
+      addressLine3?: string;
+      city?: string;
+      county?: string;
+      postcode?: string;
+    },
+  ) {
+    const exists = await this.prisma.booking.findUnique({ where: { id: bookingId }, select: { id: true } });
+    if (!exists) throw new NotFoundException('Booking not found');
+
+    const updateData: Prisma.BookingUpdateInput = {};
+    if (dto.name !== undefined) {
+      const v = sanitiseString(dto.name);
+      if (v !== null) updateData.customerName = v;
+    }
+    if (dto.email !== undefined) {
+      const v = sanitiseString(dto.email);
+      if (v !== null) updateData.customerEmail = v.toLowerCase();
+    }
+    if (dto.phone !== undefined) {
+      const v = sanitisePhone(dto.phone);
+      if (v !== null) updateData.customerPhone = v;
+    }
+    if (dto.mobile !== undefined) {
+      const v = sanitisePhone(dto.mobile);
+      if (v !== null) updateData.customerMobile = v;
+    }
+    if (dto.landline !== undefined) {
+      const v = sanitisePhone(dto.landline);
+      if (v !== null) updateData.customerLandline = v;
+    }
+    if (dto.company !== undefined) {
+      const v = sanitiseString(dto.company);
+      if (v !== null) updateData.customerCompany = v;
+    }
+    if (dto.title !== undefined) {
+      const v = sanitiseString(dto.title);
+      if (v !== null) updateData.customerTitle = v;
+    }
+    if (dto.firstName !== undefined) {
+      const v = sanitiseString(dto.firstName);
+      if (v !== null) updateData.customerFirstName = v;
+    }
+    if (dto.lastName !== undefined) {
+      const v = sanitiseString(dto.lastName);
+      if (v !== null) updateData.customerLastName = v;
+    }
+    if (dto.addressLine1 !== undefined) {
+      const v = sanitiseString(dto.addressLine1);
+      if (v !== null) updateData.customerAddressLine1 = v;
+    }
+    if (dto.addressLine2 !== undefined) {
+      const v = sanitiseString(dto.addressLine2);
+      if (v !== null) updateData.customerAddressLine2 = v;
+    }
+    if (dto.addressLine3 !== undefined) {
+      const v = sanitiseString(dto.addressLine3);
+      if (v !== null) updateData.customerAddressLine3 = v;
+    }
+    if (dto.city !== undefined) {
+      const v = sanitiseString(dto.city);
+      if (v !== null) updateData.customerCity = v;
+    }
+    if (dto.county !== undefined) {
+      const v = sanitiseString(dto.county);
+      if (v !== null) updateData.customerCounty = v;
+    }
+    if (dto.postcode !== undefined) {
+      const v = normalisePostcode(dto.postcode);
+      if (v !== null) updateData.customerPostcode = v;
+    }
+
+    await this.prisma.booking.update({ where: { id: bookingId }, data: updateData });
+    return this.getBookingForAdmin(bookingId);
+  }
+
+  async adminUpdateVehicle(
+    bookingId: number,
+    dto: { registration?: string; make?: string; model?: string; engineSizeCc?: number | null },
+  ) {
+    const exists = await this.prisma.booking.findUnique({ where: { id: bookingId }, select: { id: true } });
+    if (!exists) throw new NotFoundException('Booking not found');
+
+    const updateData: Prisma.BookingUpdateInput = {};
+    if (dto.registration !== undefined) {
+      const v = sanitiseString(dto.registration);
+      if (v !== null) updateData.vehicleRegistration = v;
+    }
+    if (dto.make !== undefined) {
+      const v = sanitiseString(dto.make);
+      if (v !== null) updateData.vehicleMake = v;
+    }
+    if (dto.model !== undefined) {
+      const v = sanitiseString(dto.model);
+      if (v !== null) updateData.vehicleModel = v;
+    }
+    if (dto.engineSizeCc !== undefined) updateData.vehicleEngineSizeCc = dto.engineSizeCc as any;
+
+    await this.prisma.booking.update({ where: { id: bookingId }, data: updateData });
+    return this.getBookingForAdmin(bookingId);
+  }
+
+  async adminUpdateServiceLine(
+    bookingId: number,
+    serviceLineId: number,
+    dto: { unitPricePence?: number; engineTierId?: number | null; serviceId?: number },
+  ) {
+    const line = await this.prisma.bookingService.findUnique({ where: { id: serviceLineId } });
+    if (!line || line.bookingId !== bookingId) {
+      throw new NotFoundException('Service line not found for this booking');
+    }
+
+    const data: Prisma.BookingServiceUpdateInput = {};
+    if (dto.unitPricePence !== undefined) data.unitPricePence = dto.unitPricePence;
+    if (dto.engineTierId !== undefined) data.engineTier = dto.engineTierId ? { connect: { id: dto.engineTierId } } : { disconnect: true };
+    if (dto.serviceId !== undefined) data.service = { connect: { id: dto.serviceId } };
+
+    await this.prisma.bookingService.update({ where: { id: serviceLineId }, data });
+    return this.getBookingForAdmin(bookingId);
+  }
 }
-
-

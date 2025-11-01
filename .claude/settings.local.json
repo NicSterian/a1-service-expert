@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(pnpm --filter booking-web build:*)",
+      "Bash(pnpm --filter booking-api build:*)",
+      "Bash(pnpm exec prisma migrate:*)",
+      "Bash(findstr:*)",
+      "Bash(pnpm exec prisma:*)",
+      "Bash(timeout /t 3)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
