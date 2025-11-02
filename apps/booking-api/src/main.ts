@@ -35,10 +35,16 @@ const formatValidationErrors = (errors: any[], parentPath = ''): FormattedValida
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.enableCors({
-    origin: getCorsOrigins(),
-    credentials: true,
-  });
+ // main.ts
+app.enableCors({
+  origin: [
+    ...getCorsOrigins(),         // from your CORS_ORIGINS env
+    /\.github\.dev$/,            // ✅ GitHub Codespaces web URL
+    /\.githubpreview\.dev$/,     // ✅ Codespaces preview URL
+  ],
+  credentials: true,
+});
+
 
   app.useGlobalPipes(
     new ValidationPipe({
