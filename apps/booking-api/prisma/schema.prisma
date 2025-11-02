@@ -36,6 +36,7 @@ enum DocumentStatus {
 enum SequenceKey {
   INVOICE
   QUOTE
+  BOOKING_REFERENCE
 }
 
 enum EngineTierCode {
@@ -190,6 +191,7 @@ model Booking {
   slotDate            DateTime
   slotTime            String
   holdId              String?
+  reference           String?       @unique
   customerName        String
   customerTitle       String?
   customerFirstName   String?

@@ -312,15 +312,6 @@ function App() {
                           Admin dashboard
                         </Link>
                       ) : null}
-                      {isAdmin ? (
-                        <Link
-                          to="/dev"
-                          onClick={() => setProfileMenuOpen(false)}
-                          className="flex items-center gap-2 rounded-lg px-3 py-2 transition hover:bg-slate-100 hover:text-brand-black"
-                        >
-                          Dev tools
-                        </Link>
-                      ) : null}
                       <div className="my-1 h-px bg-slate-100" />
                       <button
                         type="button"
@@ -370,14 +361,6 @@ function App() {
                         className="w-full rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-center font-semibold text-white transition hover:border-brand-orange hover:text-brand-orange"
                       >
                         Admin dashboard
-                      </Link>
-                    ) : null}
-                    {isAdmin ? (
-                      <Link
-                        to="/dev"
-                        className="w-full rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-center font-semibold text-white transition hover:border-brand-orange hover:text-brand-orange"
-                      >
-                        Dev tools
                       </Link>
                     ) : null}
                     <button

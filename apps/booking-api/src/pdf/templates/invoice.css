@@ -1,0 +1,30 @@
+@page { size: A4; margin: 18mm 15mm; }
+html, body { font-family: Arial, Helvetica, sans-serif; font-size: 11pt; color: #111; }
+.header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--brand, #f97316); padding-bottom: 10px; margin-bottom: 16px; }
+.brand { display: flex; gap: 12px; align-items: center; }
+.brand img { height: 44px; max-width: 120px; object-fit: contain; }
+.brand .name { font-size: 18pt; font-weight: 700; }
+.company { font-size: 9pt; color: #555; line-height: 1.3; }
+.meta { margin: 8px 0 16px; }
+.meta h1 { font-size: 16pt; margin: 0 0 6px; }
+.meta .grid { display: grid; grid-template-columns: auto auto; gap: 4px 24px; font-size: 10pt; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 10px 0 16px; }
+.box { border: 1px solid #ddd; border-radius: 6px; padding: 10px 12px; }
+.box h3 { margin: 0 0 6px; font-size: 10pt; color: #333; text-transform: uppercase; letter-spacing: .4px; }
+table.items { width: 100%; border-collapse: collapse; }
+table.items thead { display: table-header-group; }
+table.items tr { page-break-inside: avoid; }
+table.items thead th { text-align: left; font-size: 10pt; border-bottom: 2px solid var(--brand, #f97316); padding: 6px 6px; }
+table.items tbody td { padding: 6px 6px; border-bottom: 1px solid #eee; vertical-align: top; }
+table.items tbody tr:nth-child(odd) { background: #fafafa; }
+.right { text-align: right; }
+.totals { width: 50%; margin-left: auto; margin-top: 12px; }
+.totals table { width: 100%; border-collapse: collapse; }
+.totals td { padding: 6px; font-size: 11pt; }
+.totals .label { color: #444; }
+.totals .grand { font-weight: 700; border-top: 2px solid #111; }
+.badge { display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 9pt; color: #064e3b; background: #d1fae5; border: 1px solid #10b981; }
+.paid-stamp { position: absolute; top: 20mm; right: 20mm; color: #16a34a; font-weight: 700; font-size: 24px; }
+.notes { margin-top: 14px; font-size: 10pt; color: #555; }
+.footer { position: fixed; bottom: 12mm; left: 15mm; right: 15mm; font-size: 9pt; color: #666; display: flex; justify-content: space-between; }
+.page-num:after { content: counter(page) " of " counter(pages); }

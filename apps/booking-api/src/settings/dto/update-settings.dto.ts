@@ -55,7 +55,7 @@ export class UpdateSettingsDto {
   bankHolidayRegion?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsString()
   logoUrl?: string | null;
 
   @IsOptional()

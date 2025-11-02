@@ -8,6 +8,7 @@ const SUPPORT_EMAIL = 'support@a1serviceexpert.com';
 
 export interface BookingConfirmationEmail {
   bookingId?: number;
+  reference?: string;
   slotDate: Date;
   slotTime: string;
   service: {
@@ -127,6 +128,113 @@ export class EmailService {
     });
 
     return this.transporter;
+  }
+
+  async sendInvoiceEmail(to: string, subject: string, text: string, html?: string): Promise<void> {
+    const transporter = await this.getTransporter();
+    const config = this.loadConfig();
+    if (!transporter || !config) {
+      this.logger.log(`Would send invoice email to ${to}: ${subject}`);
+      return;
+    }
+    try {
+      await transporter.sendMail({ from: this.getFromHeader(config), to, subject, text, html: html ?? text });
+    } catch (error) {
+      this.logger.error('Failed to send invoice email via SMTP', error as Error);
+    }
+  }
+
+  async sendDocumentEmail(params: {
+    to: string;
+    documentType: 'INVOICE' | 'QUOTE' | 'RECEIPT';
+    documentNumber: string;
+    customerName: string;
+    totalAmount: string;
+    pdfPath?: string;
+  }): Promise<void> {
+    const transporter = await this.getTransporter();
+    const config = this.loadConfig();
+
+    if (!transporter || !config) {
+      this.logger.log(`Would send ${params.documentType} email to ${params.to}: ${params.documentNumber}`);
+      return;
+    }
+
+    const docTypeLabel = params.documentType === 'RECEIPT' ? 'Receipt' : params.documentType === 'QUOTE' ? 'Quote' : 'Invoice';
+    const subject = `Your ${docTypeLabel} ${params.documentNumber} from A1 Service Expert`;
+
+    const html = `
+      <div style="background-color:#0f172a;padding:32px 16px;font-family:'Inter',Arial,sans-serif;color:#0f172a;">
+        <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 12px 32px rgba(15,23,42,0.25);">
+          <div style="background:linear-gradient(135deg,#020617,#0f172a);padding:32px;text-align:center;">
+            <h1 style="color:#f97316;font-size:24px;margin:0;">A1 Service Expert</h1>
+            <p style="color:#e2e8f0;font-size:14px;margin:12px 0 0;letter-spacing:0.08em;text-transform:uppercase;">${docTypeLabel}</p>
+          </div>
+          <div style="padding:32px 28px 24px;">
+            <p style="font-size:16px;color:#0f172a;margin:0 0 16px;">Hi ${params.customerName},</p>
+            <p style="margin:0 0 16px;color:#475569;font-size:15px;line-height:1.6;">
+              Please find attached your ${docTypeLabel.toLowerCase()} <strong>${params.documentNumber}</strong> for <strong>${params.totalAmount}</strong>.
+            </p>
+            ${params.documentType === 'INVOICE' ? `
+              <p style="margin:0 0 16px;color:#475569;font-size:15px;line-height:1.6;">
+                Thank you for your business. If you have any questions, please don't hesitate to contact us.
+              </p>
+            ` : params.documentType === 'RECEIPT' ? `
+              <p style="margin:0 0 16px;color:#475569;font-size:15px;line-height:1.6;">
+                Thank you for your payment. This serves as confirmation of your transaction.
+              </p>
+            ` : `
+              <p style="margin:0 0 16px;color:#475569;font-size:15px;line-height:1.6;">
+                Please review the attached quote. We look forward to working with you.
+              </p>
+            `}
+            <div style="border-top:1px solid #e2e8f0;padding-top:18px;margin-top:18px;font-size:13px;color:#475569;line-height:1.6;">
+              <p style="margin:0 0 6px;">A1 Service Expert</p>
+              <p style="margin:0 0 6px;">11 Cunliffe Dr, Kettering NN16 8LD</p>
+              <p style="margin:0 0 6px;">Phone: 07394 433889 · Email: ${SUPPORT_EMAIL}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const text = `
+${docTypeLabel} ${params.documentNumber}
+
+Hi ${params.customerName},
+
+Please find attached your ${docTypeLabel.toLowerCase()} ${params.documentNumber} for ${params.totalAmount}.
+
+${params.documentType === 'INVOICE' ? 'Thank you for your business. If you have any questions, please don\'t hesitate to contact us.' : params.documentType === 'RECEIPT' ? 'Thank you for your payment. This serves as confirmation of your transaction.' : 'Please review the attached quote. We look forward to working with you.'}
+
+A1 Service Expert
+11 Cunliffe Dr, Kettering NN16 8LD
+Phone: 07394 433889
+Email: ${SUPPORT_EMAIL}
+    `.trim();
+
+    const attachments: Array<{ filename: string; path: string }> = [];
+    if (params.pdfPath) {
+      attachments.push({
+        filename: `${params.documentNumber}.pdf`,
+        path: params.pdfPath,
+      });
+    }
+
+    try {
+      await transporter.sendMail({
+        from: this.getFromHeader(config),
+        to: params.to,
+        subject,
+        html,
+        text,
+        attachments,
+      });
+      this.logger.log(`Sent ${params.documentType} email to ${params.to}: ${params.documentNumber}`);
+    } catch (error) {
+      this.logger.error(`Failed to send ${params.documentType} email via SMTP`, error as Error);
+      throw error;
+    }
   }
 
   private getFromHeader(config: SmtpConfig): string {
