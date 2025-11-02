@@ -15,6 +15,7 @@ This document provides a complete reference of all analytics events tracked in t
 ## 🔧 Setup
 
 ### Environment Variables
+
 ```bash
 # apps/booking-web/.env.local
 VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
@@ -24,6 +25,7 @@ VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX  # Your production GA4 ID
 ```
 
 ### Import in Components
+
 ```typescript
 import {
   trackPageView,
@@ -42,14 +44,14 @@ import {
 
 These events are **automatically tracked** by GA4 when enabled:
 
-| Event Name | Trigger | Parameters |
-|------------|---------|------------|
-| `page_view` | Route change | `page_location`, `page_title` |
-| `scroll` | User scrolls 90% | `percent_scrolled` |
-| `click` | Outbound link click | `link_url` |
-| `file_download` | PDF/file download | `file_name`, `file_extension` |
-| `video_start` | Video plays | `video_title` (if videos added) |
-| `form_start` | User interacts with form | `form_id` |
+| Event Name      | Trigger                  | Parameters                      |
+| --------------- | ------------------------ | ------------------------------- |
+| `page_view`     | Route change             | `page_location`, `page_title`   |
+| `scroll`        | User scrolls 90%         | `percent_scrolled`              |
+| `click`         | Outbound link click      | `link_url`                      |
+| `file_download` | PDF/file download        | `file_name`, `file_extension`   |
+| `video_start`   | Video plays              | `video_title` (if videos added) |
+| `form_start`    | User interacts with form | `form_id`                       |
 
 **Note:** We manually track `page_view` for better SPA support.
 
@@ -66,10 +68,12 @@ These events are **automatically tracked** by GA4 when enabled:
 **Where:** `apps/booking-web/src/features/booking/BookingWizard.tsx`
 
 **Parameters:**
+
 - `step_number` (number): 1-4
 - `step_name` (string): 'Service Selection' | 'Pricing' | 'Date & Time' | 'Confirmation'
 
 **Example:**
+
 ```typescript
 useEffect(() => {
   if (location.pathname === '/online-booking') {
@@ -97,31 +101,33 @@ useEffect(() => {
 **Where:** `apps/booking-web/src/features/booking/SuccessPage.tsx`
 
 **Parameters:**
+
 - **purchase event:**
   - `transaction_id` (string): Booking reference (e.g., 'BK-A1-2025-0042')
   - `value` (number): Total amount in GBP
   - `currency` (string): 'GBP'
   - `items` (array): Service names
-  
 - **booking_completed event:**
   - `booking_reference` (string): Same as transaction_id
   - `total_value` (number): Total amount
   - `service_count` (number): Number of services booked
 
 **Example:**
+
 ```typescript
 useEffect(() => {
   if (booking) {
     trackBookingConversion(
-      booking.reference,           // 'BK-A1-2025-0042'
-      booking.grossTotal,           // 149.99
-      booking.services.map(s => s.serviceName)  // ['MOT Test', 'Full Service']
+      booking.reference, // 'BK-A1-2025-0042'
+      booking.grossTotal, // 149.99
+      booking.services.map((s) => s.serviceName), // ['MOT Test', 'Full Service']
     );
   }
 }, [booking]);
 ```
 
-**GA4 Report Location:** 
+**GA4 Report Location:**
+
 - Reports → Monetization → Purchases
 - Reports → Engagement → Conversions
 
@@ -133,19 +139,22 @@ useEffect(() => {
 
 **When:** User creates new account (registration page or inline during booking)
 
-**Where:** 
+**Where:**
+
 - `apps/booking-web/src/pages/RegisterPage.tsx`
 - `apps/booking-web/src/features/booking/DetailsConfirmStep.tsx` (inline registration)
 
 **Parameters:**
+
 - `method` (string): 'email' | 'inline_booking'
 
 **Example:**
+
 ```typescript
 // After successful registration API call
-trackRegistration('email');  // From RegisterPage
+trackRegistration('email'); // From RegisterPage
 // or
-trackRegistration('inline_booking');  // From booking wizard
+trackRegistration('inline_booking'); // From booking wizard
 ```
 
 **GA4 Report Location:** Reports → Engagement → Events → `sign_up`
@@ -161,16 +170,18 @@ trackRegistration('inline_booking');  // From booking wizard
 **Where:** `apps/booking-web/src/features/booking/VehicleModal.tsx` (or similar)
 
 **Parameters:**
+
 - `lookup_success` (boolean): true if DVLA returned data, false if failed
 
 **Example:**
+
 ```typescript
 try {
   const vehicleData = await dvlaLookup(registration);
-  trackVehicleLookup(true);  // Success
+  trackVehicleLookup(true); // Success
   // ... populate form
 } catch (error) {
-  trackVehicleLookup(false);  // Failure
+  trackVehicleLookup(false); // Failure
   // ... show error
 }
 ```
@@ -187,15 +198,18 @@ try {
 
 **When:** User downloads invoice, quote, or receipt PDF
 
-**Where:** 
+**Where:**
+
 - `apps/booking-web/src/pages/AccountPage.tsx`
 - `apps/booking-web/src/features/admin/financial/InvoiceList.tsx`
 
 **Parameters:**
+
 - `document_type` (string): 'invoice' | 'quote' | 'receipt'
 - `document_number` (string): Document number (e.g., 'INV-2025-0042')
 
 **Example:**
+
 ```typescript
 const handleDownload = (documentUrl: string, documentType: string, documentNumber: string) => {
   trackDocumentDownload(documentType, documentNumber);
@@ -205,7 +219,7 @@ const handleDownload = (documentUrl: string, documentType: string, documentNumbe
 // Usage:
 <button onClick={() => handleDownload(invoice.pdfUrl, 'invoice', invoice.number)}>
   Download Invoice
-</button>
+</button>;
 ```
 
 **GA4 Report Location:** Reports → Engagement → Events → `document_download`
@@ -221,11 +235,13 @@ const handleDownload = (documentUrl: string, documentType: string, documentNumbe
 **Where:** `apps/booking-web/src/features/booking/ServicesStep.tsx`
 
 **Parameters:**
+
 - `service_name` (string): Name of service
 - `service_price` (number): Price of service
 - `engine_tier` (string): '0-1400cc' | '1401-2000cc' | '2001cc+'
 
 **Example (to implement):**
+
 ```typescript
 const handleAddService = (service: Service, tier: string, price: number) => {
   trackEvent('Booking', 'service_selected', service.name, price);
@@ -244,9 +260,11 @@ const handleAddService = (service: Service, tier: string, price: number) => {
 **Where:** `apps/booking-web/src/pages/ContactPage.tsx`
 
 **Parameters:**
+
 - `contact_reason` (string): Reason for contact
 
 **Example (to implement):**
+
 ```typescript
 const handleSubmit = async (data: ContactFormData) => {
   await submitContactForm(data);
@@ -269,6 +287,7 @@ const handleSubmit = async (data: ContactFormData) => {
 5. **Conversion:** Booking Completed (`purchase` event)
 
 ### How to View in GA4:
+
 1. Go to **Explore**
 2. Create new **Funnel exploration**
 3. Add steps:
@@ -284,23 +303,27 @@ const handleSubmit = async (data: ContactFormData) => {
 ## 🎯 Recommended KPIs to Monitor
 
 ### Traffic Metrics
+
 - **Users:** Total unique visitors
 - **Sessions:** Total browsing sessions
 - **Bounce Rate:** % of single-page sessions
 - **Average Session Duration:** Time on site
 
 ### Engagement Metrics
+
 - **Pages per Session:** Engagement depth
 - **Scroll Rate:** % reaching 90% scroll
 - **Event Count:** Total interactions
 
 ### Conversion Metrics
+
 - **Booking Conversion Rate:** `purchase` events / `booking_funnel_step` (step 1) events
 - **Funnel Drop-off Rate:** % lost between each step
 - **Average Order Value:** Average `value` of `purchase` events
 - **Registration Rate:** `sign_up` events / Users
 
 ### Behavior Metrics
+
 - **DVLA Lookup Success Rate:** `vehicle_lookup` (success=true) / total `vehicle_lookup`
 - **Document Downloads:** Count of `document_download` events
 - **Top Services Selected:** Most common `service_selected` labels
@@ -312,18 +335,21 @@ const handleSubmit = async (data: ContactFormData) => {
 ### Development Testing
 
 **1. Check Browser Console**
+
 ```javascript
 // In browser console (after GA4 initialized)
-window.gtag  // Should be a function
-window.dataLayer  // Should be an array
+window.gtag; // Should be a function
+window.dataLayer; // Should be an array
 ```
 
 **2. Chrome DevTools Network Tab**
+
 - Filter by `google-analytics`
 - Look for requests to `https://www.google-analytics.com/g/collect`
 - Check request payload for event names
 
 **3. GA4 DebugView**
+
 1. Go to GA4 Dashboard
 2. Navigate to **Admin → DebugView**
 3. Visit your site with `?debug_mode=true` in URL
@@ -332,11 +358,13 @@ window.dataLayer  // Should be an array
 ### Production Monitoring
 
 **1. Realtime Reports**
+
 - Go to **Reports → Realtime**
 - See events as they happen
 - Verify event parameters
 
 **2. Event Reports**
+
 - Go to **Reports → Engagement → Events**
 - See all event names and counts
 - Click event for parameter breakdown
@@ -348,6 +376,7 @@ window.dataLayer  // Should be an array
 ### Events Not Appearing in GA4
 
 **Check:**
+
 1. ✅ `VITE_GA_MEASUREMENT_ID` is set correctly
 2. ✅ `initializeAnalytics()` is called in `App.tsx`
 3. ✅ Browser console shows `[Analytics] GA4 initialized: G-...`
@@ -358,6 +387,7 @@ window.dataLayer  // Should be an array
 ### Parameters Missing
 
 **Check:**
+
 1. ✅ Event function called with all required parameters
 2. ✅ Parameters match expected types (string, number, boolean)
 3. ✅ Use DebugView to inspect parameter values
@@ -365,6 +395,7 @@ window.dataLayer  // Should be an array
 ### Funnel Not Working
 
 **Check:**
+
 1. ✅ All funnel steps fire in correct order
 2. ✅ User completes steps in single session
 3. ✅ Step numbers are consistent (1, 2, 3, 4)
@@ -383,11 +414,11 @@ window.dataLayer  // Should be an array
 
 ## 🔄 Event Changelog
 
-| Date | Event Added/Modified | Description |
-|------|---------------------|-------------|
-| 2025-11-02 | Initial setup | Created analytics tracking plan |
-| TBD | `service_selected` | To be implemented in Week 2 |
-| TBD | `contact_form_submit` | To be implemented when contact form added |
+| Date       | Event Added/Modified  | Description                               |
+| ---------- | --------------------- | ----------------------------------------- |
+| 2025-11-02 | Initial setup         | Created analytics tracking plan           |
+| TBD        | `service_selected`    | To be implemented in Week 2               |
+| TBD        | `contact_form_submit` | To be implemented when contact form added |
 
 ---
 

@@ -9,6 +9,7 @@
 ## ✅ Week 1: Documentation + Analytics/SEO Setup (Nov 4-8)
 
 ### Monday - Setup & Planning
+
 - [ ] Review improvement plan with team
 - [ ] Create Google Analytics 4 property
 - [ ] Get GA4 Measurement ID (G-XXXXXXXXXX)
@@ -19,6 +20,7 @@
 - [ ] Run baseline Lighthouse audit and save report
 
 ### Tuesday - Backend Documentation + Analytics Core
+
 - [ ] Document `apps/booking-api/src/bookings/bookings.service.ts` (Sections 1-2)
   - [ ] File-level JSDoc
   - [ ] `confirmBooking()` method
@@ -30,6 +32,7 @@
 - [ ] Verify realtime tracking in GA4 dashboard
 
 ### Wednesday - Documents Service + Funnel Tracking
+
 - [ ] Document `apps/booking-api/src/documents/documents.service.ts`
   - [ ] File-level JSDoc
   - [ ] `generatePdf()` method
@@ -41,6 +44,7 @@
 - [ ] Test booking funnel tracking end-to-end
 
 ### Thursday - SEO Foundation
+
 - [ ] Create `apps/booking-web/src/components/SEO.tsx`
 - [ ] Wrap app in `<HelmetProvider>` in `main.tsx`
 - [ ] Add SEO to `HomePage.tsx`
@@ -55,6 +59,7 @@
   - [ ] Add default meta description
 
 ### Friday - SEO Completion & Review
+
 - [ ] Add SEO to remaining pages:
   - [ ] `AirConPage.tsx`
   - [ ] `DiagnosticsPage.tsx`
@@ -71,6 +76,7 @@
 - [ ] Document Week 1 progress
 
 **Week 1 Success Criteria:**
+
 - ✅ GA4 tracking all page views
 - ✅ Booking conversions tracked
 - ✅ All pages have SEO meta tags
@@ -82,6 +88,7 @@
 ## ✅ Week 2: Code Cleanup + SEO Enhancement (Nov 11-15)
 
 ### Monday - Constants Extraction
+
 - [ ] Create `apps/booking-api/src/common/constants.ts`
   - [ ] Add timing constants (HOLD_EXPIRY_MINUTES, PDF_RENDER_DELAY_MS)
   - [ ] Add formatting constants (BOOKING_REFERENCE_FORMAT, etc.)
@@ -94,6 +101,7 @@
 - [ ] Run tests to verify no breakage
 
 ### Tuesday - Dead Code Removal + Image Optimization
+
 - [ ] Delete `apps/booking-web/src/pages/DevPage.tsx`
 - [ ] Delete `apps/booking-web/src/pages/VerifyEmailPage.tsx`
 - [ ] Remove commented code blocks in `bookings.service.ts` (lines 414-509)
@@ -105,6 +113,7 @@
 - [ ] Verify build succeeds: `pnpm --filter booking-web build`
 
 ### Wednesday - SEO Content Enhancement
+
 - [ ] Add FAQ section to `HomePage.tsx`
   - [ ] Common questions about MOT, servicing, pricing
   - [ ] FAQ structured data (FAQPage schema)
@@ -115,6 +124,7 @@
 - [ ] Internal linking between related pages
 
 ### Thursday - Component Extraction + Analytics Review
+
 - [ ] Create `apps/booking-web/src/components/admin/StatusBadge.tsx`
 - [ ] Create `apps/booking-web/src/components/admin/BookingSourceBadge.tsx`
 - [ ] Create `apps/booking-web/src/components/admin/EditableField.tsx`
@@ -125,6 +135,7 @@
 - [ ] Adjust tracking if needed
 
 ### Friday - Local SEO
+
 - [ ] Verify LocalBusiness structured data
 - [ ] Add opening hours to structured data
 - [ ] Add payment methods accepted
@@ -134,6 +145,7 @@
 - [ ] Add GMB link to website footer
 
 **Week 2 Success Criteria:**
+
 - ✅ No magic numbers in codebase
 - ✅ No dead code
 - ✅ All images optimized with alt text
@@ -145,6 +157,7 @@
 ## ✅ Week 3: Type Safety & Performance (Nov 18-22)
 
 ### Monday - TypeScript Improvements (Part 1)
+
 - [ ] Search for `: any` types in backend
 - [ ] Replace with proper interfaces
 - [ ] Create shared type definitions in `packages/shared/src/types.ts`
@@ -152,6 +165,7 @@
 - [ ] Fix resulting type errors
 
 ### Tuesday - TypeScript Improvements (Part 2)
+
 - [ ] Search for `: any` types in frontend
 - [ ] Replace with proper interfaces
 - [ ] Create `apps/booking-web/src/types/` directory
@@ -160,6 +174,7 @@
 - [ ] Run `tsc` to verify no errors
 
 ### Wednesday - Frontend Documentation
+
 - [ ] Document `AdminBookingDetailPage.tsx`
   - [ ] File-level overview
   - [ ] Section comments
@@ -170,6 +185,7 @@
   - [ ] Save/issue/email flows
 
 ### Thursday - Performance Optimization
+
 - [ ] Add lazy loading to images
 - [ ] Implement route-based code splitting
 - [ ] Analyze bundle size: `pnpm --filter booking-web build --analyze`
@@ -178,6 +194,7 @@
 - [ ] Run Lighthouse audit
 
 ### Friday - Review & Testing
+
 - [ ] Code review session
 - [ ] Address feedback
 - [ ] Check GA4 data quality
@@ -186,6 +203,7 @@
 - [ ] Document Week 3 progress
 
 **Week 3 Success Criteria:**
+
 - ✅ <20 `any` types remaining
 - ✅ Admin pages documented
 - ✅ Performance score improved
@@ -196,6 +214,7 @@
 ## ✅ Week 4: Testing & Launch Prep (Nov 25-29)
 
 ### Monday - Unit Tests
+
 - [ ] Create `apps/booking-api/src/common/utils/date.utils.spec.ts`
 - [ ] Create `apps/booking-api/src/common/utils/error.utils.spec.ts`
 - [ ] Add tests for booking service methods
@@ -203,6 +222,7 @@
 - [ ] Run tests: `pnpm --filter booking-api test`
 
 ### Tuesday - SEO Validation
+
 - [ ] Submit sitemap to Google Search Console
 - [ ] Submit sitemap to Bing Webmaster Tools
 - [ ] Verify structured data: [Google Rich Results Test](https://search.google.com/test/rich-results)
@@ -211,6 +231,7 @@
 - [ ] Validate Twitter Cards: [Twitter Card Validator](https://cards-dev.twitter.com/validator)
 
 ### Wednesday - Integration Testing + Analytics QA
+
 - [ ] Test complete booking flow (online)
 - [ ] Test manual booking creation (admin)
 - [ ] Test document generation and email
@@ -225,6 +246,7 @@
 - [ ] Verify conversion tracking accuracy
 
 ### Thursday - Final SEO Audit
+
 - [ ] Run final Lighthouse audit (Desktop)
 - [ ] Run final Lighthouse audit (Mobile)
 - [ ] Compare with baseline from Week 1
@@ -234,6 +256,7 @@
 - [ ] Verify canonical URLs on all pages
 
 ### Friday - Deployment Preparation
+
 - [ ] Final QA pass on all features
 - [ ] Update `README.md` with:
   - [ ] Analytics setup instructions
@@ -249,6 +272,7 @@
 - [ ] Schedule production deployment
 
 **Week 4 Success Criteria:**
+
 - ✅ All tests passing
 - ✅ Sitemap submitted to search engines
 - ✅ SEO score 90+
@@ -261,6 +285,7 @@
 ## 📊 Final Checklist (Before Production Deploy)
 
 ### Code Quality
+
 - [ ] All files documented (80%+ coverage)
 - [ ] No magic numbers
 - [ ] No `any` types in critical code
@@ -270,6 +295,7 @@
 - [ ] No console errors in browser
 
 ### Analytics
+
 - [ ] GA4 property configured
 - [ ] Conversion goals set up
 - [ ] Custom events tested
@@ -278,6 +304,7 @@
 - [ ] Team has GA4 dashboard access
 
 ### SEO
+
 - [ ] All pages have meta tags
 - [ ] Structured data validated
 - [ ] Sitemap submitted to Google
@@ -291,6 +318,7 @@
 - [ ] Lighthouse score 90+
 
 ### Performance
+
 - [ ] Page speed 85+ (desktop)
 - [ ] Page speed 70+ (mobile)
 - [ ] Core Web Vitals passing
@@ -299,6 +327,7 @@
 - [ ] No render-blocking resources
 
 ### Documentation
+
 - [ ] README updated
 - [ ] CHANGELOG updated
 - [ ] Analytics guide created
@@ -306,6 +335,7 @@
 - [ ] Deployment guide created
 
 ### Production Readiness
+
 - [ ] Environment variables set
 - [ ] SSL certificate active
 - [ ] Domain configured
@@ -319,6 +349,7 @@
 ## 🎯 Post-Launch (Week 5+)
 
 ### Immediate (Day 1-7)
+
 - [ ] Monitor analytics for errors
 - [ ] Check conversion tracking
 - [ ] Review user behavior flow
@@ -326,6 +357,7 @@
 - [ ] Respond to user feedback
 
 ### Short-term (Week 2-4)
+
 - [ ] Review GA4 reports weekly
 - [ ] Analyze funnel drop-off points
 - [ ] Optimize based on data
@@ -333,6 +365,7 @@
 - [ ] Monitor search console for errors
 
 ### Long-term (Month 2+)
+
 - [ ] Monthly SEO audit
 - [ ] Quarterly Lighthouse audit
 - [ ] Content strategy (blog posts)
