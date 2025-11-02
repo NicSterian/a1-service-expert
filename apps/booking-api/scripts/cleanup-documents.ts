@@ -70,7 +70,7 @@ async function main() {
 
   // Count documents to be deleted
   const where = options.all ? {} : { bookingId: { not: null } };
-  const documentCount = await prisma.document.countMany({
+  const documentCount = await prisma.document.count({
     where,
   });
 
