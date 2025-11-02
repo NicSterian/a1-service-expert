@@ -187,8 +187,13 @@ export class CatalogService {
     try {
       await this.prisma.service.delete({ where: { id } });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        throw new NotFoundException('Service not found');
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2025') {
+          throw new NotFoundException('Service not found');
+        }
+        if (error.code === 'P2003') {
+          throw new Error('Cannot delete service: it is referenced by existing bookings. Please cancel or modify those bookings first.');
+        }
       }
       throw error;
     }

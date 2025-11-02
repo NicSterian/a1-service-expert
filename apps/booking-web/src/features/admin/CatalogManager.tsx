@@ -191,9 +191,24 @@ export function CatalogManager() {
   };
 
   const moveService = async (service: Service, dir: -1 | 1) => {
-    const current = service.sortOrder ?? 0;
-    const next = current + dir;
-    await apiPatch(`/admin/catalog/services/${service.id}`, { sortOrder: next });
+    // Sort services by sortOrder to find adjacent service
+    const sorted = [...services].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    const currentIndex = sorted.findIndex((s) => s.id === service.id);
+
+    if (currentIndex === -1) return;
+
+    const targetIndex = currentIndex + dir;
+    if (targetIndex < 0 || targetIndex >= sorted.length) return;
+
+    const targetService = sorted[targetIndex];
+    const currentOrder = service.sortOrder ?? 0;
+    const targetOrder = targetService.sortOrder ?? 0;
+
+    // Swap the sortOrder values
+    await Promise.all([
+      apiPatch(`/admin/catalog/services/${service.id}`, { sortOrder: targetOrder }),
+      apiPatch(`/admin/catalog/services/${targetService.id}`, { sortOrder: currentOrder }),
+    ]);
     await refresh();
   };
 
@@ -203,6 +218,39 @@ export function CatalogManager() {
     }
     await apiDelete(`/admin/catalog/services/${service.id}`);
     await refresh();
+  };
+
+  const removeDuplicates = async () => {
+    // Find duplicates by exact name match
+    const nameMap = new Map<string, Service[]>();
+    services.forEach((service) => {
+      const existing = nameMap.get(service.name) || [];
+      existing.push(service);
+      nameMap.set(service.name, existing);
+    });
+
+    const duplicates: Service[] = [];
+    nameMap.forEach((items) => {
+      if (items.length > 1) {
+        // Keep the first one (lowest ID), mark rest as duplicates
+        const sorted = items.sort((a, b) => a.id - b.id);
+        duplicates.push(...sorted.slice(1));
+      }
+    });
+
+    if (duplicates.length === 0) {
+      toast.success('No duplicate services found');
+      return;
+    }
+
+    const names = duplicates.map((s) => s.name).join(', ');
+    if (!window.confirm(`Found ${duplicates.length} duplicate service(s): ${names}\n\nDelete duplicates?`)) {
+      return;
+    }
+
+    await Promise.all(duplicates.map((s) => apiDelete(`/admin/catalog/services/${s.id}`)));
+    await refresh();
+    toast.success(`Removed ${duplicates.length} duplicate service(s)`);
   };
 
   const setServicePricingMode = async (service: Service) => {
@@ -368,12 +416,19 @@ export function CatalogManager() {
                   disabled={serviceForm.pricingMode !== 'FIXED'}
                 />
               </div>
-              <div className="sm:col-span-2">
+              <div className="sm:col-span-2 flex gap-2">
                 <button
                   type="submit"
                   className="rounded-full bg-brand-orange px-3 py-2 text-sm font-semibold text-slate-950 transition hover:-translate-y-0.5 hover:bg-orange-400"
                 >
                   Add service
+                </button>
+                <button
+                  type="button"
+                  onClick={removeDuplicates}
+                  className="rounded-full border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:-translate-y-0.5 hover:border-orange-500"
+                >
+                  Remove duplicates
                 </button>
               </div>
             </form>

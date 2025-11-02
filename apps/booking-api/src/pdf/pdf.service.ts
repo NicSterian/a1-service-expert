@@ -57,7 +57,7 @@ export class PdfService {
     let browser: Browser | null = null;
     try {
       const execPath = await this.resolveExecutablePath();
-      this.logger.log(`Puppeteer executable: ${execPath || 'bundled/default'}`);
+      // Removed noisy log: this.logger.log(`Puppeteer executable: ${execPath || 'bundled/default'}`);
       browser = await puppeteer.launch({
         headless: true,
         executablePath: execPath || undefined,
@@ -71,7 +71,17 @@ export class PdfService {
         ],
       });
       const page = await browser.newPage();
+
+      // Log if HTML contains data URL images for debugging
+      if (html.includes('data:image')) {
+        this.logger.log('PDF HTML contains base64 image data URL');
+      }
+
       await page.setContent(html, { waitUntil: 'networkidle0' });
+
+      // Give extra time for images to render
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       await page.emulateMediaType('print');
       await page.pdf({
         path: outputPath,
@@ -82,7 +92,7 @@ export class PdfService {
       // Verify the file exists before returning
       try {
         await fs.stat(outputPath);
-        this.logger.log(`PDF generated at: ${outputPath}`);
+        // Removed noisy log: this.logger.log(`PDF generated at: ${outputPath}`);
       } catch (e) {
         const msg = (e as Error)?.message || String(e);
         this.logger.error(`PDF file missing after render: ${outputPath} -> ${msg}`);

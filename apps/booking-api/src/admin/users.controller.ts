@@ -4,6 +4,7 @@ import { AdminGuard } from '../auth/admin.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { normalisePostcode, sanitisePhone, sanitiseString } from '../common/utils/profile.util';
+import * as bcrypt from 'bcryptjs';
 
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin/users')
@@ -86,6 +87,77 @@ export class AdminUsersController {
       pageSize,
       pages: Math.ceil(total / pageSize),
     };
+  }
+
+  @Post()
+  async createUser(@Body() body: any) {
+    const {
+      title,
+      companyName,
+      firstName,
+      lastName,
+      email,
+      password,
+      mobileNumber,
+      landlineNumber,
+      addressLine1,
+      addressLine2,
+      addressLine3,
+      city,
+      county,
+      postcode,
+      role,
+    } = body;
+
+    // Validate required fields
+    if (!email || !password || !firstName || !lastName) {
+      throw new Error('Email, password, first name, and last name are required');
+    }
+
+    // Validate password length
+    if (password.length < 8) {
+      throw new Error('Password must be at least 8 characters');
+    }
+
+    // Check if email already exists
+    const existingUser = await this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    if (existingUser) {
+      throw new Error('Email already in use');
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create user
+    const user = await this.prisma.user.create({
+      data: {
+        title: sanitiseString(title),
+        companyName: sanitiseString(companyName),
+        firstName: sanitiseString(firstName),
+        lastName: sanitiseString(lastName),
+        email: email.toLowerCase(),
+        passwordHash: hashedPassword,
+        mobileNumber: sanitisePhone(mobileNumber),
+        landlineNumber: sanitisePhone(landlineNumber),
+        addressLine1: sanitiseString(addressLine1),
+        addressLine2: sanitiseString(addressLine2),
+        addressLine3: sanitiseString(addressLine3),
+        city: sanitiseString(city),
+        county: sanitiseString(county),
+        postcode: normalisePostcode(postcode),
+        role: role || 'CUSTOMER',
+        emailVerified: true, // Admin-created users are pre-verified
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+      },
+    });
+
+    return user;
   }
 
   @Get(':id')

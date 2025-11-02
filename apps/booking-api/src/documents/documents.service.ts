@@ -11,7 +11,7 @@ import {
 // pdfkit is CommonJS; use require-style import to get constructor
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const PDFDocument = require('pdfkit');
-import { createWriteStream, promises as fs, existsSync } from 'fs';
+import { createWriteStream, promises as fs, existsSync, readFileSync } from 'fs';
 import { join, basename, dirname } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { PdfService } from '../pdf/pdf.service';
@@ -223,12 +223,17 @@ export class DocumentsService {
         }];
 
     const subtotal = lines.reduce((s, l) => s + Math.round((l.qty ?? 1) * (l.unitPricePence ?? 0)), 0);
+    const logoUrl = this.resolveLogoPath(settings.logoUrl || null);
+    if (logoUrl) {
+      this.logger.log(`Logo URL length for PDF: ${logoUrl.length} chars`);
+      this.logger.log(`Logo URL preview: ${logoUrl.substring(0, 50)}...`);
+    }
     const data = {
       company: {
         name: settings.companyName ?? 'A1 Service Expert',
         address1: settings.companyAddress ?? '',
         phone: settings.companyPhone ?? undefined,
-        logoUrl: (() => { const p = this.resolveLogoPath(settings.logoUrl || null); return p ? `file://${p}` : undefined; })(),
+        logoUrl: logoUrl || undefined,
         companyNo: (settings as any).companyRegNumber ?? undefined,
       },
       customer: { name: summary.customerName, email: summary.customerEmail },
@@ -262,11 +267,45 @@ export class DocumentsService {
   }
 
   private resolveLogoPath(logoUrl: string | null): string | null {
-    if (!logoUrl) return null;
-    // Expecting /admin/settings/logo/<filename>
-    const file = basename(logoUrl);
-    if (!file) return null;
-    return join(process.cwd(), 'storage', 'uploads', file);
+    if (!logoUrl) {
+      this.logger.warn('No logo URL provided in settings');
+      return null;
+    }
+
+    // logoUrl is now just the filename (e.g., "logo.png")
+    // But also support legacy format "/admin/settings/logo/filename"
+    const file = logoUrl.includes('/') ? basename(logoUrl) : logoUrl;
+    if (!file) {
+      this.logger.warn(`Logo filename could not be extracted from: ${logoUrl}`);
+      return null;
+    }
+
+    // Build path based on current working directory
+    const cwd = process.cwd();
+    const fullPath = cwd.endsWith('booking-api')
+      ? join(cwd, 'storage', 'uploads', file)
+      : join(cwd, 'apps', 'booking-api', 'storage', 'uploads', file);
+
+    // Check if file exists and convert to base64 data URL for better Puppeteer compatibility
+    try {
+      if (!existsSync(fullPath)) {
+        this.logger.error(`Logo file does not exist at: ${fullPath}`);
+        return null;
+      }
+
+      // Read file and convert to base64 data URL
+      const buffer = readFileSync(fullPath);
+      const ext = file.split('.').pop()?.toLowerCase() || 'png';
+      const mimeType = ext === 'webp' ? 'image/webp' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/png';
+      const base64 = buffer.toString('base64');
+      const dataUrl = `data:${mimeType};base64,${base64}`;
+
+      this.logger.log(`Logo loaded successfully: ${file} (${buffer.length} bytes) -> data URL`);
+      return dataUrl;
+    } catch (error) {
+      this.logger.error(`Failed to load logo file: ${(error as Error).message}`);
+      return null;
+    }
   }
 }
 

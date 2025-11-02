@@ -9,6 +9,8 @@ type Doc = {
   status: 'DRAFT' | 'ISSUED' | 'PAID' | 'VOID' | string;
   payload: any;
   dueAt: string | null;
+  paidAt: string | null;
+  paymentMethod: string | null;
   totalAmountPence: number;
   vatAmountPence: number;
   pdfUrl: string | null;
@@ -28,6 +30,11 @@ export function InvoiceEditor({ id }: { id: number }) {
   const [items, setItems] = useState<Array<{ code?: string; description: string; defaultQty?: number; unitPricePence: number; vatPercent?: number }>>([]);
   const [dueAt, setDueAt] = useState<string>('');
   const [paymentNotes, setPaymentNotes] = useState<string>('');
+  const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
+  const [markAsPaidOnIssue, setMarkAsPaidOnIssue] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailTo, setEmailTo] = useState<string>('');
+  const [useCustomEmail, setUseCustomEmail] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,23 +103,68 @@ export function InvoiceEditor({ id }: { id: number }) {
 
   const issue = async () => {
     if (!doc) return;
+    if (!customer.name || customer.name.trim() === '') {
+      toast.error('Customer name is required to issue invoice');
+      return;
+    }
     try {
       await save();
-      const issued = await apiPost<Doc>(`/admin/documents/${doc.id}/issue`, {});
+      let issued = await apiPost<Doc>(`/admin/documents/${doc.id}/issue`, {});
+
+      // If mark as paid is checked, immediately mark it as paid (receipt)
+      if (markAsPaidOnIssue) {
+        issued = await apiPatch<Doc>(`/admin/documents/${doc.id}`, {
+          status: 'PAID',
+          paidAt: new Date().toISOString(),
+          paymentMethod,
+        });
+        toast.success(`Invoice issued and marked as paid (${paymentMethod}) - Receipt generated`);
+      } else {
+        toast.success('Invoice issued');
+      }
+
       setDoc(issued);
-      toast.success('Invoice issued');
     } catch (err) {
       toast.error((err as Error).message ?? 'Failed to issue invoice');
     }
   };
 
+  const openEmailModal = () => {
+    if (!doc) return;
+    const payload = doc.payload as any;
+    setEmailTo(payload?.customer?.email || '');
+    setUseCustomEmail(false);
+    setShowEmailModal(true);
+  };
+
   const sendEmail = async () => {
     if (!doc) return;
+    const to = useCustomEmail ? emailTo : (doc.payload as any)?.customer?.email || '';
+    if (!to || !to.trim()) {
+      toast.error('Email address is required');
+      return;
+    }
     try {
-      await apiPost(`/admin/documents/${doc.id}/send`, {});
-      toast.success('Invoice email sent');
+      await apiPost(`/admin/documents/${doc.id}/send`, useCustomEmail ? { to } : {});
+      toast.success(`Email sent to ${to}`);
+      setShowEmailModal(false);
     } catch (err) {
-      toast.error((err as Error).message ?? 'Failed to send invoice');
+      toast.error((err as Error).message ?? 'Failed to send email');
+    }
+  };
+
+  const markAsPaid = async () => {
+    if (!doc) return;
+    try {
+      const updated = await apiPatch<Doc>(`/admin/documents/${doc.id}`, {
+        status: 'PAID',
+        paidAt: new Date().toISOString(),
+        paymentMethod,
+      });
+      setDoc(updated);
+      toast.success(`Invoice marked as paid (${paymentMethod})`);
+    } catch (err) {
+      toast.error((err as Error).message ?? 'Failed to mark as paid');
     }
   };
 
@@ -174,7 +226,7 @@ export function InvoiceEditor({ id }: { id: number }) {
           <button onClick={save} disabled={saving} className="rounded-full border border-slate-600 px-3 py-1 text-xs text-slate-200 hover:border-orange-500 hover:text-orange-300">Save</button>
           <button onClick={issue} disabled={saving} className="rounded-full bg-orange-500 px-4 py-2 text-xs font-semibold text-black hover:bg-orange-400">Issue</button>
           {doc.status !== 'DRAFT' && (
-            <button onClick={sendEmail} className="rounded-full border border-slate-600 px-3 py-1 text-xs text-orange-300 hover:border-orange-500">Email</button>
+            <button onClick={openEmailModal} className="rounded-full border border-slate-600 px-3 py-1 text-xs text-orange-300 hover:border-orange-500">Email</button>
           )}
           {doc.status === 'DRAFT' && (
             <>
@@ -254,10 +306,37 @@ export function InvoiceEditor({ id }: { id: number }) {
 
         <div className="space-y-4">
           <div className="rounded-xl border border-slate-700 bg-slate-800 p-4 text-sm text-slate-200">
-            <div className="grid grid-cols-1 gap-2">
-              <label className="text-xs text-slate-400">Due date</label>
+            <div className="grid grid-cols-1 gap-3">
+              {doc.status === 'DRAFT' && (
+                <>
+                  <label className="inline-flex items-center gap-2 rounded border border-slate-600 bg-slate-900 px-3 py-2">
+                    <input type="checkbox" checked={markAsPaidOnIssue} onChange={(e) => setMarkAsPaidOnIssue(e.target.checked)} />
+                    <span className="text-sm">Mark as Paid (Receipt)</span>
+                  </label>
+
+                  {markAsPaidOnIssue && (
+                    <>
+                      <label className="text-xs text-slate-400">Payment Method</label>
+                      <select
+                        value={paymentMethod}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        className="rounded border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white"
+                      >
+                        <option value="CASH">Cash</option>
+                        <option value="CARD">Card</option>
+                        <option value="BANK_TRANSFER">Bank Transfer</option>
+                        <option value="CHEQUE">Cheque</option>
+                        <option value="OTHER">Other</option>
+                      </select>
+                    </>
+                  )}
+                </>
+              )}
+
+              <label className="text-xs text-slate-400">{markAsPaidOnIssue ? 'Payment Date (optional)' : 'Due date'}</label>
               <input type="date" className="rounded border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
-              <label className="mt-3 text-xs text-slate-400">Payment notes</label>
+
+              <label className="mt-2 text-xs text-slate-400">Payment notes</label>
               <textarea rows={4} className="rounded border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white" value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} />
             </div>
           </div>
@@ -269,8 +348,87 @@ export function InvoiceEditor({ id }: { id: number }) {
               <div className="text-slate-400">Saved total: {currency.format((doc.totalAmountPence || 0) / 100)}</div>
             </div>
           </div>
+
+          {/* Payment Status */}
+          {doc.status === 'PAID' && doc.paidAt && (
+            <div className="rounded-xl border border-green-700 bg-green-900/20 p-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-green-400">Payment Status</h4>
+              <div className="mt-2 text-sm text-green-200">
+                <div>Status: <span className="font-semibold">PAID</span></div>
+                <div>Paid on: {new Date(doc.paidAt).toLocaleDateString('en-GB')}</div>
+                {doc.paymentMethod && <div>Method: {doc.paymentMethod}</div>}
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Email Modal */}
+      {showEmailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setShowEmailModal(false)}>
+          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-4 text-lg font-semibold text-white">Send {doc.status === 'PAID' ? 'Receipt' : 'Invoice'} Email</h3>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={!useCustomEmail}
+                    onChange={() => {
+                      setUseCustomEmail(false);
+                      setEmailTo((doc.payload as any)?.customer?.email || '');
+                    }}
+                  />
+                  <span className="text-sm text-slate-200">Send to customer email</span>
+                </label>
+                {!useCustomEmail && (
+                  <div className="ml-6 text-sm text-slate-400">
+                    {(doc.payload as any)?.customer?.email || 'No customer email set'}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={useCustomEmail}
+                    onChange={() => {
+                      setUseCustomEmail(true);
+                      setEmailTo('');
+                    }}
+                  />
+                  <span className="text-sm text-slate-200">Send to custom email</span>
+                </label>
+                {useCustomEmail && (
+                  <input
+                    type="email"
+                    className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white"
+                    placeholder="Enter email address"
+                    value={emailTo}
+                    onChange={(e) => setEmailTo(e.target.value)}
+                  />
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setShowEmailModal(false)}
+                  className="rounded-full border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:border-slate-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={sendEmail}
+                  className="rounded-full bg-orange-500 px-4 py-2 text-sm font-semibold text-black hover:bg-orange-400"
+                >
+                  Send Email
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

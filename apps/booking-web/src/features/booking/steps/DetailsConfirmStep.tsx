@@ -36,8 +36,8 @@ type ProfileResponse = { user: AccountUser };
 
 type SuccessState = {
   reference: string;
-  invoice: BookingDocumentSummary;
-  quote: BookingDocumentSummary;
+  invoice: BookingDocumentSummary | null;
+  quote: BookingDocumentSummary | null;
   totalAmountPence: number;
 };
 const UK_POSTCODE_REGEX = /^[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}$/i;
@@ -518,8 +518,13 @@ export function DetailsConfirmStep() {
       await releaseHoldIfAny();
       markStepComplete('details-confirm');
       resetWizard();
-      const successState: SuccessState = { reference: confirmation.reference || String(bookingId), invoice: confirmation.documents.invoice, quote: confirmation.documents.quote, totalAmountPence: confirmation.documents.invoice.totalAmountPence };
-      toast.success('Booking confirmed. We have emailed your documents.');
+      const successState: SuccessState = {
+        reference: confirmation.reference || String(bookingId),
+        invoice: confirmation.documents.invoice,
+        quote: confirmation.documents.quote,
+        totalAmountPence: confirmation.booking.totalAmountPence
+      };
+      toast.success('Booking confirmed. Check your email for details.');
       navigate(`/account`, { replace: true, state: successState });
     } catch (error) {
       setConfirmError((error as Error)?.message ?? 'Unable to confirm your booking.');

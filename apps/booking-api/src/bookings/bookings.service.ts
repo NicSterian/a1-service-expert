@@ -5,7 +5,16 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { BookingSource, BookingStatus, Document, DocumentType, Prisma, ServicePricingMode, User } from '@prisma/client';
+import {
+  BookingSource,
+  BookingStatus,
+  Document,
+  DocumentType,
+  Prisma,
+  SequenceKey,
+  ServicePricingMode,
+  User,
+} from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { DocumentSummary, DocumentsService } from '../documents/documents.service';
 import { EmailService } from '../email/email.service';
@@ -49,8 +58,6 @@ type BookingWithDocuments = Prisma.BookingGetPayload<{
 
 type ConfirmTransactionResult = {
   booking: BookingWithServices;
-  invoice: Document;
-  quote: Document;
   holdId: string | null;
   totalAmountPence: number;
   vatAmountPence: number;
@@ -438,11 +445,18 @@ export class BookingsService {
       const totalAmountPence = services.reduce((sum, service) => sum + service.unitPricePence, 0);
       const vatAmountPence = this.calculateVatFromGross(totalAmountPence, vatRatePercent);
 
+      let reference = booking.reference ?? null;
+      if (!reference) {
+        const sequence = await this.nextSequence(tx, SequenceKey.BOOKING_REFERENCE);
+        reference = this.formatBookingReference(sequence.year, sequence.counter);
+      }
+
       const updatedBooking = await tx.booking.update({
         where: { id: booking.id },
         data: {
           status: BookingStatus.CONFIRMED,
           holdId: null,
+          reference,
           documents: {
             deleteMany: {},
           },
@@ -458,28 +472,10 @@ export class BookingsService {
         },
       });
 
-      const [invoice, quote] = await Promise.all([
-        this.documentsService.issueInvoiceForBooking({
-          bookingId: updatedBooking.id,
-          totalAmountPence,
-          vatAmountPence,
-          tx,
-        }),
-        this.documentsService.issueQuoteForBooking({
-          bookingId: updatedBooking.id,
-          totalAmountPence,
-          vatAmountPence,
-          validUntil: this.computeQuoteValidUntil(),
-          tx,
-        }),
-      ]);
-
       const holdId = booking.holdId ?? null;
 
       return {
         booking: updatedBooking,
-        invoice,
-        quote,
         holdId,
         totalAmountPence,
         vatAmountPence,
@@ -494,41 +490,11 @@ export class BookingsService {
       }
     }
 
-    const bookingServiceItem = result.booking.services[0];
-    const summary: DocumentSummary = {
-      bookingId: result.booking.id,
-      slotDate: result.booking.slotDate,
-      slotTime: result.booking.slotTime,
-      customerName: result.booking.customerName,
-      customerEmail: result.booking.customerEmail,
-      customerPhone: result.booking.customerPhone,
-      serviceName: bookingServiceItem?.service.name ?? 'Service',
-      engineTierName: bookingServiceItem?.engineTier?.name ?? null,
-    };
-
-    const [finalInvoice, finalQuote] = await Promise.all([
-      this.documentsService.finalizeDocument(
-        result.invoice,
-        summary,
-        {
-          totalAmountPence: result.totalAmountPence,
-          vatAmountPence: result.vatAmountPence,
-        },
-        settings,
-      ),
-      this.documentsService.finalizeDocument(
-        result.quote,
-        summary,
-        {
-          totalAmountPence: result.totalAmountPence,
-          vatAmountPence: result.vatAmountPence,
-        },
-        settings,
-      ),
-    ]);
-
     try {
-      await this.sendConfirmationEmails(result.booking, finalInvoice, finalQuote, result.totalAmountPence);
+      await this.sendConfirmationEmails(result.booking, {
+        totalAmountPence: result.totalAmountPence,
+        vatAmountPence: result.vatAmountPence,
+      });
     } catch (error) {
       this.logger.error(
         `Failed to send booking confirmation emails for booking ${result.booking.id}`,
@@ -536,7 +502,7 @@ export class BookingsService {
       );
     }
 
-    return this.presentConfirmation(result.booking, finalInvoice, finalQuote, {
+    return this.presentConfirmation(result.booking, {
       totalAmountPence: result.totalAmountPence,
       vatAmountPence: result.vatAmountPence,
     });
@@ -559,22 +525,40 @@ export class BookingsService {
     return Math.round(totalAmountPence * (vatRate / (1 + vatRate)));
   }
 
-  private computeQuoteValidUntil(): Date {
-    const validUntil = new Date();
-    validUntil.setDate(validUntil.getDate() + 14);
-    return validUntil;
+  private async nextSequence(
+    client: PrismaService | Prisma.TransactionClient,
+    key: SequenceKey,
+  ): Promise<{ year: number; counter: number }> {
+    const year = new Date().getFullYear();
+    const sequence = await client.sequence.upsert({
+      where: { key_year: { key, year } },
+      update: { counter: { increment: 1 } },
+      create: { key, year, counter: 1 },
+    });
+
+    return { year, counter: sequence.counter };
+  }
+
+  private formatBookingReference(year: number, counter: number): string {
+    return `BK-A1-${year}-${counter.toString().padStart(4, '0')}`;
+  }
+
+  private resolveBookingReference(booking: BookingWithServices): string {
+    if (booking.reference) {
+      return booking.reference;
+    }
+    return this.formatBookingReference(new Date().getFullYear(), booking.id);
   }
 
   private presentConfirmation(
     booking: BookingWithServices,
-    invoice: Document,
-    quote: Document,
     totals: { totalAmountPence: number; vatAmountPence: number },
   ) {
     const primaryService = booking.services[0];
+    const reference = booking.reference ?? this.formatBookingReference(new Date().getFullYear(), booking.id);
 
     return {
-      reference: invoice.number,
+      reference,
       booking: {
         id: booking.id,
         status: booking.status,
@@ -589,8 +573,8 @@ export class BookingsService {
         vatAmountPence: totals.vatAmountPence,
       },
       documents: {
-        invoice: this.presentDocument(invoice),
-        quote: this.presentDocument(quote),
+        invoice: null,
+        quote: null,
       },
     };
   }
@@ -629,15 +613,14 @@ export class BookingsService {
 
   private async sendConfirmationEmails(
     booking: BookingWithServices,
-    invoice: Document,
-    quote: Document,
-    totalAmountPence: number,
+    totals: { totalAmountPence: number; vatAmountPence: number },
   ) {
     const bookingService = booking.services[0];
     const recipients = await this.prisma.notificationRecipient.findMany();
 
     await this.emailService.sendBookingConfirmation({
       bookingId: booking.id,
+      reference: this.resolveBookingReference(booking),
       slotDate: booking.slotDate,
       slotTime: booking.slotTime,
       service: {
@@ -645,7 +628,7 @@ export class BookingsService {
         engineTier: bookingService?.engineTier?.name ?? null,
       },
       totals: {
-        pricePence: totalAmountPence,
+        pricePence: totals.totalAmountPence,
       },
       vehicle: {
         registration: booking.vehicleRegistration,
@@ -670,12 +653,6 @@ export class BookingsService {
         county: booking.customerCounty,
         postcode: booking.customerPostcode,
         notes: booking.notes ?? null,
-      },
-      documents: {
-        invoiceNumber: invoice.number,
-        invoiceUrl: invoice.pdfUrl,
-        quoteNumber: quote.number,
-        quoteUrl: quote.pdfUrl,
       },
       adminRecipients: recipients.map((recipient) => recipient.email),
     });
@@ -1058,6 +1035,195 @@ export class BookingsService {
   }
 
   /**
+   * Create an invoice draft from a booking (manual flow)
+   */
+  async adminCreateInvoiceDraft(bookingId: number) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        services: {
+          include: {
+            service: true,
+            engineTier: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    if (!booking.services.length) {
+      throw new BadRequestException('Booking has no services configured.');
+    }
+
+    const settings = await this.settingsService.getSettings();
+    const vatRatePercent = Number(settings.vatRatePercent);
+
+    // Build line items from booking services
+    const lines = booking.services.map((svc) => {
+      const description = svc.engineTier
+        ? `${svc.service.name} (${svc.engineTier.name})`
+        : svc.service.name;
+
+      return {
+        description,
+        quantity: 1,
+        unitPricePence: svc.unitPricePence,
+        vatRatePercent,
+      };
+    });
+
+    // Add extra editable placeholders for parts, labour, discount
+    lines.push(
+      { description: 'Parts', quantity: 0, unitPricePence: 0, vatRatePercent },
+      { description: 'Labour', quantity: 0, unitPricePence: 0, vatRatePercent },
+      { description: 'Discount', quantity: 0, unitPricePence: 0, vatRatePercent: 0 },
+    );
+
+    // Calculate totals
+    const totalAmountPence = lines.reduce(
+      (sum, line) => sum + line.quantity * line.unitPricePence,
+      0,
+    );
+    const vatAmountPence = this.calculateVatFromGross(totalAmountPence, vatRatePercent);
+
+    // Create draft document
+    const number = `DRF-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
+
+    const document = await this.prisma.document.create({
+      data: {
+        type: 'INVOICE',
+        status: 'DRAFT',
+        number,
+        bookingId: booking.id,
+        userId: booking.userId,
+        totalAmountPence,
+        vatAmountPence,
+        pdfUrl: 'pending://draft',
+        payload: {
+          customer: {
+            name: booking.customerName,
+            email: booking.customerEmail,
+            phone: booking.customerPhone,
+            addressLine1: booking.customerAddressLine1,
+            addressLine2: booking.customerAddressLine2,
+            city: booking.customerCity,
+            postcode: booking.customerPostcode,
+          },
+          vehicle: {
+            registration: booking.vehicleRegistration,
+            make: booking.vehicleMake,
+            model: booking.vehicleModel,
+            engineSizeCc: booking.vehicleEngineSizeCc,
+          },
+          lines,
+        },
+      },
+    });
+
+    return { documentId: document.id, number: document.number };
+  }
+
+  /**
+   * Create a quote draft from a booking (manual flow)
+   */
+  async adminCreateQuoteDraft(bookingId: number) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        services: {
+          include: {
+            service: true,
+            engineTier: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    if (!booking.services.length) {
+      throw new BadRequestException('Booking has no services configured.');
+    }
+
+    const settings = await this.settingsService.getSettings();
+    const vatRatePercent = Number(settings.vatRatePercent);
+
+    // Build line items from booking services
+    const lines = booking.services.map((svc) => {
+      const description = svc.engineTier
+        ? `${svc.service.name} (${svc.engineTier.name})`
+        : svc.service.name;
+
+      return {
+        description,
+        quantity: 1,
+        unitPricePence: svc.unitPricePence,
+        vatRatePercent,
+      };
+    });
+
+    // Add extra editable placeholders
+    lines.push(
+      { description: 'Parts', quantity: 0, unitPricePence: 0, vatRatePercent },
+      { description: 'Labour', quantity: 0, unitPricePence: 0, vatRatePercent },
+      { description: 'Discount', quantity: 0, unitPricePence: 0, vatRatePercent: 0 },
+    );
+
+    // Calculate totals
+    const totalAmountPence = lines.reduce(
+      (sum, line) => sum + line.quantity * line.unitPricePence,
+      0,
+    );
+    const vatAmountPence = this.calculateVatFromGross(totalAmountPence, vatRatePercent);
+
+    // Calculate valid until (14 days from now)
+    const validUntil = new Date();
+    validUntil.setDate(validUntil.getDate() + 14);
+
+    // Create draft document
+    const number = `DRF-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
+
+    const document = await this.prisma.document.create({
+      data: {
+        type: 'QUOTE',
+        status: 'DRAFT',
+        number,
+        bookingId: booking.id,
+        userId: booking.userId,
+        totalAmountPence,
+        vatAmountPence,
+        validUntil,
+        pdfUrl: 'pending://draft',
+        payload: {
+          customer: {
+            name: booking.customerName,
+            email: booking.customerEmail,
+            phone: booking.customerPhone,
+            addressLine1: booking.customerAddressLine1,
+            addressLine2: booking.customerAddressLine2,
+            city: booking.customerCity,
+            postcode: booking.customerPostcode,
+          },
+          vehicle: {
+            registration: booking.vehicleRegistration,
+            make: booking.vehicleMake,
+            model: booking.vehicleModel,
+            engineSizeCc: booking.vehicleEngineSizeCc,
+          },
+          lines,
+        },
+      },
+    });
+
+    return { documentId: document.id, number: document.number };
+  }
+
+  /**
    * Create a manual booking (admin/staff only)
    * Bypasses hold system, creates user if needed, sets source to MANUAL
    */
@@ -1194,6 +1360,9 @@ export class BookingsService {
 
     // Create booking and related entities in transaction
     const result = await this.prisma.$transaction(async (tx) => {
+      const sequence = await this.nextSequence(tx, SequenceKey.BOOKING_REFERENCE);
+      const reference = this.formatBookingReference(sequence.year, sequence.counter);
+
       const booking = await tx.booking.create({
         data: {
           userId: user!.id,
@@ -1202,6 +1371,7 @@ export class BookingsService {
           slotDate,
           slotTime,
           holdId: null,
+          reference,
           customerName,
           customerEmail: customerEmail ?? user!.email,
           customerPhone,
@@ -1234,29 +1404,6 @@ export class BookingsService {
       const totalAmountPence = unitPricePence;
       const vatAmountPence = this.calculateVatFromGross(totalAmountPence, vatRatePercent);
 
-      // Create invoice and quote
-      let invoice: Document | null = null;
-      let quote: Document | null = null;
-      try {
-        [invoice, quote] = await Promise.all([
-          this.documentsService.issueInvoiceForBooking({
-            bookingId: booking.id,
-            totalAmountPence,
-            vatAmountPence,
-            tx,
-          }),
-          this.documentsService.issueQuoteForBooking({
-            bookingId: booking.id,
-            totalAmountPence,
-            vatAmountPence,
-            validUntil: this.computeQuoteValidUntil(),
-            tx,
-          }),
-        ]);
-      } catch (e) {
-        this.logger.warn(`Failed to issue docs for manual booking ${booking.id}: ${(e as Error).message}`);
-      }
-
       return {
         booking: await tx.booking.findUnique({
           where: { id: booking.id },
@@ -1270,8 +1417,6 @@ export class BookingsService {
             documents: true,
           },
         }),
-        invoice: invoice!,
-        quote: quote!,
         totalAmountPence,
         vatAmountPence,
       };
@@ -1281,53 +1426,12 @@ export class BookingsService {
       throw new Error('Failed to create booking');
     }
 
-    // Finalize documents
-    const bookingServiceItem = result.booking.services[0];
-    const summary: DocumentSummary = {
-      bookingId: result.booking.id,
-      slotDate: result.booking.slotDate,
-      slotTime: result.booking.slotTime,
-      customerName: result.booking.customerName,
-      customerEmail: result.booking.customerEmail,
-      customerPhone: result.booking.customerPhone,
-      serviceName: bookingServiceItem?.service.name ?? 'Service',
-      engineTierName: bookingServiceItem?.engineTier?.name ?? null,
-    };
-
-    let finalInvoice = result.invoice;
-    let finalQuote = result.quote;
-    try {
-      if (result.invoice && result.quote) {
-        [finalInvoice, finalQuote] = await Promise.all([
-          this.documentsService.finalizeDocument(
-            result.invoice,
-            summary,
-            {
-              totalAmountPence: result.totalAmountPence,
-              vatAmountPence: result.vatAmountPence,
-            },
-            settings,
-          ),
-          this.documentsService.finalizeDocument(
-            result.quote,
-            summary,
-            {
-              totalAmountPence: result.totalAmountPence,
-              vatAmountPence: result.vatAmountPence,
-            },
-            settings,
-          ),
-        ]);
-      }
-    } catch (e) {
-      this.logger.warn(`Failed to finalize docs for manual booking ${result.booking.id}: ${(e as Error).message}`);
-    }
-
     // Send confirmation emails (optional - can fail silently)
     try {
-      if (finalInvoice && finalQuote) {
-        await this.sendConfirmationEmails(result.booking, finalInvoice, finalQuote, result.totalAmountPence);
-      }
+      await this.sendConfirmationEmails(result.booking, {
+        totalAmountPence: result.totalAmountPence,
+        vatAmountPence: result.vatAmountPence,
+      });
     } catch (error) {
       this.logger.warn(
         `Failed to send confirmation emails for manual booking ${result.booking.id}`,
@@ -1337,7 +1441,7 @@ export class BookingsService {
 
     return {
       bookingId: result.booking.id,
-      reference: finalInvoice.number,
+      reference: result.booking.reference ?? this.resolveBookingReference(result.booking),
       status: result.booking.status,
       slotDate: result.booking.slotDate.toISOString(),
       slotTime: result.booking.slotTime,

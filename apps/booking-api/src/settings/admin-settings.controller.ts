@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, Put, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Put, Req, Res, SetMetadata, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { extname, join } from 'path';
@@ -12,6 +12,9 @@ import { UpdateSettingsDto } from './dto/update-settings.dto';
 import { UpdateDvlaKeyDto } from './dto/update-dvla-key.dto';
 import { TestDvlaLookupDto } from './dto/test-dvla-lookup.dto';
 import { SettingsService } from './settings.service';
+
+export const IS_PUBLIC_KEY = 'isPublic';
+export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin/settings')
@@ -70,11 +73,12 @@ export class AdminSettingsController {
     const filename = `logo-${ts}${ext}`;
     const full = join(dir, filename);
     await fs.writeFile(full, (file as any).buffer);
-    const urlPath = `/admin/settings/logo/${filename}`;
-    const updated = await this.settingsService.updateSettings({ logoUrl: urlPath } as any);
+    // Save just the filename, not the full URL path
+    const updated = await this.settingsService.updateSettings({ logoUrl: filename } as any);
     return { ok: true, logoUrl: updated.logoUrl };
   }
 
+  @Public()
   @Get('logo/:filename')
   async getLogo(@Req() req: any, @Res() res: Response) {
     const filename = req.params.filename as string;

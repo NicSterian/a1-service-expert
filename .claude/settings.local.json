@@ -7,7 +7,18 @@
       "Bash(pnpm exec prisma migrate:*)",
       "Bash(findstr:*)",
       "Bash(pnpm exec prisma:*)",
-      "Bash(timeout /t 3)"
+      "Bash(timeout /t 3)",
+      "Bash(pnpm --filter booking-api exec prisma migrate:*)",
+      "Bash(pnpm --filter booking-api exec prisma:*)",
+      "Bash(npx prisma generate)",
+      "Bash(del \"apps\\booking-web\\src\\pages\\DevPage.tsx\")",
+      "Bash(timeout 180 pnpm build:*)",
+      "Bash(pnpm --filter booking-web build:dev:*)",
+      "Bash(powershell -Command \"(Get-Content ''c:\\a1-service-expert\\apps\\booking-web\\src\\features\\admin\\pages\\DevToolsPage.tsx'').Count\")",
+      "Bash(powershell -Command:*)",
+      "Bash(dir \"c:\\a1-service-expert\\apps\\booking-api\\storage\\uploads\")",
+      "Bash(dir:*)",
+      "Bash(pnpm build:*)"
     ],
     "deny": [],
     "ask": []

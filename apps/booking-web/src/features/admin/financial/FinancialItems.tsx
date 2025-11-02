@@ -40,11 +40,53 @@ export function FinancialItems() {
     }
   };
 
+  const importFromCatalog = async () => {
+    try {
+      // Fetch services from catalog
+      const services = await apiGet<any[]>('/admin/catalog/services');
+
+      // Convert services to financial items format, avoiding duplicates
+      const existingDescriptions = new Set(items.map((it) => it.description.toLowerCase()));
+      const imported: Item[] = [];
+
+      services.forEach((service) => {
+        // Skip if already exists (case-insensitive comparison)
+        if (existingDescriptions.has(service.name.toLowerCase())) {
+          return;
+        }
+
+        // Map service to item
+        const item: Item = {
+          code: service.code || '',
+          description: service.name,
+          defaultQty: 1,
+          // Use fixed price if available, otherwise use 0 (tiered services need price assignment)
+          unitPricePence: service.fixedPricePence || 0,
+          vatPercent: 20, // Default VAT rate
+        };
+        imported.push(item);
+        existingDescriptions.add(service.name.toLowerCase());
+      });
+
+      if (imported.length === 0) {
+        toast.success('No new services to import (all already exist)');
+        return;
+      }
+
+      // Append to existing items
+      setItems((prev) => [...prev, ...imported]);
+      toast.success(`Imported ${imported.length} service(s) from catalog`);
+    } catch (err) {
+      toast.error((err as Error).message ?? 'Failed to import from catalog');
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Products / Services</h3>
         <div className="flex gap-2">
+          <button onClick={importFromCatalog} className="rounded-full border border-slate-600 px-3 py-1 text-xs text-slate-200 hover:border-orange-500 hover:text-orange-300">Import from Catalog</button>
           <button onClick={add} className="rounded-full border border-slate-600 px-3 py-1 text-xs text-slate-200 hover:border-orange-500 hover:text-orange-300">+ Add Item</button>
           <button onClick={save} disabled={saving} className="rounded-full bg-orange-500 px-4 py-2 text-xs font-semibold text-black hover:bg-orange-400 disabled:cursor-not-allowed disabled:bg-orange-700/40">{saving ? 'Saving…' : 'Save'}</button>
         </div>

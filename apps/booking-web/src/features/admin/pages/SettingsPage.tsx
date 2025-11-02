@@ -64,17 +64,6 @@ export function SettingsPage() {
           >
             Notifications
           </Link>
-          <Link
-            to="/admin/settings?tab=integrations"
-            className={`whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-medium transition ${
-              activeTab === 'integrations'
-                ? 'border-brand-orange text-brand-orange'
-                : 'border-transparent text-slate-400 hover:border-slate-600 hover:text-slate-300'
-            }`}
-            aria-current={activeTab === 'integrations' ? 'page' : undefined}
-          >
-            Integrations
-          </Link>
         </nav>
       </div>
 
@@ -84,7 +73,6 @@ export function SettingsPage() {
         {activeTab === 'catalog' && <CatalogManager />}
         {activeTab === 'calendar' && <CalendarManager />}
         {activeTab === 'notifications' && <RecipientsManager />}
-        {activeTab === 'integrations' && <IntegrationsSettings />}
       </div>
 
       {/* Footer with Dev Tools link */}

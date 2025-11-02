@@ -41,7 +41,9 @@ type InvoiceDraftDto = {
   };
   lines: InvoiceLineDto[];
   dueAt?: string | null; // ISO date
+  validUntil?: string | null; // ISO date (for quotes)
   paymentNotes?: string | null;
+  notes?: string | null;
 };
 
 @UseGuards(JwtAuthGuard, AdminGuard)
@@ -156,21 +158,22 @@ export class AdminDocumentsController {
   }
 
   @Post()
-  async createDraft(@Body() dto: InvoiceDraftDto) {
-    if (!dto || !Array.isArray(dto.lines) || dto.lines.length === 0) {
-      throw new BadRequestException('At least one line item is required');
-    }
+  async createDraft(@Body() dto: InvoiceDraftDto & { type?: string }) {
+    // Allow creating with empty lines for initial draft
+    const lines = dto.lines || [{ description: '', quantity: 1, unitPricePence: 0 }];
 
     const settings = await this.settings.getSettings();
     const vatOn = Boolean((settings as any).vatRegistered);
     const defaultVat = Number((settings as any).vatRatePercent?.toString?.() ?? (settings as any).vatRatePercent ?? 0);
-    const { total, vat } = this.computeTotals(dto.lines, vatOn, defaultVat);
+    const { total, vat } = this.computeTotals(lines, vatOn, defaultVat);
 
-    const number = `DRF-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
+    const docType = dto.type === 'QUOTE' ? DocumentType.QUOTE : DocumentType.INVOICE;
+    const prefix = docType === DocumentType.QUOTE ? 'QUO' : 'DRF';
+    const number = `${prefix}-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
 
     return this.prisma.document.create({
       data: {
-        type: DocumentType.INVOICE,
+        type: docType,
         status: DocumentStatus.DRAFT,
         number,
         bookingId: dto.bookingId ?? null,
@@ -178,12 +181,14 @@ export class AdminDocumentsController {
         totalAmountPence: total,
         vatAmountPence: vat,
         dueAt: dto.dueAt ? new Date(dto.dueAt) : null,
+        validUntil: docType === DocumentType.QUOTE && dto.validUntil ? new Date(dto.validUntil) : null,
         payload: {
           customer: dto.customer ?? {},
-          lines: dto.lines,
+          lines,
           paymentNotes: dto.paymentNotes ?? (settings as any).invoicePaymentNotes ?? null,
+          notes: dto.notes ?? null,
         },
-        pdfUrl: 'pending://invoice/draft',
+        pdfUrl: `pending://${docType.toLowerCase()}/draft`,
       },
     });
   }
@@ -353,17 +358,40 @@ export class AdminDocumentsController {
   }
 
   @Post(':id/send')
-  async send(@Param('id', ParseIntPipe) id: number) {
+  async send(@Param('id', ParseIntPipe) id: number, @Body() body?: { to?: string }) {
     const doc = await this.prisma.document.findUnique({ where: { id } });
     if (!doc) throw new NotFoundException('Document not found');
+    if (doc.status === DocumentStatus.DRAFT) throw new BadRequestException('Cannot send draft documents. Please issue first.');
+
     const payload = (doc.payload as any) || {};
-    const to = payload?.customer?.email || null;
-    if (!to) throw new BadRequestException('Customer email is required to send invoice');
-    const subject = `Invoice ${doc.number} from A1 Service Expert Ltd`;
-    const link = doc.pdfUrl || `/documents/${doc.id}/download`;
-    const text = `Dear ${payload?.customer?.name || 'Customer'},\n\nPlease find your invoice ${doc.number}.\n\nDownload: ${link}\n\nThank you,\nA1 Service Expert`;
-    const html = `<p>Dear ${payload?.customer?.name || 'Customer'},</p><p>Please find your invoice <strong>${doc.number}</strong>.</p><p><a href="${link}">Download your invoice (PDF)</a></p><p>Thank you,<br/>A1 Service Expert</p>`;
-    await (this.email as any).sendInvoiceEmail?.(to, subject, text, html);
+    const customerEmail = payload?.customer?.email || null;
+    const to = body?.to || customerEmail;
+
+    if (!to) throw new BadRequestException('Email address is required');
+
+    const customerName = payload?.customer?.name || 'Customer';
+    const totalAmount = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(doc.totalAmountPence / 100);
+
+    // Determine document type for email
+    let documentType: 'INVOICE' | 'QUOTE' | 'RECEIPT' = 'INVOICE';
+    if (doc.type === DocumentType.QUOTE) {
+      documentType = 'QUOTE';
+    } else if (doc.status === DocumentStatus.PAID) {
+      documentType = 'RECEIPT';
+    }
+
+    // Get PDF file path
+    const pdfPath = this.documents.getDocumentFilePath(doc);
+
+    await this.email.sendDocumentEmail({
+      to,
+      documentType,
+      documentNumber: doc.number,
+      customerName,
+      totalAmount,
+      pdfPath,
+    });
+
     return { ok: true } as const;
   }
 

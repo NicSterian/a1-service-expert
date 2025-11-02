@@ -277,6 +277,16 @@ export class AdminBookingsController {
     return this.bookingsService.adminUpdateServiceLine(bookingId, serviceLineId, dto);
   }
 
+  @Post(':id/documents/invoice-draft')
+  async createInvoiceDraft(@Param('id', ParseIntPipe) bookingId: number) {
+    return this.bookingsService.adminCreateInvoiceDraft(bookingId);
+  }
+
+  @Post(':id/documents/quote-draft')
+  async createQuoteDraft(@Param('id', ParseIntPipe) bookingId: number) {
+    return this.bookingsService.adminCreateQuoteDraft(bookingId);
+  }
+
   @Post(':id/documents/invoice')
   async issueInvoice(@Param('id', ParseIntPipe) bookingId: number) {
     return this.bookingsService.adminIssueInvoice(bookingId);

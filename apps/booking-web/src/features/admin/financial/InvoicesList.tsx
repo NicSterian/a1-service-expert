@@ -152,6 +152,15 @@ export function InvoicesList({ onChanged }: { onChanged?: () => void }) {
     }
   };
 
+  const sendEmail = async (id: number) => {
+    try {
+      await apiPost(`/admin/documents/${id}/send`, {});
+      toast.success('Email sent to customer');
+    } catch (err) {
+      toast.error((err as Error).message ?? 'Failed to send email');
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -203,26 +212,35 @@ export function InvoicesList({ onChanged }: { onChanged?: () => void }) {
         <table className="min-w-full divide-y divide-slate-700">
           <thead className="bg-slate-800/60 text-xs uppercase text-slate-300">
             <tr>
-              <th className="px-2 py-3 text-left"><input type="checkbox" onChange={(e) => toggleAll(e.target.checked)} /></th>
+              <th className="px-2 py-3 text-left hidden md:table-cell"><input type="checkbox" onChange={(e) => toggleAll(e.target.checked)} /></th>
               <th className="px-4 py-3 text-left">Number</th>
-              <th className="px-4 py-3 text-left">Status</th>
+              <th className="px-4 py-3 text-left hidden sm:table-cell">Status</th>
               <th className="px-4 py-3 text-right">Total</th>
-              <th className="px-4 py-3 text-left">Created</th>
-              <th className="px-4 py-3 text-left">Due</th>
-              <th className="px-4 py-3 text-left">Booking</th>
+              <th className="px-4 py-3 text-left hidden lg:table-cell">Created</th>
+              <th className="px-4 py-3 text-left hidden xl:table-cell">Due</th>
+              <th className="px-4 py-3 text-left hidden lg:table-cell">Booking</th>
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60 text-sm text-slate-200">
             {rows.map((row) => (
               <tr key={row.id} className="hover:bg-slate-800/40">
-                <td className="px-2 py-2"><input type="checkbox" checked={!!selected[row.id]} onChange={(e) => setSelected((m) => ({ ...m, [row.id]: e.target.checked }))} /></td>
-                <td className="px-4 py-2 font-semibold text-white">{row.number}</td>
-                <td className="px-4 py-2">{row.status === 'PAID' ? `PAID${row.paymentMethod ? ` (${row.paymentMethod})` : ''}` : row.status}</td>
+                <td className="px-2 py-2 hidden md:table-cell"><input type="checkbox" checked={!!selected[row.id]} onChange={(e) => setSelected((m) => ({ ...m, [row.id]: e.target.checked }))} /></td>
+                <td className="px-4 py-2 font-semibold">
+                  {row.status === 'DRAFT' ? (
+                    <Link to={`/admin/financial?edit=${row.id}`} className="text-white hover:text-orange-300 underline underline-offset-4">
+                      {row.number}
+                    </Link>
+                  ) : (
+                    <span className="text-white">{row.number}</span>
+                  )}
+                  <div className="text-xs text-slate-400 sm:hidden mt-1">{row.status}</div>
+                </td>
+                <td className="px-4 py-2 hidden sm:table-cell">{row.status === 'PAID' ? `PAID${row.paymentMethod ? ` (${row.paymentMethod})` : ''}` : row.status}</td>
                 <td className="px-4 py-2 text-right">{currency.format(row.totalAmountPence / 100)}</td>
-                <td className="px-4 py-2">{new Date(row.createdAt).toLocaleDateString('en-GB')}</td>
-                <td className="px-4 py-2">{row.dueAt ? new Date(row.dueAt).toLocaleDateString('en-GB') : '—'}</td>
-                <td className="px-4 py-2">
+                <td className="px-4 py-2 hidden lg:table-cell">{new Date(row.createdAt).toLocaleDateString('en-GB')}</td>
+                <td className="px-4 py-2 hidden xl:table-cell">{row.dueAt ? new Date(row.dueAt).toLocaleDateString('en-GB') : '—'}</td>
+                <td className="px-4 py-2 hidden lg:table-cell">
                   {row.bookingId ? (
                     <Link to={`/admin/bookings/${row.bookingId}`} className="text-orange-300 underline underline-offset-4">
                       #{row.bookingId}
@@ -232,7 +250,7 @@ export function InvoicesList({ onChanged }: { onChanged?: () => void }) {
                   )}
                 </td>
                 <td className="px-4 py-2 text-right">
-                  <div className="flex justify-end gap-2">
+                  <div className="flex flex-col sm:flex-row justify-end gap-2">
                     {row.status === 'DRAFT' ? (
                       <>
                         <Link
@@ -256,6 +274,12 @@ export function InvoicesList({ onChanged }: { onChanged?: () => void }) {
                       </>
                     ) : (
                       <>
+                        <Link
+                          to={`/admin/financial?edit=${row.id}`}
+                          className="rounded-full border border-slate-600 px-3 py-1 text-xs text-slate-200 hover:border-blue-500 hover:text-blue-300"
+                        >
+                          View
+                        </Link>
                         {row.pdfUrl ? (
                           <button
                             onClick={() => openPdf(row.pdfUrl)}
@@ -266,6 +290,12 @@ export function InvoicesList({ onChanged }: { onChanged?: () => void }) {
                         ) : (
                           <span className="text-xs text-slate-500">PDF pending</span>
                         )}
+                        <button
+                          onClick={() => sendEmail(row.id)}
+                          className="rounded-full border border-slate-600 px-3 py-1 text-xs text-green-300 hover:border-green-500"
+                        >
+                          Email
+                        </button>
                         {row.status !== 'PAID' && (
                           <button
                             onClick={() => markPaid(row.id)}

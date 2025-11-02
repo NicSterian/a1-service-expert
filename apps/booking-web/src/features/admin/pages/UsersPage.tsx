@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { apiGet } from '../../../lib/api';
+import { apiGet, apiPost } from '../../../lib/api';
+import toast from 'react-hot-toast';
 
 interface User {
   id: number;
@@ -27,6 +28,27 @@ export function UsersPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const pageSize = 20;
+
+  // Create user modal state
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newUser, setNewUser] = useState({
+    title: '',
+    companyName: '',
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    mobileNumber: '',
+    landlineNumber: '',
+    addressLine1: '',
+    addressLine2: '',
+    addressLine3: '',
+    city: '',
+    county: '',
+    postcode: '',
+    role: 'CUSTOMER',
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -92,6 +114,66 @@ export function UsersPage() {
     return user.mobileNumber || user.landlineNumber || '—';
   };
 
+  const handleCreateUser = async (e: FormEvent) => {
+    e.preventDefault();
+
+    // Validation
+    if (!newUser.email || !newUser.password) {
+      toast.error('Email and password are required');
+      return;
+    }
+    if (newUser.password.length < 8) {
+      toast.error('Password must be at least 8 characters');
+      return;
+    }
+    if (!newUser.firstName || !newUser.lastName) {
+      toast.error('First name and last name are required');
+      return;
+    }
+
+    try {
+      setCreating(true);
+      await apiPost('/admin/users', newUser);
+      toast.success('User created successfully');
+      setShowCreateModal(false);
+      // Reset form
+      setNewUser({
+        title: '',
+        companyName: '',
+        firstName: '',
+        lastName: '',
+        email: '',
+        password: '',
+        mobileNumber: '',
+        landlineNumber: '',
+        addressLine1: '',
+        addressLine2: '',
+        addressLine3: '',
+        city: '',
+        county: '',
+        postcode: '',
+        role: 'CUSTOMER',
+      });
+      // Reload users list
+      setPage(1);
+      const params = new URLSearchParams({
+        page: '1',
+        pageSize: pageSize.toString(),
+        sort: sortBy,
+        order: sortOrder,
+      });
+      const response = await apiGet<{ users: User[]; total: number; pages: number }>(
+        `/admin/users?${params.toString()}`
+      );
+      setUsers(response.users);
+      setTotalPages(response.pages);
+    } catch (err) {
+      toast.error((err as Error).message ?? 'Failed to create user');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -100,6 +182,13 @@ export function UsersPage() {
           <h2 className="text-2xl font-semibold text-white">Users</h2>
           <p className="text-sm text-slate-400">Manage customer accounts</p>
         </div>
+        <button
+          type="button"
+          onClick={() => setShowCreateModal(true)}
+          className="rounded-full bg-brand-orange px-6 py-2 text-sm font-semibold text-slate-950 transition hover:-translate-y-0.5 hover:bg-orange-400"
+        >
+          Create User
+        </button>
       </div>
 
       {/* Filters */}
@@ -268,6 +357,188 @@ export function UsersPage() {
           </>
         )}
       </div>
+
+      {/* Create User Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-white">Create New User</h3>
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleCreateUser} className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400">Title</label>
+                  <input
+                    type="text"
+                    value={newUser.title}
+                    onChange={(e) => setNewUser({ ...newUser, title: e.target.value })}
+                    placeholder="Mr, Mrs, Ms, etc."
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400">Company Name</label>
+                  <input
+                    type="text"
+                    value={newUser.companyName}
+                    onChange={(e) => setNewUser({ ...newUser, companyName: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400">First Name *</label>
+                  <input
+                    type="text"
+                    value={newUser.firstName}
+                    onChange={(e) => setNewUser({ ...newUser, firstName: e.target.value })}
+                    required
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400">Last Name *</label>
+                  <input
+                    type="text"
+                    value={newUser.lastName}
+                    onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })}
+                    required
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400">Mobile</label>
+                  <input
+                    type="tel"
+                    value={newUser.mobileNumber}
+                    onChange={(e) => setNewUser({ ...newUser, mobileNumber: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400">Landline</label>
+                  <input
+                    type="tel"
+                    value={newUser.landlineNumber}
+                    onChange={(e) => setNewUser({ ...newUser, landlineNumber: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-400">Address Line 1</label>
+                  <input
+                    type="text"
+                    value={newUser.addressLine1}
+                    onChange={(e) => setNewUser({ ...newUser, addressLine1: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-400">Address Line 2</label>
+                  <input
+                    type="text"
+                    value={newUser.addressLine2}
+                    onChange={(e) => setNewUser({ ...newUser, addressLine2: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-400">Address Line 3</label>
+                  <input
+                    type="text"
+                    value={newUser.addressLine3}
+                    onChange={(e) => setNewUser({ ...newUser, addressLine3: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400">City</label>
+                  <input
+                    type="text"
+                    value={newUser.city}
+                    onChange={(e) => setNewUser({ ...newUser, city: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400">County</label>
+                  <input
+                    type="text"
+                    value={newUser.county}
+                    onChange={(e) => setNewUser({ ...newUser, county: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400">Postcode</label>
+                  <input
+                    type="text"
+                    value={newUser.postcode}
+                    onChange={(e) => setNewUser({ ...newUser, postcode: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400">Role *</label>
+                  <select
+                    value={newUser.role}
+                    onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200"
+                  >
+                    <option value="CUSTOMER">Customer</option>
+                    <option value="STAFF">Staff</option>
+                    <option value="ADMIN">Admin</option>
+                  </select>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-400">Email *</label>
+                  <input
+                    type="email"
+                    value={newUser.email}
+                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                    required
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-400">Password * (min 8 chars)</label>
+                  <input
+                    type="password"
+                    value={newUser.password}
+                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                    required
+                    minLength={8}
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="rounded-full border border-slate-600 px-4 py-2 text-sm text-slate-200 transition hover:border-orange-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="rounded-full bg-brand-orange px-6 py-2 text-sm font-semibold text-slate-950 transition hover:bg-orange-400 disabled:opacity-50"
+                >
+                  {creating ? 'Creating...' : 'Create User'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

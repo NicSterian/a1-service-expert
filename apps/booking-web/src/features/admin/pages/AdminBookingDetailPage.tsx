@@ -230,17 +230,28 @@ export function AdminBookingDetailPage() {
   const handleCreateInvoiceDraft = async () => {
     if (!bookingId || !booking) return;
     try {
-      const draft = await apiPost<any>(`/admin/documents`, {
-        bookingId: Number(bookingId),
-        lines: booking.services.length > 0
-          ? booking.services.map((s) => ({ description: s.serviceName || 'Service', quantity: 1, unitPricePence: s.unitPricePence }))
-          : [{ description: 'Service', quantity: 1, unitPricePence: booking.totals.servicesAmountPence }],
-        customer: { name: booking.customer.name, email: booking.customer.email },
-      });
-      toast.success('Draft invoice created');
-      navigate(`/admin/financial?edit=${draft.id}`);
+      setLoadingAction(true);
+      const result = await apiPost<{ documentId: number; number: string }>(`/admin/bookings/${bookingId}/documents/invoice-draft`, {});
+      toast.success(`Invoice draft ${result.number} created`);
+      navigate(`/admin/financial?edit=${result.documentId}`);
     } catch (err) {
       toast.error((err as Error).message ?? 'Failed to create draft');
+    } finally {
+      setLoadingAction(false);
+    }
+  };
+
+  const handleCreateQuoteDraft = async () => {
+    if (!bookingId || !booking) return;
+    try {
+      setLoadingAction(true);
+      const result = await apiPost<{ documentId: number; number: string }>(`/admin/bookings/${bookingId}/documents/quote-draft`, {});
+      toast.success(`Quote draft ${result.number} created`);
+      navigate(`/admin/financial?edit=${result.documentId}`);
+    } catch (err) {
+      toast.error((err as Error).message ?? 'Failed to create quote draft');
+    } finally {
+      setLoadingAction(false);
     }
   };
 
@@ -678,6 +689,14 @@ export function AdminBookingDetailPage() {
                 disabled={loadingAction}
               >
                 Create invoice draft
+              </button>
+              <button
+                onClick={handleCreateQuoteDraft}
+                className="rounded-full border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:border-orange-500 hover:text-orange-300 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+                type="button"
+                disabled={loadingAction}
+              >
+                Create quote draft
               </button>
               <button
                 onClick={handleIssueInvoice}

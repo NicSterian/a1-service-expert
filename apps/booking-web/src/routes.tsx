@@ -5,7 +5,6 @@ import { AccountPage } from "./pages/AccountPage";
 import { AdminPage } from "./pages/AdminPage";
 import { AirConPage } from "./pages/AirConPage";
 import { ContactPage } from "./pages/ContactPage";
-import { DevPage } from "./pages/DevPage";
 import { DiagnosticsPage } from "./pages/DiagnosticsPageDark";
 import { HomePage } from "./pages/HomePage";
 import { ServicesPage } from "./pages/ServicesPage";
@@ -58,7 +57,6 @@ export const routes: RouteObject[] = [
       { path: "register", element: <RegisterPage /> },
       { path: "account", element: <AccountPage /> },
       { path: "account/bookings/:bookingId", element: <BookingDetailPage /> },
-      { path: "dev", element: <DevPage /> },
       { path: "terms", element: <TermsPage /> },
       { path: "privacy", element: <PrivacyPage /> },
       { path: "cookie-policy", element: <CookiePolicyPage /> },

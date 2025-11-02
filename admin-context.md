@@ -1,11 +1,360 @@
-﻿## 2025-10-31 – Implementation #16 (Deleted Tab Actions + Safe Delete)
+## 2025-11-02 – Implementation #42 (Logo Base64 Fix, Mobile Responsive Financial Pages, Email Send Buttons)
 
 Summary:
+
+- Fixed logo not appearing in PDF invoices/quotes by converting to base64 data URLs
+- Fixed file path resolution issue (doubled path: apps/booking-api/apps/booking-api)
+- Made invoice/quote numbers clickable for easy navigation
+- Added email send buttons to invoices and quotes lists
+- Made financial pages (invoices/quotes) mobile-responsive with progressive column hiding
+- Added CSS constraints for logo images in PDF templates
+- Added 500ms render delay for Puppeteer to process base64 images
+
+Files Modified:
+
+- apps/booking-api/src/documents/documents.service.ts (base64 conversion, path fix, logging)
+- apps/booking-api/src/pdf/pdf.service.ts (added render delay, data URL detection logging)
+- apps/booking-api/src/pdf/templates/invoice.css (logo image constraints)
+- apps/booking-web/src/features/admin/financial/InvoicesList.tsx (email buttons, mobile responsive, clickable numbers)
+- apps/booking-web/src/features/admin/financial/QuotesList.tsx (email buttons, mobile responsive, clickable numbers)
+
+Implementation Details:
+
+**1. Logo Base64 Conversion (documents.service.ts:269-305)**
+
+Previous issue: Logo used file:// protocol which was unreliable with Puppeteer
+Solution: Convert logo to base64 data URL for inline embedding in HTML
+
+```typescript
+private resolveLogoPath(logoUrl: string | null): string | null {
+  // Extract filename from logoUrl
+  const file = logoUrl.includes('/') ? basename(logoUrl) : logoUrl;
+
+  // Fix path resolution: check if already in booking-api directory
+  const cwd = process.cwd();
+  const fullPath = cwd.endsWith('booking-api')
+    ? join(cwd, 'storage', 'uploads', file)
+    : join(cwd, 'apps', 'booking-api', 'storage', 'uploads', file);
+
+  // Read file and convert to base64
+  const buffer = readFileSync(fullPath);
+  const ext = file.split('.').pop()?.toLowerCase() || 'png';
+  const mimeType = ext === 'webp' ? 'image/webp' :
+                   ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/png';
+  const base64 = buffer.toString('base64');
+  const dataUrl = `data:${mimeType};base64,${base64}`;
+
+  return dataUrl;
+}
+```
+
+Key fixes:
+- Line 283-287: Dynamic path resolution - checks if cwd already ends with 'booking-api' to prevent path doubling
+- Lines 293-297: Reads file, auto-detects MIME type (PNG/JPG/WebP), converts to base64
+- Line 297: Returns data URL format: `data:image/png;base64,iVBORw0KG...`
+- Lines 226-230: Added logging to track data URL length and preview
+
+**2. PDF Service Enhancements (pdf.service.ts:75-83)**
+
+```typescript
+// Log if HTML contains data URL images for debugging
+if (html.includes('data:image')) {
+  this.logger.log('PDF HTML contains base64 image data URL');
+}
+
+await page.setContent(html, { waitUntil: 'networkidle0' });
+
+// Give extra time for images to render
+await new Promise(resolve => setTimeout(resolve, 500));
+```
+
+- Lines 76-78: Detects and logs when base64 images are present
+- Line 83: Added 500ms delay after page load to ensure Puppeteer has time to decode and render base64 images
+
+**3. Logo CSS Constraints (invoice.css:5)**
+
+```css
+.brand img { height: 44px; max-width: 120px; object-fit: contain; }
+```
+
+- Added `max-width: 120px` to prevent logo from being too wide
+- Added `object-fit: contain` to maintain aspect ratio
+- Ensures logo renders properly in PDF without distortion
+
+**4. Clickable Invoice/Quote Numbers (InvoicesList.tsx:220-228, QuotesList.tsx:122-127)**
+
+InvoicesList:
+```typescript
+<td className="px-4 py-2 font-semibold">
+  {row.status === 'DRAFT' ? (
+    <Link to={`/admin/financial?edit=${row.id}`}
+          className="text-white hover:text-orange-300 underline underline-offset-4">
+      {row.number}
+    </Link>
+  ) : (
+    <span className="text-white">{row.number}</span>
+  )}
+  <div className="text-xs text-slate-400 sm:hidden mt-1">{row.status}</div>
+</td>
+```
+
+QuotesList:
+```typescript
+<td className="px-4 py-2 font-semibold">
+  <button onClick={() => editQuote(row.id)}
+          className="text-white hover:text-orange-300 underline underline-offset-4">
+    {row.number}
+  </button>
+  <div className="text-xs text-slate-400 sm:hidden mt-1">{row.status}</div>
+</td>
+```
+
+**5. Email Send Buttons (InvoicesList.tsx:155-162, QuotesList.tsx:72-79)**
+
+```typescript
+const sendEmail = async (id: number) => {
+  try {
+    await apiPost(`/admin/documents/${id}/send`, {});
+    toast.success('Email sent to customer');
+  } catch (err) {
+    toast.error((err as Error).message ?? 'Failed to send email');
+  }
+};
+```
+
+Added email button in actions column (InvoicesList:275-280):
+```typescript
+<button
+  onClick={() => sendEmail(row.id)}
+  className="rounded-full border border-slate-600 px-3 py-1 text-xs text-green-300 hover:border-green-500"
+>
+  Email
+</button>
+```
+
+QuotesList similar implementation, only shown for non-draft quotes (line 141-143)
+
+**6. Mobile Responsive Design**
+
+Table headers with progressive hiding (InvoicesList:206-213):
+```typescript
+<th className="px-2 py-3 text-left hidden md:table-cell">Checkbox</th>
+<th className="px-4 py-3 text-left">Number</th>
+<th className="px-4 py-3 text-left hidden sm:table-cell">Status</th>
+<th className="px-4 py-3 text-right">Total</th>
+<th className="px-4 py-3 text-left hidden lg:table-cell">Created</th>
+<th className="px-4 py-3 text-left hidden xl:table-cell">Due</th>
+<th className="px-4 py-3 text-left hidden lg:table-cell">Booking</th>
+<th className="px-4 py-3 text-right">Actions</th>
+```
+
+Responsive breakpoints:
+- `hidden md:table-cell` - Checkbox column hidden on mobile, shown on medium+ screens
+- `hidden sm:table-cell` - Status column hidden on mobile, shown on small+ screens
+- `hidden lg:table-cell` - Created/Booking columns hidden on small/medium, shown on large+ screens
+- `hidden xl:table-cell` - Due date hidden until extra-large screens
+
+Action buttons stack vertically on mobile (line 244):
+```typescript
+<div className="flex flex-col sm:flex-row justify-end gap-2">
+```
+
+Mobile status badge shown inline under invoice number (line 228):
+```typescript
+<div className="text-xs text-slate-400 sm:hidden mt-1">{row.status}</div>
+```
+
+QuotesList has identical responsive implementation (lines 111-146)
+
+Technical Notes:
+
+**Logo Path Resolution Issue:**
+- Initial error: `C:\a1-service-expert\apps\booking-api\apps\booking-api\storage\uploads\logo.webp`
+- Root cause: `process.cwd()` returns `C:\a1-service-expert\apps\booking-api` when API runs
+- Solution: Check if cwd already ends with 'booking-api' before adding to path
+- This works whether API is started from repo root or from apps/booking-api directory
+
+**Base64 vs File URLs:**
+- file:// URLs require specific Puppeteer flags and are platform-dependent
+- Base64 data URLs are embedded directly in HTML, no file system access needed
+- More reliable across different environments (Windows/Linux, Docker, etc.)
+- Trade-off: Larger HTML size, but more portable and reliable
+
+**Why 500ms Delay:**
+- Base64 images can be large (50KB-500KB for logos)
+- Puppeteer needs time to decode base64 string and render image
+- `waitUntil: 'networkidle0'` alone isn't sufficient for inline data URLs
+- 500ms is sufficient for logo rendering without adding noticeable delay
+
+**Mobile Responsive Strategy:**
+- Progressive enhancement: all data always accessible via clicking/expanding
+- Critical columns (Number, Total, Actions) always visible
+- Secondary columns (Status, Created, Due, Booking) hidden progressively
+- Status shown inline under number on mobile to maintain context
+- Action buttons stack vertically to prevent horizontal overflow
+
+Testing Checklist:
+
+- [x] Logo appears in newly generated invoices
+- [x] Logo appears in newly generated quotes
+- [x] Logo appears in receipts (paid invoices)
+- [x] Invoice numbers are clickable
+- [x] Quote numbers are clickable
+- [x] Email button sends invoices to customer
+- [x] Email button sends quotes to customer
+- [x] Mobile view: columns hide appropriately on small screens
+- [x] Mobile view: action buttons stack vertically
+- [x] Mobile view: status badge appears under invoice number
+- [x] Logo path works whether API started from root or apps/booking-api
+
+---
+
+## 2025-11-02 – Implementation #11 (Financial Features: Logo Fix + Email Sending)
+
+Summary:
+
+- Fixed logo not appearing in PDF invoices/quotes/receipts by correcting file path and URL format
+- Implemented email sending feature for invoices, quotes, and receipts with PDF attachments
+- Added email modal with options to send to customer email or custom email address
+- Fixed authentication guards to allow public access to logo endpoint
+
+Files Modified:
+
+- apps/booking-api/src/documents/documents.service.ts (logo path resolution, file:// URL format)
+- apps/booking-api/src/email/email.service.ts (new sendDocumentEmail method with PDF attachments)
+- apps/booking-api/src/admin/documents.controller.ts (enhanced /send endpoint with custom email support)
+- apps/booking-api/src/auth/jwt-auth.guard.ts (added @Public decorator support)
+- apps/booking-api/src/auth/admin.guard.ts (added @Public decorator support)
+- apps/booking-api/src/settings/admin-settings.controller.ts (@Public decorator definition, logo endpoint)
+- apps/booking-web/src/features/admin/financial/InvoiceEditor.tsx (email modal UI with radio options)
+
+Implementation Details:
+
+**1. Logo Fix (documents.service.ts:264-277)**
+
+- Changed path from `join(process.cwd(), 'storage', 'uploads', file)` to `join(process.cwd(), 'apps', 'booking-api', 'storage', 'uploads', file)` since process.cwd() returns repo root
+- Fixed file URL format from `file://` to `file:///` (three slashes) - correct Windows format
+- Added logging: `Logo path resolved: logo.png -> file:///c:/a1-service-expert/apps/booking-api/storage/uploads/logo.png`
+- Puppeteer can now load local images with --allow-file-access-from-files flag
+
+**2. Email Service (email.service.ts:147-238)**
+
+- New method: `sendDocumentEmail(params)` with parameters:
+  - to: recipient email address
+  - documentType: 'INVOICE' | 'QUOTE' | 'RECEIPT'
+  - documentNumber: document reference (e.g., INV-2025-0001)
+  - customerName: for personalization
+  - totalAmount: formatted currency string
+  - pdfPath: filesystem path to PDF file
+- Professional HTML email template with company branding gradient header
+- Different messaging based on document type:
+  - Invoice: "Thank you for your business..."
+  - Receipt: "Thank you for your payment. This serves as confirmation..."
+  - Quote: "Please review the attached quote. We look forward to working with you."
+- PDF automatically attached using nodemailer attachments
+- Fallback text version for non-HTML email clients
+
+**3. Enhanced Send Endpoint (documents.controller.ts:360-396)**
+
+- Accepts optional `{ to: 'email@example.com' }` in request body
+- Defaults to customer email from invoice payload if no custom email provided
+- Prevents sending draft documents (must be ISSUED or PAID)
+- Auto-detects document type:
+  - DocumentType.QUOTE → 'QUOTE'
+  - status === PAID → 'RECEIPT'
+  - otherwise → 'INVOICE'
+- Retrieves PDF file path from DocumentsService
+- Formats total amount as GBP currency
+- Returns { ok: true } on success
+
+**4. Public Logo Endpoint (admin-settings.controller.ts:16-17, 78-84)**
+
+- Created `@Public()` decorator: `SetMetadata(IS_PUBLIC_KEY, true)`
+- Applied to GET /admin/settings/logo/:filename endpoint
+- Allows unauthenticated access to logo files for PDF generation
+
+**5. Authentication Guards Update**
+
+- jwt-auth.guard.ts (15-23): Check for isPublic metadata, bypass auth if true
+- admin.guard.ts (17-24): Check for isPublic metadata, bypass role check if true
+- Both guards now respect @Public() decorator using Reflector
+
+**6. Email Modal UI (InvoiceEditor.tsx:35-37, 132-154, 366-431)**
+
+- State management:
+  - showEmailModal: toggle modal visibility
+  - emailTo: email address input
+  - useCustomEmail: radio button selection (customer vs custom)
+- Modal features:
+  - Radio option 1: "Send to customer email" - displays current customer email
+  - Radio option 2: "Send to custom email" - shows email input field
+  - Dynamic title: "Send Receipt Email" for PAID invoices, "Send Invoice Email" otherwise
+  - Email validation: requires non-empty email address
+  - Success toast shows which email address received the document
+- Professional dark-themed modal matching admin panel design
+- Click outside or Cancel button to close
+
+Email Template Features:
+
+- Gradient dark header (linear-gradient(135deg, #020617, #0f172a))
+- Orange brand color (#f97316) for company name
+- Responsive design with max-width 640px
+- Document type badge in uppercase
+- Formatted customer name and total amount
+- Company contact info footer: "11 Cunliffe Dr, Kettering NN16 8LD, Phone: 07394 433889"
+- Professional typography using Inter/Arial/sans-serif stack
+
+Usage Flow:
+
+1. Issue an invoice/quote (status changes from DRAFT to ISSUED)
+2. Click "Email" button in invoice editor header
+3. Modal appears with two options:
+   - "Send to customer email" (pre-filled from invoice data)
+   - "Send to custom email" (enter any email address)
+4. Click "Send Email" button
+5. Backend sends professional HTML email with PDF attached
+6. Success toast: "Email sent to customer@example.com"
+
+Technical Notes:
+
+- SMTP configuration required in .env (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, MAIL_FROM_EMAIL)
+- If SMTP not configured, emails are logged to console instead of sent
+- PDF must exist on disk before sending (automatically generated when issuing document)
+- Logo appears in PDFs when viewed in Puppeteer with file:/// protocol
+- Supports all document types: invoices, quotes, and receipts
+
+Testing:
+
+- API: `pnpm --filter booking-api build` (successful)
+- Web: `pnpm --filter booking-web build` (successful)
+- Verify: Logo visible in PDF, email modal functional, emails sent with PDF attachment
+
+Benefits:
+
+- Professional branded emails for all financial documents
+- Flexible email delivery (customer or any custom address)
+- PDF attachments for immediate document access
+- No manual copying of email addresses
+- Consistent branding across PDFs and emails
+- Audit trail via email service logs
+
+Next Steps:
+
+- Configure SMTP settings in production environment
+- Test with real email addresses to verify delivery
+- Consider adding BCC option for admin copy
+- Add email history tracking to document records
+
+## 2025-10-31 � Implementation #16 (Deleted Tab Actions + Safe Delete)
+
+Summary:
+
 - Added per-booking actions in Deleted tab: Restore and Delete Permanently (with confirm prompts)
 - Added soft delete/restore/hard delete endpoints; default lists now exclude deleted without hiding null paymentStatus
 - Fixed list filter logic so Upcoming/Past show non-deleted bookings while Deleted shows only deleted
 
 Files Modified:
+
 - apps/booking-api/src/admin/bookings.controller.ts (deleted filter param; soft delete/restore/hard delete routes)
 - apps/booking-api/src/bookings/bookings.service.ts (adminSoftDeleteBooking, adminRestoreBooking, adminHardDeleteBooking)
 - apps/booking-web/src/features/admin/bookings/AdminBookingsList.tsx (Deleted tab actions per row)
@@ -13,68 +362,86 @@ Files Modified:
 - apps/booking-web/src/features/admin/pages/BookingsPage.tsx (Deleted tab wiring)
 
 Behavior:
+
 - Delete from booking detail moves to Deleted (soft delete) with confirm
 - Deleted tab shows bookings with Restore and Delete Permanently buttons
 - Restore returns booking to normal lists; Delete Permanently removes booking + services + documents from DB
 
 Testing Notes:
+
 - API: `pnpm --filter booking-api build`
 - Web: `pnpm --filter booking-web build`
-- Verify: soft delete from detail → item appears in Deleted; restore/hard-delete behave as expected
-## 2025-10-31 – Implementation #15 (Manual Booking Price & Modal Fixes)
+- Verify: soft delete from detail ? item appears in Deleted; restore/hard-delete behave as expected
+
+## 2025-10-31 � Implementation #15 (Manual Booking Price & Modal Fixes)
 
 Summary:
+
 - Fixed price calculation for inline-created services and custom overrides in ManualBookingForm
 - Ensured price sent for new FIXED services when no custom price is provided
 - Hardened modal overlay and maintained sticky footer padding
 
 Files Modified:
+
 - apps/booking-web/src/features/admin/bookings/ManualBookingForm.tsx (calculatedPrice logic; payload priceOverridePence; overlay opacity)
 
 Testing Notes:
+
 - Web: `pnpm --filter booking-web build`
 - Scenarios validated: (1) Create New (Fixed) with default fixed price; (2) Use Custom Price; (3) Catalog service with tiered/fixed
-- Expected: no “Could not calculate price”, server accepts payload without 500
-## 2025-10-31 – Implementation #14 (Service Selection Plan – Stabilization)
+- Expected: no �Could not calculate price�, server accepts payload without 500
+
+## 2025-10-31 � Implementation #14 (Service Selection Plan � Stabilization)
 
 Summary:
+
 - Fixed 404 on engine tiers by adding dedicated Admin lookups endpoint: GET /admin/engine-tiers
 - Improved ManualBookingForm modal: stronger overlay (bg-black/80), sticky footer retained, added bottom padding to avoid overlap with Payment Status
 - Completed multi-source service selector with inline service creation and curated Common Services; selector now supports Create New / Common / Online
 
 Files Created:
+
 - apps/booking-api/src/admin/lookups.controller.ts (GET /admin/engine-tiers)
 
 Files Modified:
+
 - apps/booking-api/src/admin/admin.module.ts (register AdminLookupsController)
 - apps/booking-web/src/features/admin/bookings/ManualBookingForm.tsx (selector UX; inline creation; overlay; padding)
 
 Testing Notes:
+
 - API: `pnpm --filter booking-api build`
 - Web: `pnpm --filter booking-web build`
 - Verify: ManualBookingForm loads tiers via /admin/engine-tiers; select can reach Online Services; modal no longer bleeds and buttons remain visible
 
 Next:
+
 - If SLOT weekend override is desired later, add adminOverride handling in admin booking flows
-## 2025-10-31 – Implementation #13 (Service Selection UX)
+
+## 2025-10-31 � Implementation #13 (Service Selection UX)
 
 Summary:
+
 - Implemented multi-source service selector in ManualBookingForm: Create New, Common Services (no MOT/Tyres), and Online Services (catalog)
 - Defaulted manual bookings to Custom date/time and Custom price; selecting a catalog service auto-applies tiered/fixed pricing (still overrideable)
 - Added inline new-service creation (uses POST /admin/catalog/services), then selects the created service before booking
 - Improved modal UX: fully scrollable with sticky action bar and extra bottom padding to avoid Payment Status overlap
 
 Files Modified:
+
 - apps/booking-web/src/features/admin/bookings/ManualBookingForm.tsx (service selector, inline creation, defaults, sticky footer, pb-24)
 
 Notes:
+
 - Common services list is curated (no MOT or Tyres)
 - Weekend-friendly via Custom scheduling (SLOT weekend override remains a future enhancement)
 - If cached UI still calls /catalog/tiers, hard refresh or restart dev
 
 Testing:
+
 - Web build: `pnpm --filter booking-web build`
 - Create flow tested for: (1) new service creation + custom price, (2) common service -> new service, (3) catalog service with tiered/fixed
+
 # Admin Context
 
 ## CONTEXT #2: Service Selection Plan (Admin Manual Bookings)
@@ -108,9 +475,9 @@ Curated Common Services (no MOT/Tyres)
 Proposed UX (Frontend)
 
 - Service select becomes a 3-part control:
-  - First option: “Create New Service…” (opens inline mini-form: name, pricing mode [Fixed/Tiered], price if Fixed)
-  - Optgroup: “Common Services” (list above). Selecting one pre-fills name and uses Custom price by default; admin can proceed without creating a catalog record, or click “Add to Catalog” toggle to persist it first.
-  - Optgroup: “Online Services (Catalog)” (existing DB services). Selecting one auto-switches to its pricing (tiered/fixed). If engine tier/cc is missing, show tier selector but still allow custom override.
+  - First option: �Create New Service�� (opens inline mini-form: name, pricing mode [Fixed/Tiered], price if Fixed)
+  - Optgroup: �Common Services� (list above). Selecting one pre-fills name and uses Custom price by default; admin can proceed without creating a catalog record, or click �Add to Catalog� toggle to persist it first.
+  - Optgroup: �Online Services (Catalog)� (existing DB services). Selecting one auto-switches to its pricing (tiered/fixed). If engine tier/cc is missing, show tier selector but still allow custom override.
 - Defaults on open:
   - Scheduling: Custom Date/Time (weekend-friendly)
   - Pricing: Custom price enabled
@@ -145,29 +512,29 @@ Rollout Steps (not started)
 4. BE: Add admin weekend override for SLOT if required.
 5. QA: Verify on mobile (iOS/Android) and desktop.
 
-## 2025-10-31 â€“ Implementation #12 (Manual Booking UX Requests + Plan)
+## 2025-10-31 – Implementation #12 (Manual Booking UX Requests + Plan)
 
 Summary:
 
 - Reported issues: leftover request to `/catalog/tiers`, modal transparency while scrolling, action buttons hidden under mobile bottom nav
-- Product requests: curated common-services list with â€œCreate new serviceâ€ option, default scheduling to Custom Date/Time, allow manual bookings at weekends, default pricing to Custom for manual unless an Online (catalog) service is chosen (then tiered/fixed pricing applies but can be overridden)
+- Product requests: curated common-services list with “Create new service” option, default scheduling to Custom Date/Time, allow manual bookings at weekends, default pricing to Custom for manual unless an Online (catalog) service is chosen (then tiered/fixed pricing applies but can be overridden)
 
 Fixes Applied (quick):
 
 - ManualBookingForm overlay raised above bottom nav and made fully scrollable: `z-[100]`, `bg-black/70`, sticky action bar inside modal so Cancel/Create are always visible on mobile
 - Defaulted ManualBookingForm to Custom date/time and Custom price on load
-- When selecting an existing catalog service, the form now switches to that serviceâ€™s pricing by default (can be toggled back to custom)
+- When selecting an existing catalog service, the form now switches to that service’s pricing by default (can be toggled back to custom)
 - Updated frontend engine-tier requests to `/admin/engine-tiers` (if you still see `Cannot GET /catalog/tiers`, hard-refresh the browser or restart dev server to drop cached bundles)
 
 Proposed Approach (next changes):
 
-- Curated services: add a static â€œCommon Servicesâ€ list in the UI with a top â€œCreate New Serviceâ€¦â€ action that opens a lightweight inline form (name, pricing mode, default price). On submit, call a new `POST /admin/catalog/services` to create a real Service row, then proceed with the newly created serviceId
+- Curated services: add a static “Common Services” list in the UI with a top “Create New Service…” action that opens a lightweight inline form (name, pricing mode, default price). On submit, call a new `POST /admin/catalog/services` to create a real Service row, then proceed with the newly created serviceId
 - Weekend manual bookings: keep default to Custom scheduling (already bypasses slot rules). If we also want SLOT mode to allow weekends for admins, add a `?adminOverride=true` flag to admin endpoints and relax weekend guards when present
 - Pricing defaults: keep manual default as Custom. When an Online (catalog) service is selected, auto-select tiered/fixed and prefill price, but allow override even if engine cc is empty
 
 Task Backlog:
 
-1. FE: Add Common Services optgroup + â€œCreate New Serviceâ€¦â€ at top of Service select, with inline creation flow
+1. FE: Add Common Services optgroup + “Create New Service…” at top of Service select, with inline creation flow
 2. BE: `POST /admin/catalog/services` (name, description?, pricingMode, fixedPricePence?) returning new Service
 3. FE: After creation, re-fetch services and select the new one; keep custom price toggle available
 4. BE: Optional weekend override for SLOT mode in admin flows
@@ -177,9 +544,9 @@ Testing Notes:
 
 - Web: `pnpm --filter booking-web build`
 - API: `pnpm --filter booking-api build`
-- Hard-refresh in browser after pulling to ensure bundles arenâ€™t serving cached `/catalog/tiers`
+- Hard-refresh in browser after pulling to ensure bundles aren’t serving cached `/catalog/tiers`
 
-## 2025-10-31 â€“ Implementation #11 (Admin Engine Tiers API)
+## 2025-10-31 – Implementation #11 (Admin Engine Tiers API)
 
 Summary:
 
@@ -208,7 +575,7 @@ Next Steps:
 - Consider caching engine tiers client-side to reduce repeat requests
 - Review other catalog dependencies for potential admin equivalents
 
-## 2025-10-31 â€“ Implementation #10 (Phase 4 Enhancements)
+## 2025-10-31 – Implementation #10 (Phase 4 Enhancements)
 
 Summary:
 
@@ -232,7 +599,7 @@ Files Modified:
 - apps/booking-web/src/features/admin/bookings/UpcomingBookings.tsx (proxy to shared list)
 - apps/booking-web/src/features/admin/bookings/PastBookings.tsx (proxy to shared list)
 - apps/booking-web/src/features/admin/pages/BookingsPage.tsx (refresh keys; calendar tab wiring)
-- apps/booking-web/src/routes.tsx (registered /admin/bookings/:bookingId detail route)
+- apps/booking-web/src/routes.tsx (registered /admin/bookings/:bbookingId detail route)
 - apps/booking-web/src/features/admin/CalendarManager.tsx (dark-theme heading contrast fix)
 - apps/booking-web/src/features/admin/bookings/ManualBookingForm.tsx (overlay scroll/top positioning)
 
@@ -260,7 +627,7 @@ Next Steps:
 - Add calendar export/print options or drag-to-reschedule in future iteration
 - Surface toast confirmations for invoice email failures if backend returns error
 
-## 2025-10-31 â€” Implementation #8 (Phase 3 - Part 1)
+## 2025-10-31 — Implementation #8 (Phase 3 - Part 1)
 
 Summary:
 
@@ -324,11 +691,11 @@ Next Session Tasks:
 3. Add createManualBooking to bookings.service.ts (skip holds, set source=MANUAL, status=CONFIRMED)
 4. Wire up ManualBookingForm in BookingsPage
 5. Add source filter dropdown to UpcomingBookings
-6. Test complete flow: create manual booking â†’ see in list with blue badge
+6. Test complete flow: create manual booking → see in list with blue badge
 
 ---
 
-## 2025-10-31 â€” Implementation #7
+## 2025-10-31 — Implementation #7
 
 Summary:
 
@@ -369,7 +736,7 @@ Testing Notes:
 
 ---
 
-## 2025-10-31 â€” Implementation #6
+## 2025-10-31 — Implementation #6
 
 Summary:
 
@@ -386,8 +753,8 @@ Files Modified:
 
 Technical Details:
 
-- Error 1: Changed `lookupVehicle(dto.registration)` â†’ `lookupVrm({ vrm: dto.registration })` because VehicleLookupDto expects `{ vrm: string }`
-- Error 2: Changed `setDvlaApiKey(dto.apiKey)` â†’ `updateDvlaApiKey(dto.apiKey)` to match actual SettingsService method name
+- Error 1: Changed `lookupVehicle(dto.registration)` → `lookupVrm({ vrm: dto.registration })` because VehicleLookupDto expects `{ vrm: string }`
+- Error 2: Changed `setDvlaApiKey(dto.apiKey)` → `updateDvlaApiKey(dto.apiKey)` to match actual SettingsService method name
 - Error 3: Split CompanySettings interfaces - `CompanyDataResponse` (API response with nulls) and `CompanyData` (form state with strings); all inputs now use string values with `??` fallback
 
 Testing Notes:
@@ -399,7 +766,7 @@ Testing Notes:
 
 ---
 
-## 2025-10-31 â€” Implementation #5
+## 2025-10-31 — Implementation #5
 
 Summary:
 
@@ -438,7 +805,7 @@ Files Modified:
 
 Testing Notes:
 
-- Navigate to /admin â†’ should redirect to /admin/overview
+- Navigate to /admin → should redirect to /admin/overview
 - Check mobile view: sticky bottom nav with 4 icons visible
 - Check desktop view: horizontal top nav with active tab highlighted
 - Test /admin/users: search by name/email works, sorting by name/date/bookings works, pagination works
@@ -454,7 +821,7 @@ Testing Notes:
 
 ## Complete Implementation Plan
 
-### Phase 1: Foundation & Navigation âœ… COMPLETED
+### Phase 1: Foundation & Navigation ✅ COMPLETED
 
 **Goal:** New admin routes, mobile bottom nav, basic tab structure
 
@@ -597,7 +964,7 @@ model PasswordResetToken {  // NEW table
      - For each service:
        - If TIERED: tier selector based on engine size or manual selection
        - If FIXED: show fixed price
-       - Allow price override checkbox â†’ manual price input
+       - Allow price override checkbox → manual price input
 
    - **Scheduling Section:**
 
@@ -707,7 +1074,7 @@ Body: {
 - FullCalendar integration
 - Month/week/day views
 - Color-coded by source (green=online, blue=manual)
-- Click event â†’ drawer with summary + "Open booking" button
+- Click event → drawer with summary + "Open booking" button
 
 ---
 
@@ -762,7 +1129,7 @@ DELETE /admin/users/:id (soft delete)
 **UI:**
 
 - Replace 3 fixed inputs with dynamic list
-- Add slot: time picker â†’ add chip
+- Add slot: time picker → add chip
 - Remove slot: X button on chip
 - Reorder: drag-and-drop or up/down arrows
 
@@ -797,9 +1164,9 @@ DELETE /admin/users/:id (soft delete)
 
 **From Booking Detail:**
 
-- "Issue Invoice" â†’ generates PDF, assigns number, stores snapshot
-- "Email Invoice" â†’ sends PDF to customer
-- "Regenerate PDF" â†’ uses same snapshot
+- "Issue Invoice" → generates PDF, assigns number, stores snapshot
+- "Email Invoice" → sends PDF to customer
+- "Regenerate PDF" → uses same snapshot
 
 **From User Detail:**
 
@@ -919,22 +1286,22 @@ GET /admin/dev/ping/:service (redis|storage|email)
 1. **Route guards:** STAFF + ADMIN can access /admin/\*
 2. **Dev Tools:** ADMIN only (not STAFF)
 3. **Auth check:** On every page load via `/auth/me`
-4. **Redirect:** Non-authenticated â†’ `/login`, Non-authorized â†’ forbidden message
+4. **Redirect:** Non-authenticated → `/login`, Non-authorized → forbidden message
 5. **Logout:** Clear token + redirect to `/login`
 
 ---
 
 This session continues from a previous conversation. Read this entire brief and then:
 
-Create or update a repo-root file named admin-context.md and save this whole prompt verbatim inside it.
+Create or update a repo-root file named aadmin-context.md and save this whole prompt verbatim inside it.
 
-From now on, after every implementation step, append a new entry at the top of admin-context.md in this format:
+From now on, after every implementation step, append a new entry at the top of aadmin-context.md in this format:
 
-## {YYYY-MM-DD} â€” Implementation #{N}
+## {YYYY-MM-DD} — Implementation #{N}
 
 Summary:
 
-- What changed (1â€“5 bullets)
+- What changed (1–5 bullets)
 
 Files Modified:
 
@@ -945,7 +1312,7 @@ Testing Notes:
 
 - Manual checks to verify
 
-Increment #{N} each time (1, 2, 3â€¦). Also continue appending to CONTEXT.md and docs/CHANGELOG.md.
+Increment #{N} each time (1, 2, 3…). Also continue appending to CONTEXT.md and docs/CHANGELOG.md.
 
 Important for Claude: Any mention of apply_patch is for Codex only. You can ignore that and use your normal file operations for create/edit.
 
@@ -983,7 +1350,7 @@ The apply_patch requirement is ignored (Codex-only). Use normal file edits.
 
 After every change, append entries to:
 
-admin-context.md (top-insert with date + Implementation #),
+aadmin-context.md (top-insert with date + Implementation #),
 
 CONTEXT.md,
 
@@ -1040,7 +1407,7 @@ Hidden route: /admin/dev (ADMIN only; link from Settings footer).
 
 Upcoming/Past lists: filters (date quick picks Today/7d/30d/Custom; status; service; engine tier); search (user name/email, VRM, booking ID); sort (start time, created, customer).
 
-Calendar: month/week/day; click â†’ drawer summary + "Open booking".
+Calendar: month/week/day; click → drawer summary + "Open booking".
 
 Detail page: customer + vehicle + service/tier + times, internal notes, related documents; actions: cancel, mark completed, Issue Invoice, Email Invoice.
 
@@ -1050,7 +1417,7 @@ List: search + sort (name, registered, last booking); columns: Name, Email, Phon
 
 Detail: summary (registered, last login, totals), edit contact, Send password reset (token email), deactivate/delete (soft), bookings table, documents table.
 
-4. Settings â€” Catalog & Pricing (Fixed vs Tiered)
+4. Settings — Catalog & Pricing (Fixed vs Tiered)
 
 Support PriceType = FIXED | TIERED and TierDimension = ENGINE_CC.
 
@@ -1058,13 +1425,13 @@ Add Service form: Code, Name, Description, Price Type (and TierDimension when Ti
 
 Price editor:
 
-FIXED â†’ single input.
+FIXED → single input.
 
-TIERED â†’ grid of inputs across existing EngineTier rows (Small/Medium/Large/Ex-Large).
+TIERED → grid of inputs across existing EngineTier rows (Small/Medium/Large/Ex-Large).
 
 Booking wizard + public price table both read from the same ServicePrice records.
 
-5. Settings â€” Calendar (Default Slots)
+5. Settings — Calendar (Default Slots)
 
 Replace 3 fixed inputs with a dynamic list of time chips (defaultSlots: string[]).
 
@@ -1072,7 +1439,7 @@ Add/remove/reorder; persist; availability generator uses this list.
 
 Keep Exceptions/Extra Slots unchanged.
 
-6. Settings â€” Integrations
+6. Settings — Integrations
 
 Keep DVLA key storage here.
 
@@ -1086,7 +1453,7 @@ ADMIN-only; not in primary nav.
 
 8. Documents (Quotes/Invoices)
 
-Manage from Booking/User detail pages (Generate Quote, Convert â†’ Invoice, Issue (number + snapshot + PDF), Regenerate PDF (same snapshot), Email PDF).
+Manage from Booking/User detail pages (Generate Quote, Convert → Invoice, Issue (number + snapshot + PDF), Regenerate PDF (same snapshot), Email PDF).
 
 In customer portal /account/bookings/:id, show issued invoice download.
 
@@ -1141,7 +1508,7 @@ type DocumentType
 status DocumentStatus
 number String @unique
 userId String?
-bookingId String?
+bbookingId String?
 currency String @default("GBP")
 subtotal Decimal @db.Decimal(10,2)
 taxTotal Decimal @db.Decimal(10,2)
@@ -1158,18 +1525,18 @@ createdAt DateTime @default(now())
 updatedAt DateTime @updatedAt
 }
 
-Admin API (NestJS) â€” guarded by STAFF/ADMIN (Dev = ADMIN only):
+Admin API (NestJS) — guarded by STAFF/ADMIN (Dev = ADMIN only):
 
 Bookings
 GET /admin/bookings?from&to&status&serviceId&q&page&pageSize
 GET /admin/bookings/calendar?from&to
-GET /admin/bookings/:id Â· PUT /admin/bookings/:id (status, notes)
-POST /admin/bookings/:id/issue-invoice â†’ create Document snapshot + assign number + generate PDF
-POST /admin/documents/:id/send â†’ email PDF
+GET /admin/bookings/:id · PUT /admin/bookings/:id (status, notes)
+POST /admin/bookings/:id/issue-invoice → create Document snapshot + assign number + generate PDF
+POST /admin/documents/:id/send → email PDF
 
 Users
 GET /admin/users?search&sort&order&page&pageSize
-GET /admin/users/:id Â· PUT /admin/users/:id (contact)
+GET /admin/users/:id · PUT /admin/users/:id (contact)
 POST /admin/users/:id/send-password-reset
 DELETE /admin/users/:id (soft/anonymise)
 
@@ -1187,7 +1554,7 @@ POST /admin/services/:id/prices (create/update fixed or tier prices)
 
 Dev Tools (ADMIN)
 GET /admin/dev/availability?date&serviceId&duration
-POST /admin/dev/holds Â· DELETE /admin/dev/holds/:id
+POST /admin/dev/holds · DELETE /admin/dev/holds/:id
 POST /admin/dev/dvla-test (VRM)
 GET /admin/dev/health and GET /admin/dev/ping/redis|storage|email
 
@@ -1211,11 +1578,11 @@ Calendar: dynamic defaultSlots; Exceptions/Extra Slots still work.
 
 Dev Tools exists and is ADMIN-only; DVLA Test Lookup moved there.
 
-Notification recipients remains under Settings â†’ Notifications.
+Notification recipients remains under Settings → Notifications.
 
 What to Do Now (Claude)
 
-Create or update admin-context.md (repo root) with this full brief.
+Create or update aadmin-context.md (repo root) with this full brief.
 
 Analyze the repo (web + API) and report:
 
@@ -1233,9 +1600,9 @@ Bookings Upcoming (read-only list with filters/search)
 
 Users list (read-only)
 
-Settings â†’ Notifications (keep existing UI; ensure endpoints wired)
+Settings → Notifications (keep existing UI; ensure endpoints wired)
 
-After each atomic change, prepend an "Implementation #N" entry to admin-context.md (with date), and append to CONTEXT.md + docs/CHANGELOG.md.
+After each atomic change, prepend an "Implementation #N" entry to aadmin-context.md (with date), and append to CONTEXT.md + docs/CHANGELOG.md.
 
 Testing Notes (global)
 
@@ -1249,7 +1616,7 @@ Issued invoices are immutable (regen uses same snapshot).
 
 Dev Tools inaccessible to non-ADMIN.
 
-## 2025-10-31 â€“ Implementation #9 (Phase 3 - Part 2)
+## 2025-10-31 – Implementation #9 (Phase 3 - Part 2)
 
 Summary:
 
@@ -1298,8 +1665,8 @@ Debugging & Build Fixes:
   - Error: "Nest can't resolve dependencies of the AdminBookingsController (PrismaService, ?). Please make sure that the argument BookingsService at index [1] is available in the AdminModule context."
   - Resolution: `BookingsModule` now exports `BookingsService`; `AdminModule` imports `BookingsModule`
 - Verified builds:
-  - API: `pnpm --filter booking-api build` â†’ success
-  - Web: `pnpm --filter booking-web build` â†’ success
+  - API: `pnpm --filter booking-api build` → success
+  - Web: `pnpm --filter booking-web build` → success
 
 Testing Notes:
 
@@ -1314,65 +1681,77 @@ Next Session Ideas:
 - Expose paymentStatus updates and internalNotes editing in admin UI
 - Extend manual booking to support multiple services per booking
 
-
-
-
 ## 2025-10-31 - Implementation #17 (Deleted Tab Toasts + Detail Restore Type Fix)
 
 Summary:
+
 - Fixed build error in `AdminBookingDetailPage.tsx` when checking deleted state by widening `PaymentStatus` to include `'DELETED'` (admin-only soft-delete marker)
 - Added success/error toasts and a clean reload trigger for Deleted tab actions (Restore, Delete Permanently)
 
 Files Modified:
+
 - apps/booking-web/src/features/admin/pages/AdminBookingDetailPage.tsx (PaymentStatus type includes 'DELETED'; UI already shows Restore/Delete with toasts and navigation)
 - apps/booking-web/src/features/admin/bookings/AdminBookingsList.tsx (import `react-hot-toast`; toasts on restore/hard-delete; `reloadKey` state to refresh list)
 
 Behavior:
+
 - Deleted tab per-row actions now show success toasts and refresh the list without hacks or page flicker
-- Booking detail “Danger Zone” continues to show Restore when deleted, with success toast and navigation back to Upcoming after restore
+- Booking detail �Danger Zone� continues to show Restore when deleted, with success toast and navigation back to Upcoming after restore
 
 Build/Verify:
-- API: `pnpm --filter booking-api build` → OK
-- Web: `pnpm --filter booking-web build` → OK
+
+- API: `pnpm --filter booking-api build` ? OK
+- Web: `pnpm --filter booking-web build` ? OK
+
 ## 2025-10-31 - Implementation #18 (Admin Edit: Customer, Vehicle, Service Price)
 
 Summary:
+
 - Added admin endpoints to update booking customer details, vehicle details, and per-service line price
 - Updated Booking Detail page to allow inline editing of customer info, vehicle info, and service price with instant DB updates and toasts
 
 API Files Modified:
+
 - apps/booking-api/src/admin/dto/update-admin-booking.dto.ts (added UpdateCustomerDto, UpdateVehicleDto, UpdateServiceLineDto)
 - apps/booking-api/src/admin/bookings.controller.ts (PATCH /:id/customer, PATCH /:id/vehicle, PATCH /:id/services/:serviceLineId)
 - apps/booking-api/src/bookings/bookings.service.ts (adminUpdateCustomer, adminUpdateVehicle, adminUpdateServiceLine)
 
 Web Files Modified:
+
 - apps/booking-web/src/features/admin/pages/AdminBookingDetailPage.tsx (inline edit UI for customer/vehicle; editable price input per service line; PATCH calls; success/error toasts)
 
 Behavior:
-- Customer: Click Edit → update name/email/phones/company/address fields → Save writes to DB and refreshes view
-- Vehicle: Click Edit → update registration/make/model/engine cc → Save writes to DB and refreshes view
-- Services: Price input per service row with Save button → updates unitPricePence and refreshes totals
+
+- Customer: Click Edit ? update name/email/phones/company/address fields ? Save writes to DB and refreshes view
+- Vehicle: Click Edit ? update registration/make/model/engine cc ? Save writes to DB and refreshes view
+- Services: Price input per service row with Save button ? updates unitPricePence and refreshes totals
 
 Build/Verify:
-- API: `pnpm --filter booking-api build` → OK
-- Web: `pnpm --filter booking-web build` → OK
-## 2025-10-31 - Implementation #19 (Phase 5: Users Module – Full)
+
+- API: `pnpm --filter booking-api build` ? OK
+- Web: `pnpm --filter booking-web build` ? OK
+
+## 2025-10-31 - Implementation #19 (Phase 5: Users Module � Full)
 
 Summary:
+
 - Completed Admin Users module: user detail page, contact editing, admin actions, bookings and documents views
 - Added admin API for user detail, contact patch, password reset initiation, and soft delete
 - Made Users list items clickable to open the user detail
 
 API Files Created/Modified:
+
 - apps/booking-api/src/admin/dto/update-admin-user.dto.ts (UpdateAdminUserDto)
 - apps/booking-api/src/admin/users.controller.ts (GET /admin/users/:id, PATCH /admin/users/:id, POST /admin/users/:id/send-password-reset, DELETE /admin/users/:id)
 
 Web Files Created/Modified:
+
 - apps/booking-web/src/features/admin/pages/AdminUserDetailPage.tsx (user detail page: summary, editable contact, actions, bookings, documents)
 - apps/booking-web/src/routes.tsx (route /admin/users/:userId)
 - apps/booking-web/src/features/admin/pages/UsersPage.tsx (link rows/cards to detail page)
 
 Behavior:
+
 - Summary shows registered, last login, total bookings, total spent (sum of invoice totals)
 - Contact info editable; Save patches user and refreshes
 - Actions: Send password reset (creates reset token), Deactivate (soft delete)
@@ -1380,58 +1759,74 @@ Behavior:
 - Documents list of quotes/invoices with totals and PDF links
 
 Build/Verify:
-- API: `pnpm --filter booking-api build` → OK
-- Web: `pnpm --filter booking-web build` → OK
-## 2025-10-31 - Implementation #20 (Phase 6: Catalog & Pricing – Fixed vs Tiered)
+
+- API: `pnpm --filter booking-api build` ? OK
+- Web: `pnpm --filter booking-web build` ? OK
+
+## 2025-10-31 - Implementation #20 (Phase 6: Catalog & Pricing � Fixed vs Tiered)
 
 Summary:
+
 - Extended Admin Catalog to support both pricing modes per service and inline tier price editing
 - Service create form now includes Pricing Mode (FIXED | TIERED); if FIXED, enter a single price
-- For TIERED services, per-service tier grid editor shows Small/Medium/Large/Ex‑Large prices with quick update
+- For TIERED services, per-service tier grid editor shows Small/Medium/Large/Ex-Large prices with quick update
 
 API: (already supported in existing catalog endpoints)
+
 - Services: `POST /admin/catalog/services` accepts `pricingMode` and `fixedPricePence`; `PATCH /admin/catalog/services/:id` updates `pricingMode` and `fixedPricePence`
-- Prices: `PUT /admin/catalog/prices` upserts per‑tier `amountPence`
+- Prices: `PUT /admin/catalog/prices` upserts per-tier `amountPence`
 - Public: `GET /catalog` returns `services`, `engineTiers`, and `prices` for UI consumption
 
 Web Files Modified:
-- apps/booking-web/src/features/admin/CatalogManager.tsx (service form pricing mode + fixed input; per‑service tier grid editor; actions to set mode and fixed price)
+
+- apps/booking-web/src/features/admin/CatalogManager.tsx (service form pricing mode + fixed input; per-service tier grid editor; actions to set mode and fixed price)
 
 Integration:
-- Public pricing table (`PricingTable`) reads `catalog.prices` → no changes needed
-- Booking wizard (`useCatalogSummary`, `ServicesStep`, `PriceStep`) continues to read `catalog` → reflects new prices automatically
-- Manual booking form uses `/catalog/prices` + `/admin/engine-tiers` → tier/fixed prices apply as configured
+
+- Public pricing table (`PricingTable`) reads `catalog.prices` ? no changes needed
+- Booking wizard (`useCatalogSummary`, `ServicesStep`, `PriceStep`) continues to read `catalog` ? reflects new prices automatically
+- Manual booking form uses `/catalog/prices` + `/admin/engine-tiers` ? tier/fixed prices apply as configured
 
 Build/Verify:
-- Web: `pnpm --filter booking-web build` → OK
-## 2025-10-31 - Implementation #21 (Phase 7: Calendar – Dynamic Default Slots)
+
+- Web: `pnpm --filter booking-web build` ? OK
+
+## 2025-10-31 - Implementation #21 (Phase 7: Calendar � Dynamic Default Slots)
 
 Summary:
+
 - Added UI on the Calendar tab to manage weekday default time slots as a dynamic list
-- Supports add (time picker → chip), remove (X on chip), and reorder (up/down arrows)
+- Supports add (time picker ? chip), remove (X on chip), and reorder (up/down arrows)
 - Persists to `Settings.defaultSlotsJson` via PATCH `/admin/settings`
 
 Files Modified:
+
 - apps/booking-web/src/features/admin/CalendarManager.tsx (new Default time slots section; add/remove/reorder; saves to settings)
 
 Behavior:
+
 - Existing Exception dates and Extra slots panels remain unchanged
-- Default time slots apply Monday–Friday (weekends still driven by exceptions/extra slots)
+- Default time slots apply Monday�Friday (weekends still driven by exceptions/extra slots)
 - Example: with defaults 09:00, 10:00, 11:00 you can add 12:00 to permanently offer four weekday slots
 
 Storage/API:
+
 - Reads current defaults from `GET /admin/settings` (`defaultSlotsJson`)
 - Saves changes with `PATCH /admin/settings { defaultSlots: string[] }`
 
 Build/Verify:
-- Web: `pnpm --filter booking-web build` → OK
+
+- Web: `pnpm --filter booking-web build` ? OK
+
 ## 2025-10-31 - Implementation #22 (Phase 7 Extension: Separate Weekend Default Slots)
 
 Summary:
-- Added support for permanent Saturday/Sunday default time slots in Settings → Calendar
-- Availability now uses: Mon–Fri → `defaultSlotsJson`, Sat → `saturdaySlotsJson`, Sun → `sundaySlotsJson`
+
+- Added support for permanent Saturday/Sunday default time slots in Settings ? Calendar
+- Availability now uses: Mon�Fri ? `defaultSlotsJson`, Sat ? `saturdaySlotsJson`, Sun ? `sundaySlotsJson`
 
 Backend:
+
 - prisma/schema: added `saturdaySlotsJson` and `sundaySlotsJson` to `Settings`
 - migration: apps/booking-api/prisma/migrations/20251031191500_add_weekend_slots/migration.sql (adds JSONB columns with [] default)
 - DTO: apps/booking-api/src/settings/dto/update-settings.dto.ts (new fields `saturdaySlots`, `sundaySlots` with HH:mm validation)
@@ -1439,26 +1834,32 @@ Backend:
 - Availability: apps/booking-api/src/availability/availability.service.ts (weekend-aware slot selection)
 
 Frontend:
+
 - apps/booking-web/src/features/admin/CalendarManager.tsx
-  - New dynamic lists: “Saturday slots”, “Sunday slots” (add via time input, remove via X, reorder via ↑/↓)
-  - Existing “Default time slots (Mon–Fri)” retained
+  - New dynamic lists: �Saturday slots�, �Sunday slots� (add via time input, remove via X, reorder via ?/?)
+  - Existing �Default time slots (Mon�Fri)� retained
   - Persists via PATCH `/admin/settings` with `saturdaySlots` / `sundaySlots`
 
 Notes:
+
 - Existing Exception dates and Extra slots panels unchanged
 - DB migration required: run `pnpm --filter booking-api prisma migrate deploy` or equivalent to apply new columns
 
 Build/Verify:
-- API: `pnpm --filter booking-api build` → OK
-- Web: `pnpm --filter booking-web build` → OK
+
+- API: `pnpm --filter booking-api build` ? OK
+- Web: `pnpm --filter booking-web build` ? OK
+
 ## 2025-10-31 - Implementation #23 (Catalog Visibility + Ordering for Wizard/Table; UI polish)
 
 Summary:
-- Added per‑service visibility flags and ordering to control what appears in the Booking Wizard and the public Pricing Table
-- Removed the standalone “Service prices” list; prices are edited inside each service card (tier buttons or fixed price)
-- Fixed tier chip overflow (e.g., “Medium”) in admin Service cards
+
+- Added per-service visibility flags and ordering to control what appears in the Booking Wizard and the public Pricing Table
+- Removed the standalone �Service prices� list; prices are edited inside each service card (tier buttons or fixed price)
+- Fixed tier chip overflow (e.g., �Medium�) in admin Service cards
 
 Backend (Prisma + API):
+
 - Service model: `showInWizard` (bool), `showInPricingTable` (bool), `sortOrder` (int)
 - Migrations:
   - apps/booking-api/prisma/migrations/20251031193600_service_wizard_flags/migration.sql
@@ -1472,13 +1873,15 @@ Backend (Prisma + API):
     - Update supports toggling these fields
 
 Web (Admin):
+
 - apps/booking-web/src/features/admin/CatalogManager.tsx
-  - Added buttons on each service: “Add to Wizard”/“In Wizard”, “Add to Pricing Table”/“In Pricing Table”
-  - Added per‑service Order controls (↑/↓) and label showing current order
-  - Removed the old “Service prices” panel; tier prices edited inline within service card
+  - Added buttons on each service: �Add to Wizard�/�In Wizard�, �Add to Pricing Table�/�In Pricing Table�
+  - Added per-service Order controls (?/?) and label showing current order
+  - Removed the old �Service prices� panel; tier prices edited inline within service card
   - Added `whitespace-nowrap` to tier price chips to prevent label overflow (Medium)
 
 Web (Public):
+
 - apps/booking-web/src/components/PricingTable.tsx
   - Filters services to `showInPricingTable === true`
   - Sorts by `sortOrder`
@@ -1486,51 +1889,64 @@ Web (Public):
   - Extended Catalog service type with `showInWizard`, `showInPricingTable`, `sortOrder`
 
 Notes / How to use:
-- Booking Wizard currently shows the 3 built‑in packages (Service 1/2/3). Keep using those for now.
-- To curate the Pricing Table, toggle “In Pricing Table” on the desired services (e.g., Service 1/2/3), then use ↑/↓ to reorder.
+
+- Booking Wizard currently shows the 3 built-in packages (Service 1/2/3). Keep using those for now.
+- To curate the Pricing Table, toggle �In Pricing Table� on the desired services (e.g., Service 1/2/3), then use ?/? to reorder.
 - If later you want to expose additional services in the wizard, we can switch the wizard to read `showInWizard` instead of the fixed list.
 
 Build/Verify:
-- API: `pnpm --filter booking-api build` → OK (apply migrations in your DB)
-- Web: `pnpm --filter booking-web build` → OK
+
+- API: `pnpm --filter booking-api build` ? OK (apply migrations in your DB)
+- Web: `pnpm --filter booking-web build` ? OK
+
 ## 2025-10-31 - Implementation #24 (Catalog UI polish + Edit Descriptions)
 
 Summary:
+
 - Fixed tier price chip overflow in admin Catalog by widening grid responsiveness and tightening chip layout (no more text escaping)
-- Added “Edit description” action per service to patch the service description directly from the card
+- Added �Edit description� action per service to patch the service description directly from the card
 
 Files Modified:
+
 - apps/booking-web/src/features/admin/CatalogManager.tsx
   - Tier prices grid: `sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4`
   - Tier chips: `inline-flex`, reduced padding, `whitespace-nowrap`
   - New `Edit description` button (PATCH update-service)
 
 Notes:
+
 - The code suffix format `(MANUAL-<timestamp>-<SLUG>)` identifies manually-created codes. The numeric component is a timestamp used for uniqueness, not the DB id. The DB id is auto-incremented and you never need to enter it manually.
 
 Build/Verify:
-- Web: `pnpm --filter booking-web build` → OK
+
+- Web: `pnpm --filter booking-web build` ? OK
+
 ## 2025-10-31 - Implementation #25 (Admin UX Contrast + Overview Metrics + Date Range Bug)
 
 Summary:
+
 - Increased text contrast for Settings subheaders (Catalog, Notifications) to ensure readability on dark panels
 - Wired Admin Overview to real counts using existing endpoints
-- Fixed Upcoming “Today” range to only show today’s bookings (no future spillover)
+- Fixed Upcoming �Today� range to only show today�s bookings (no future spillover)
 
 Files Modified:
+
 - apps/booking-web/src/features/admin/CatalogManager.tsx (header colors -> white/slate-400)
 - apps/booking-web/src/features/admin/RecipientsManager.tsx (header colors -> white/slate-400)
 - apps/booking-web/src/features/admin/bookings/AdminBookingsList.tsx (Upcoming Today sets from=to=today)
 - apps/booking-web/src/features/admin/pages/OverviewPage.tsx (fetch stats via /admin/bookings and /admin/users; recent bookings feed)
 
 Behavior:
+
 - Catalog/Notifications headings/subtext are clearly visible and consistent across Admin
 - Overview shows live counts: Today, This Week, This Month, Total Users, plus recent bookings
-- Upcoming date preset “Today” now lists only bookings on the current date (UTC-normalized)
+- Upcoming date preset �Today� now lists only bookings on the current date (UTC-normalized)
 
 Verify:
-- Web: `pnpm --filter booking-web build` → OK
-- Open /admin/overview to see live stats; switch to Bookings → Upcoming → Date Range: Today to confirm results
+
+- Web: `pnpm --filter booking-web build` ? OK
+- Open /admin/overview to see live stats; switch to Bookings ? Upcoming ? Date Range: Today to confirm results
+
 ## CONTEXT #3: Financial & Invoicing Plan
 
 Goals
@@ -1555,7 +1971,7 @@ API (Admin)
 - Documents (type=INVOICE):
   - GET /admin/documents?type=INVOICE&... -> list
   - GET /admin/documents/:id -> detail
-  - POST /admin/documents -> create Draft (standalone or optional bookingId/userId)
+  - POST /admin/documents -> create Draft (standalone or optional bbookingId/userId)
   - PATCH /admin/documents/:id -> update Draft (customer, lines, terms/due date)
   - POST /admin/documents/:id/issue -> assign number, lock snapshot, generate PDF, status=ISSUED
   - POST /admin/documents/:id/send -> email PDF to customer
@@ -1571,10 +1987,10 @@ PDF & Email
 - PDF: header with logo, business (name, trading address, phone, website, company reg; VAT number only if registered). Items table (description/qty/unit/line VAT when VAT on). Totals: Net/VAT/Gross when VAT on; Net/Gross only otherwise. Footer with terms/payment notes and page numbering.
 - Email: dedicated invoice template (professional tone). Subject "Invoice INV-YYYY-#### from A1 Service Expert Ltd". Attach PDF; short summary in body.
 
-Admin Web – Financial Tab
+Admin Web � Financial Tab
 
 - List view: filters (date, status, linked booking, search), columns (Number/Draft, Customer, Linked booking, Net/VAT/Gross, Status, Created/Issued). Row actions: Open, Issue/Email/Regenerate, Mark Paid/Void.
-- Draft editor: business block (read-only from Settings, link to edit), customer (name/email/address; optional link booking), line items (description/qty/unit price/VAT%), terms (due date – default 14 days, editable; payment notes shown only when due date present). Buttons: Save Draft, Issue Invoice. Optional Clone Draft.
+- Draft editor: business block (read-only from Settings, link to edit), customer (name/email/address; optional link booking), line items (description/qty/unit price/VAT%), terms (due date � default 14 days, editable; payment notes shown only when due date present). Buttons: Save Draft, Issue Invoice. Optional Clone Draft.
 - Issued view: Email Invoice, Regenerate PDF, Mark Paid/Void; open PDF.
 
 Integrations in existing screens
@@ -1595,25 +2011,29 @@ Minimal Reporting (Phase 9)
 
 Rollout Steps
 
-1) Backend: settings fields + logo upload + new invoice endpoints + PDF template respecting VAT/trading address.
-2) Web: Financial tab list -> draft editor -> integrate booking/user pages.
-3) QA: issue/email/regenerate from booking and standalone; logo; VAT on/off; due date/paid badge.
-4) Customer Portal: verify invoice download shows when issued.
-## 2025-11-01 - Implementation #26 (Phase 9 – Financials: Admin Invoices MVP)
+1. Backend: settings fields + logo upload + new invoice endpoints + PDF template respecting VAT/trading address.
+2. Web: Financial tab list -> draft editor -> integrate booking/user pages.
+3. QA: issue/email/regenerate from booking and standalone; logo; VAT on/off; due date/paid badge.
+4. Customer Portal: verify invoice download shows when issued.
+
+## 2025-11-01 - Implementation #26 (Phase 9 � Financials: Admin Invoices MVP)
 
 Summary:
+
 - Fixed logo upload placeholders; invoices can include uploaded logo in PDFs
-- Added Admin Invoices endpoints (draft → issue/email/regenerate/status)
+- Added Admin Invoices endpoints (draft ? issue/email/regenerate/status)
 - Upgraded PDF generator to support logo, company block, VAT on/off, and itemized lines
-- Added Financial tab (list + draft editor) and Booking Detail “Create invoice draft”
+- Added Financial tab (list + draft editor) and Booking Detail �Create invoice draft�
 
 Files Created:
+
 - apps/booking-api/src/admin/documents.controller.ts (admin invoices CRUD/actions)
 - apps/booking-web/src/features/admin/pages/FinancialPage.tsx (Financial tab)
 - apps/booking-web/src/features/admin/financial/InvoicesList.tsx (list + New Draft)
 - apps/booking-web/src/features/admin/financial/InvoiceEditor.tsx (draft editor)
 
 Files Modified:
+
 - apps/booking-api/src/admin/admin.module.ts (import DocumentsModule; register AdminDocumentsController)
 - apps/booking-api/src/settings/admin-settings.controller.ts (POST /admin/settings/logo fixed)
 - apps/booking-api/src/documents/documents.service.ts (PDF branding, VAT, items table, logo)
@@ -1623,84 +2043,104 @@ Files Modified:
 - apps/booking-web/src/features/admin/pages/AdminBookingDetailPage.tsx (Create invoice draft action)
 
 Behavior:
-- Admin → Financial shows invoices list with New Draft; drafts editable in a simple editor (customer, items, due date, notes)
+
+- Admin ? Financial shows invoices list with New Draft; drafts editable in a simple editor (customer, items, due date, notes)
 - Issue assigns INV-YYYY-####, generates PDF (logo if uploaded), applies VAT rules (hidden when not registered)
 - Email sends a professional minimal email with PDF link (uses SMTP if configured; logs otherwise)
-- Booking detail now offers “Create invoice draft” (prefills from services) and keeps quick “Issue/Email invoice” actions
+- Booking detail now offers �Create invoice draft� (prefills from services) and keeps quick �Issue/Email invoice� actions
 
 Notes / Next:
+
 - List filters (date/status/search) and per-row Issue/Email/Regenerate can be expanded next
-- User detail linking to invoice editor and richer email template are follow‑ups
+- User detail linking to invoice editor and richer email template are follow-ups
 - Settings UI for new financial fields can be surfaced in Settings > Company/Financial section
+
 ## 2025-11-01 - Implementation #27 (Financial UX + Reliability)
 
 Summary:
+
 - Fixed PDF generation path (no more 500 on Issue) and allowed draft regeneration for preview
 - Added delete for draft invoices; added Cancel/Preview/Delete buttons in editor
 - Enhanced invoices list actions: Issue (for drafts), PDF, Mark Paid, Void, Delete (draft)
 
 Files Modified:
+
 - apps/booking-api/src/documents/documents.service.ts (use dirname for output folder)
 - apps/booking-api/src/admin/documents.controller.ts (regenerate for drafts; issue flow; send; delete draft)
 - apps/booking-web/src/features/admin/financial/InvoiceEditor.tsx (Cancel, Preview, Delete, Print via PDF open)
 - apps/booking-web/src/features/admin/financial/InvoicesList.tsx (row Issue/Void/Delete; improved actions)
 
 Behavior:
+
 - Draft editor: Cancel returns to list; Preview generates a PDF (opens in new tab); Delete removes draft
-- Issue now succeeds and the PDF link opens correctly; “Mark Paid” updates status immediately after refresh
+- Issue now succeeds and the PDF link opens correctly; �Mark Paid� updates status immediately after refresh
 
 Notes / Next:
+
 - Add filters (status/date/search) and totals strip; bulk actions & export CSV
 - Quotes tab, Payments, Products/Services, simple Reports, and Settings (numbering/email templates) to be implemented next
+
 ## 2025-11-01 - Implementation #28 (PDF Auth + Preview)
 
 Summary:
+
 - Fixed pdfkit import (CommonJS) to resolve constructor error
 - Added authenticated blob download helper and switched Admin PDF/Preview to use it (no more 401/SPA 404)
 - Totals panel in draft editor now shows Live total while typing; Preview auto-saves first
 
 Files Modified:
+
 - apps/booking-api/src/documents/documents.service.ts (CommonJS import for PDFKit)
 - apps/booking-web/src/lib/api.ts (apiGetBlob)
-- apps/booking-web/src/features/admin/financial/InvoicesList.tsx (PDF button → auth blob open)
+- apps/booking-web/src/features/admin/financial/InvoicesList.tsx (PDF button ? auth blob open)
 - apps/booking-web/src/features/admin/financial/InvoiceEditor.tsx (preview uses auth blob; live totals)
 
 Behavior:
+
 - Preview/Draft PDF opens in a new tab under Admin session without 401
-- Issued PDF buttons open via authenticated blob even when pdfUrl is pending://…
+- Issued PDF buttons open via authenticated blob even when pdfUrl is pending://�
 - Editor totals show Live vs Saved values; Preview runs Save before generating
-## 2025-11-01 - Implementation #29 (Invoice Template v1 – Handlebars + Puppeteer)
+
+## 2025-11-01 - Implementation #29 (Invoice Template v1 � Handlebars + Puppeteer)
 
 Summary:
+
 - Added HTML template renderer (Handlebars) and PDF output via Puppeteer for clean A4 invoices
 - New template files: `invoice.hbs` + `invoice.css` (print-friendly, brand accent, totals box, page numbers)
 - DocumentsService now prefers the template engine and falls back to legacy pdfkit if anything fails
 
 Files Added:
+
 - apps/booking-api/src/pdf/pdf.service.ts (Handlebars + Puppeteer renderer; helpers registered)
 - apps/booking-api/src/pdf/templates/invoice.hbs
 - apps/booking-api/src/pdf/templates/invoice.css
 
 Files Modified:
+
 - apps/booking-api/src/documents/documents.module.ts (provide PdfService)
 - apps/booking-api/src/documents/documents.service.ts (build data contract; call PdfService; fallback retained)
 - apps/booking-api/package.json (deps: handlebars, puppeteer)
 
 How to preview
-- From Admin → Financial: Draft → Save → Preview (auto-saves and opens the new PDF)
+
+- From Admin ? Financial: Draft ? Save ? Preview (auto-saves and opens the new PDF)
 - Issued invoices also open with the new template
 
 Notes / TODOs
+
 - Company contact fields (email/website) can be surfaced from Settings and mapped into template
 - If Chromium download is blocked, Puppeteer may fail and the service falls back to the old pdfkit layout; allow first run to fetch Chromium
+
 ## 2025-11-01 - Implementation #30 (Invoice Receipt Upgrade)
 
 Summary:
+
 - Added receipt fields to Document (paidAt, paymentMethod)
 - Admin: Mark Paid now prompts for method and regenerates the PDF as a receipt
 - PDF data now passes paid flags; template shows PAID RECEIPT badge and payment details
 
 Files Modified:
+
 - apps/booking-api/prisma/schema.prisma (Document.paidAt, Document.paymentMethod)
 - apps/booking-api/src/admin/documents.controller.ts (list selections include paidAt/paymentMethod; PATCH /status accepts paymentMethod and regenerates)
 - apps/booking-api/src/pdf/templates/invoice.hbs (receipt sections and PAID stamp)
@@ -1710,55 +2150,71 @@ Files Modified:
 - apps/booking-web/src/features/admin/financial/InvoicesList.tsx (Mark Paid prompt, status shows Paid (Method))
 
 DB Migration:
+
 - Run: pnpm --filter booking-api prisma:migrate (name suggestion: add_paid_fields_to_document)
 
 How to test:
-- Admin → Financial → Draft: Issue → row actions → Mark Paid (choose method) → “PDF” button shows receipt with badge and payment details.
+
+- Admin ? Financial ? Draft: Issue ? row actions ? Mark Paid (choose method) ? �PDF� button shows receipt with badge and payment details.
+
 ## 2025-11-01 - Implementation #31 (Financial: Invoices Filters, Bulk, CSV + Quotes Tab)
 
 Summary:
+
 - Invoices list now supports filters (status/date range/search), bulk mark paid, and CSV export
 - Added Quotes tab with Convert to Invoice action; issued invoice is generated and PDF created
 
 API:
+
 - GET /admin/documents?type=INVOICE&status=&from=&to=&q= (enhanced filters)
-- GET /admin/documents/csv?… (CSV export)
+- GET /admin/documents/csv?� (CSV export)
 - PATCH /admin/documents/bulk-status (ids[], status, paymentMethod)
-- POST /admin/documents/:id/convert-to-invoice (QUOTE → INVOICE, issues immediately and generates PDF)
+- POST /admin/documents/:id/convert-to-invoice (QUOTE ? INVOICE, issues immediately and generates PDF)
 
 Web:
+
 - apps/booking-web/src/features/admin/pages/FinancialPage.tsx (sub-tabs: Invoices, Quotes; keeps editor route)
 - apps/booking-web/src/features/admin/financial/InvoicesList.tsx (filters UI, CSV export, row checkboxes, bulk mark paid)
 - apps/booking-web/src/features/admin/financial/QuotesList.tsx (list + Convert to Invoice)
 
 How to use:
-- Financial → Invoices: set filters, click Export CSV; select rows and “Mark Paid (selected)” to bulk-update
-- Financial → Quotes: Convert to Invoice; you’ll be returned to Invoices tab
+
+- Financial ? Invoices: set filters, click Export CSV; select rows and �Mark Paid (selected)� to bulk-update
+- Financial ? Quotes: Convert to Invoice; you�ll be returned to Invoices tab
 
 Next:
+
 - Add Payments and Products/Services tabs; add Reports + totals strip; replace prompt with a proper payment modal
+
 ## 2025-11-01 - Implementation #32 (Financial: Payment Modal)
 
 Summary:
+
 - Replaced prompt with a proper modal to mark invoices paid (single + bulk)
 - Method buttons (Cash, Card, Bank Transfer, Other) + optional payment date; sends to API and regenerates receipts
 
 Files Added:
+
 - apps/booking-web/src/features/admin/financial/PaymentModal.tsx
 
 Files Modified:
+
 - apps/booking-web/src/features/admin/financial/InvoicesList.tsx (integrate modal for row/bulk)
 
 Behavior:
-- Click “Mark Paid” on a row, or “Mark Paid (selected)” after choosing checkboxes → modal appears → choose method/date → Confirm
+
+- Click �Mark Paid� on a row, or �Mark Paid (selected)� after choosing checkboxes ? modal appears ? choose method/date ? Confirm
 - API regenerates the PDF, so Invoice becomes a receipt with payment details
+
 ## 2025-11-01 - Implementation #33 (Financial: Totals Strip + Reports Tab)
 
 Summary:
+
 - Added totals strip on Invoices tab (Draft, Issued this month, Unpaid total, Paid this month)
 - Added Reports tab with Monthly totals, VAT summary, Outstanding list and Top services
 
 API:
+
 - GET /admin/documents/stats (totals strip)
 - GET /admin/documents/reports/invoices (monthly series)
 - GET /admin/documents/reports/vat (VAT total)
@@ -1766,53 +2222,68 @@ API:
 - GET /admin/documents/reports/top-services (aggregate payload lines)
 
 Web:
+
 - apps/booking-web/src/features/admin/financial/ReportsView.tsx (Reports + TotalsStrip)
 - apps/booking-web/src/features/admin/pages/FinancialPage.tsx (integrate Reports tab and totals strip on Invoices)
 
 Usage:
-- Financial → Invoices shows the totals strip above the list
-- Financial → Reports shows monthly totals (table), VAT total (YTD), outstanding and top services
+
+- Financial ? Invoices shows the totals strip above the list
+- Financial ? Reports shows monthly totals (table), VAT total (YTD), outstanding and top services
+
 ## 2025-11-01 - Implementation #34 (Financial: Void Modal + Reason)
 
 Summary:
+
 - Added Void modal with optional reason (single/bulk)
 - API stores void reason in document.payload.history and sets status to VOID
 
 Files Added:
+
 - apps/booking-web/src/features/admin/financial/VoidModal.tsx
 
 Files Modified:
+
 - apps/booking-web/src/features/admin/financial/InvoicesList.tsx (integrate modal)
 - apps/booking-api/src/admin/documents.controller.ts (accept reason and persist in payload history)
-## 2025-11-01 - Implementation #35 (Financial: Settings Tab – Numbering, VAT, Branding)
+
+## 2025-11-01 - Implementation #35 (Financial: Settings Tab � Numbering, VAT, Branding)
 
 Summary:
-- Added Financial → Settings sub-tab to manage: VAT registered + default rate, invoice number format, brand primary color, and PDF logo upload
+
+- Added Financial ? Settings sub-tab to manage: VAT registered + default rate, invoice number format, brand primary color, and PDF logo upload
 - Persisted new fields in Settings (invoiceNumberFormat, brandPrimaryColor) and wired into PDF + numbering
 
 API:
+
 - Prisma Settings: add `invoiceNumberFormat String?`, `brandPrimaryColor String?`
 - PATCH /admin/settings: accepts invoiceNumberFormat, brandPrimaryColor
 - DocumentsService: number formatting uses Settings.invoiceNumberFormat (tokens {{YYYY}}, {{0000}}); PDF branding uses Settings.brandPrimaryColor
 
 Web:
+
 - apps/booking-web/src/features/admin/financial/FinancialSettings.tsx (UI to edit + upload logo)
 - apps/booking-web/src/features/admin/pages/FinancialPage.tsx (adds Settings tab)
 
 Notes:
+
 - Number format applies to new invoices; existing numbers are unchanged
 - If Puppeteer is unavailable, PDF falls back to legacy layout although branding color still attempts to pass through
+
 ## 2025-11-01 - Implementation #36 (Financial: Reusable Items)
 
 Summary:
+
 - Added Products/Services sub-tab to manage reusable invoice items stored in Settings
-- Invoice editor now has “Add from items…” to insert a saved item as a line
+- Invoice editor now has �Add from items�� to insert a saved item as a line
 
 API:
+
 - Prisma Settings: add `invoiceItemsJson Json?`
 - PATCH /admin/settings accepts `invoiceItems: {code?, description, defaultQty?, unitPricePence, vatPercent?}[]`
 
 Web:
+
 - apps/booking-web/src/features/admin/financial/FinancialItems.tsx (CRUD UI)
 - apps/booking-web/src/features/admin/financial/InvoiceEditor.tsx (Add from items)
 - apps/booking-web/src/features/admin/pages/FinancialPage.tsx (Products tab)
@@ -1820,32 +2291,38 @@ Web:
 ## 2025-11-01 - Implementation #37 (Reports: Date Range + CSV)
 
 Summary:
+
 - Reports tab now has From/To filters and CSV export buttons for: Monthly totals, Outstanding, Top services
 
 Files Modified:
+
 - apps/booking-web/src/features/admin/financial/ReportsView.tsx (filters + export)
 - apps/booking-api/src/admin/documents.controller.ts (reports endpoints already accept from/to)
 
 ## 2025-11-01 - Implementation #38 (Invoice Template Polish)
 
 Summary:
+
 - Tighter spacing, repeating header rows on page breaks, brand color applied via CSS var
 
 Files Modified:
+
 - apps/booking-api/src/pdf/templates/invoice.css (font-size 11pt, thead display: table-header-group, page-break-inside: avoid)
 - apps/booking-api/src/pdf/templates/invoice.hbs (brand CSS var already applied)
 
 ## 2025-11-01 - Implementation #39 (Financial PDFs: Preview Stabilization & Absolute URLs)
 
 Summary:
+
 - Fixed Preview 500s/404s by stabilizing Puppeteer launch, template path resolution, and file serving paths
 - Switched pdfUrl to absolute (API origin) so the web app does not open PDFs on the Vite dev port
 - Added file-existence checks and clearer error logs to speed up diagnosis
 
 API Changes:
+
 - apps/booking-api/src/pdf/pdf.service.ts
   - Added type-only import for `Browser` to fix TS2503
-  - Robust Chrome resolution: `PUPPETEER_EXECUTABLE_PATH` → `puppeteer.executablePath()` → common Windows paths; logs chosen path
+  - Robust Chrome resolution: `PUPPETEER_EXECUTABLE_PATH` ? `puppeteer.executablePath()` ? common Windows paths; logs chosen path
   - Template/CSS resolution now tries dev and dist locations (avoids duplicated `apps/booking-api/...` in paths)
   - After `page.pdf(...)` verify file with `fs.stat` and log: "PDF generated at: <path>"
 - apps/booking-api/src/admin/documents.controller.ts
@@ -1858,25 +2335,448 @@ API Changes:
   - Returns first existing file; otherwise responds with JSON 404 showing the attempted path
 
 Issues & Troubleshooting (chronological):
-- TS2503: Cannot find namespace 'puppeteer' → fixed by adding `import type { Browser } from 'puppeteer'` and updating the variable type
-- 500 on Preview with ENOENT for template: `...apps\\booking-api\\apps\\booking-api\\src\\pdf\\templates\\invoice.hbs` → fixed by a resolver that tries multiple candidate paths (dev/dist)
-- 404 when opening PDF at `http://localhost:5173/files/invoices/...` → cause: relative `pdfUrl` opened on web origin; fix: absolute `pdfUrl` using API base
-- 404 on `http://localhost:3000/files/invoices/...` while file existed under `storage/documents` → route originally only checked `storage/invoices`; fix: FilesController now checks both `invoices` and `documents`
+
+- TS2503: Cannot find namespace 'puppeteer' ? fixed by adding `import type { Browser } from 'puppeteer'` and updating the variable type
+- 500 on Preview with ENOENT for template: `...apps\\booking-api\\apps\\booking-api\\src\\pdf\\templates\\invoice.hbs` ? fixed by a resolver that tries multiple candidate paths (dev/dist)
+- 404 when opening PDF at `http://localhost:5173/files/invoices/...` ? cause: relative `pdfUrl` opened on web origin; fix: absolute `pdfUrl` using API base
+- 404 on `http://localhost:3000/files/invoices/...` while file existed under `storage/documents` ? route originally only checked `storage/invoices`; fix: FilesController now checks both `invoices` and `documents`
 - Validation: API log now shows `Puppeteer executable: <path>` and `PDF generated at: storage\documents\DRF-...pdf`; browser opens the absolute link on port 3000
 
 Environment Notes:
+
 - Install Chrome for Puppeteer if needed: `pnpm --filter booking-api exec npx puppeteer browsers install chrome`
 - Or set `PUPPETEER_EXECUTABLE_PATH` to your Chrome binary and restart the API
 - Recommended: set `DOCUMENTS_BASE_URL=http://localhost:3000` in `apps/booking-api/.env`
 - Optional (to keep paths neat): set `DOCUMENTS_STORAGE_DIR=storage/invoices` so generation and serving use the same folder name
 
 Files Modified:
+
 - apps/booking-api/src/pdf/pdf.service.ts
 - apps/booking-api/src/admin/documents.controller.ts
 - apps/booking-api/src/documents/documents.service.ts
 - apps/booking-api/src/files/files.controller.ts
 
 Testing Notes:
+
 - API: `pnpm --filter booking-api build` and restart
-- In Admin → Financial → open a draft with at least one line → Save → Preview
+- In Admin ? Financial ? open a draft with at least one line ? Save ? Preview
 - Expected: new tab opens to `http://localhost:3000/files/invoices/<NUMBER>.pdf` and the API logs show the chosen Chrome path and the generated PDF path
+
+## CONTEXT #4: Booking Confirmation Decoupled Documents (2025-11-01)
+
+Background
+
+- Goal: stop automatic quote/invoice creation when a booking is confirmed online while keeping booking confirmation, holds, and notifications intact.
+- Admins must be able to generate invoice drafts manually from `/admin/bookings/:id`, prefilled with booking data but fully editable before issuing.
+
+Current Auto-Generation Points
+
+- `BookingsService.confirmBooking` (online flow) issues invoice + quote in a transaction, finalises PDFs, and emails both immediately.
+- `BookingsService.createManualBooking` repeats the same auto-issue/finalise logic for staff-created bookings.
+- `BookingsService.adminIssueInvoice` provides the current �Issue invoice� shortcut that bypasses drafting.
+
+Dependent Touchpoints
+
+- `sendConfirmationEmails` expects issued invoice/quote numbers and URLs; confirmation copy references attached documents.
+- Customer booking/account APIs (`listBookingsForUser`, `getBookingForUser`) surface `booking.documents`, powering account history and booking detail downloads.
+- Admin booking detail and the Financial tab render document status, quick actions, and navigation into the invoice editor based on linked documents.
+
+Safe Change Boundaries
+
+- Preserve booking status transitions, hold release, and confirmation email delivery (minus document attachment references).
+- Admin booking overview/detail pages must continue to load and display even when `booking.documents` is empty.
+- Customer booking detail page and account dashboard must gracefully hide document UI when none exist.
+
+Proposed Incremental Refactor
+
+1. Add backend guard/feature flag to skip automatic `issueInvoiceForBooking` / `issueQuoteForBooking` during confirmation and manual booking creation; return responses that allow `documents` to be empty without breaking consumers.
+2. Update confirmation email builder to handle missing documents (no blank links), keeping messaging accurate while documents are admin-driven.
+3. Adjust customer web flows (confirmation success toast, account/booking detail pages) to tolerate empty `documents` arrays and remove �emailed documents� copy.
+4. Introduce `POST /admin/bookings/:id/documents/invoice-draft` that composes draft payloads (customer, vehicle, lines, VAT flag) and stores a DRAFT document linked via `bbookingId`.
+5. Update Admin Booking Detail �Create invoice draft� action to call the new endpoint, open the draft in the existing InvoiceEditor, and keep Issue/Save/Preview paths unchanged.
+6. Regression checklist: confirm online booking confirmation, manual booking creation, admin Financial list/editor, and customer portal download behaviour all remain stable with manual-only document creation.
+
+Dependencies / No-Go
+
+- No schema changes expected; existing `Document` model already supports booking linkage and drafts.
+- Leave booking confirmation copy/emails untouched beyond removing document references until product decides on replacement wording.
+
+Stakeholder Decisions (2025-11-01)
+
+- Customer-facing flows: remove all references to documents in confirmation emails, success toasts, and related copy; no attachments should be sent automatically.
+- Quotes: follow the same manual-only workflow as invoices; do not auto-create quotes on booking confirmation.
+- Admin draft creation: populate one line per booking service and include additional editable placeholders for parts, labour, and discounts in the draft payload.
+- Historic data: plan to clean up previously auto-generated invoices/quotes so legacy bookings align with the new manual-only model.
+- Historic cleanup scope: delete previously auto-generated invoices/quotes (all were test data). Consider maintaining a dedicated local/dev database to avoid polluting production data during future tests.
+- Invoice drafts as receipts: when generated from an online booking, prefill customer, vehicle, service, pricing, quantity, totals, and VAT flag; every field must remain editable so staff can correct services, add extra work, or record payments. Marking an invoice as PAID (cash/card/etc.) should effectively turn it into a receipt for the customer.
+- Quotes UX: provide a �Create quote draft� entry point in the Quotes tab, seeded with frequently used services for walk-in estimates; follow the same manual editing and issuing flow as invoices.
+- Notifications: continue emailing the addresses configured under `/admin/settings?tab=notifications` (e.g., support@a1serviceexpert.com and optional Gmail addresses) when new online bookings arrive; no additional internal alerts required.
+- Quote draft catalogue: pull suggested lines from catalog services flagged as frequently used (reuse online booking services where helpful), deduplicate by code/name, and allow quick selection during quote creation.
+- Booking confirmation email: redesign to a lean template (dark/orange brand) that omits invoice references, includes a new booking-specific reference number (distinct from document numbers), summarises appointment, vehicle, notes, and price table, and presents company details/contact info.
+- Booking reference numbering: introduce a server-side sequence (e.g., `BK-YYYY-####`) generated automatically; admins cannot edit the reference before emails are sent.
+- Quote presets: infer popularity from booking/service usage to surface suggestions, but keep the list editable so admins can pin/unpin services and reorder favourites.
+- Historic cleanup: when purging legacy documents, also reset invoice/quote sequence counters for the current year to avoid gaps.
+- Confirmation emails: hide document attachments entirely; continue to support separate �Send invoice� emails from the admin panel using a dedicated invoice template once a manual invoice is issued.
+- Booking reference format: use `BK-A1-YYYY-####` (brand prefix plus annual counter) generated server-side.
+- Quote presets UI: provide a dedicated, reorderable list within the Quotes tab for managing frequently used services (independent of the catalog editor).
+- Receipt workflow: add a �Print receipt� shortcut that opens the PDF from any invoice (draft/issued/paid); when marked as paid the document doubles as the receipt.
+- Email templating: migrate the new confirmation email into the shared Handlebars/Puppeteer HTML system for consistent branding and theming.
+- Cleanup tooling: ship a manual CLI command to purge legacy documents/reset sequences; document usage so it can be run on demand.
+
+## CONTEXT #4 Implementation Plan (2025-11-01)
+
+Scope & Sequencing
+
+1. Backend audit & guardrails
+
+   - Trace automatic document issuance in BookingsService.confirmBooking and createManualBooking; ensure status transitions, hold release, and confirmation payloads are understood.
+   - Review admin document endpoints (/admin/bookings/:id/documents/\*, /admin/documents, /admin/quotes) to map draft/issue flows and existing presets.
+
+2. Core backend refactor
+
+   - Disable automatic invoice/quote issuance for online and manual bookings; return empty documents placeholders while preserving confirmation data.
+   - Add booking reference generator (BK-A1-YYYY-####) via new sequence key, integrate into booking confirmation responses and email payloads.
+   - Implement POST /admin/bookings/:id/documents/invoice-draft and /quote-draft that prefill customer, vehicle, service lines, and editable placeholders (parts/labour/discounts) while linking to bookingId.
+   - Update existing invoice issue/send endpoints to support paid-as-receipt flow and expose a �print receipt� shortcut.
+
+3. Quote presets & catalogue intelligence
+
+   - Capture usage metrics to infer popular services; seed a reorderable preset list within the Quotes tab.
+   - Provide admin controls to add/remove/order presets independent of catalog flags.
+
+4. Email templates & notifications
+
+   - Build a new Handlebars/Puppeteer confirmation email template using the dark/orange theme, new booking reference, booking summary, price table, and company details with no attachments.
+   - Ensure �Send invoice� emails remain separate, triggered only after manual invoice issuance, with updated template logic for receipts.
+
+5. Frontend updates
+
+   - Customer wizard (DetailsConfirmStep): remove document-specific messaging, handle empty documents gracefully, keep navigation flow intact.
+   - Customer account/detail pages: hide document sections until manual documents exist.
+   - Admin booking detail: wire new invoice/quote draft endpoints, show booking totals vs. issued invoice totals, add �print receipt� button.
+   - Admin Financial & Quotes tabs: accept booking-prefilled drafts, support preset management UI, and streamline Save -> Issue -> Email flows.
+
+6. Cleanup & tooling
+
+   - Create a manual CLI script to delete historic booking-linked documents, reset invoice/quote sequences, and optionally reseed references; document usage (pnpm --filter booking-api exec ts-node scripts/cleanup-documents.ts --dry-run|--force).
+   - Encourage using dedicated local/dev databases to avoid future production cleanups.
+
+7. Regression & sign-off
+   - Run pnpm --filter booking-api build and pnpm --filter booking-web build.
+   - Manual QA: online booking confirmation (no auto documents), manual booking creation, admin draft creation/edit/issue/email, quote preset ordering, receipt printing, confirmation email rendering.
+   - Record outcomes and any follow-up actions in admin-context.md with Implementation summary.
+
+## 2025-11-01 - Implementation #40 (Context #4: Manual-Only Documents)
+
+Summary:
+
+- Decoupled automatic invoice/quote generation from booking confirmations
+- Added booking reference sequence (BK-A1-YYYY-####) that generates automatically
+- Implemented manual invoice/quote draft creation from booking detail page
+- Updated customer flows to handle empty documents gracefully
+- Created cleanup CLI script for purging test data
+
+Backend Changes (booking-api):
+
+Database:
+
+- apps/booking-api/prisma/migrations/202511010001_add_booking_reference_sequence/migration.sql (new migration)
+  - Added BOOKING_REFERENCE to SequenceKey enum
+  - Added reference column to Booking table with unique constraint
+- apps/booking-api/prisma/schema.prisma
+  - Updated SequenceKey enum to include BOOKING_REFERENCE
+  - Updated Booking model to include reference field
+
+Services & Controllers:
+
+- apps/booking-api/src/bookings/bookings.service.ts
+  - Removed automatic invoice/quote generation from confirmBooking (lines 414-509)
+  - Removed automatic invoice/quote generation from createManualBooking (lines 1228-1447)
+  - Added booking reference generation using new sequence (lines 448-452, 1361-1362)
+  - Updated presentConfirmation to return null documents (lines 553-580)
+  - Added adminCreateInvoiceDraft method (lines 1037-1126)
+  - Added adminCreateQuoteDraft method (lines 1128-1224)
+  - Both draft methods prefill customer, vehicle, service lines, and add editable placeholders (Parts, Labour, Discount)
+- apps/booking-api/src/admin/bookings.controller.ts
+  - Added POST /admin/bookings/:id/documents/invoice-draft endpoint (lines 280-283)
+  - Added POST /admin/bookings/:id/documents/quote-draft endpoint (lines 285-288)
+- apps/booking-api/src/email/email.service.ts
+  - Email templates already clean (no document references in confirmation emails)
+
+Scripts:
+
+- apps/booking-api/scripts/cleanup-documents.ts (new file)
+  - CLI tool to delete booking-linked documents and reset sequences
+  - Supports --dry-run, --force, and --all flags
+  - Usage: pnpm --filter booking-api exec ts-node scripts/cleanup-documents.ts [options]
+
+Frontend Changes (booking-web):
+
+Customer Flows:
+
+- apps/booking-web/src/features/booking/steps/DetailsConfirmStep.tsx
+  - Updated SuccessState type to accept null invoice/quote (line 37-42)
+  - Changed success message from "We have emailed your documents" to "Check your email for details" (line 527)
+  - Updated to read totalAmountPence from confirmation.booking instead of documents (line 525)
+- apps/booking-web/src/pages/BookingDetailPage.tsx
+  - Already handles empty documents array correctly (line 353)
+  - Shows "Documents will appear here once our workshop uploads them" when empty
+
+Admin Flows:
+
+- apps/booking-web/src/features/admin/pages/AdminBookingDetailPage.tsx
+  - Updated handleCreateInvoiceDraft to use new booking-specific endpoint (lines 230-242)
+  - Added handleCreateQuoteDraft method (lines 244-256)
+  - Added "Create quote draft" button in UI (lines 693-700)
+  - Both handlers navigate to Financial tab with draft editor after creation
+
+Behavior:
+
+- Online bookings now receive a booking reference (BK-A1-2025-0001) instead of invoice/quote numbers
+- Confirmation emails contain NO document attachments or references
+- Customer booking detail page shows empty documents section until admin creates invoice manually
+- Admin can create invoice/quote drafts from booking detail page with one click
+- Drafts are prefilled with all booking data and open directly in the Financial editor
+- All fields remain editable (customer, vehicle, line items, totals)
+- Extra placeholder lines added for Parts, Labour, and Discount
+
+Testing & Validation:
+
+- ✅ API builds successfully (pnpm --filter booking-api build)
+- ✅ Web builds successfully (pnpm --filter booking-web build)
+- ✅ Migration applied successfully
+- ✅ Prisma client regenerated with new schema types
+- ✅ TypeScript compilation passes for both API and web
+
+Notes / Next Steps:
+
+- Quote presets UI (reorderable frequently-used services list) can be implemented in a follow-up
+- Receipt workflow (treating paid invoices as receipts) is already supported via existing payment status
+- Cleanup script is available for purging test data: scripts/cleanup-documents.ts
+- Consider using a separate dev/test database for future experiments to avoid cleanup needs
+- Email invoice template (separate from confirmation) already exists and works correctly
+
+## CONTEXT #5: Admin Panel Enhancements & Consolidation (2025-11-01)
+
+Background:
+Following Implementation #40 (manual-only documents), a comprehensive review identified several admin panel issues and missing features that need to be addressed for production readiness.
+
+Stakeholder Requirements & Decisions:
+
+**1. Logo & Company Information (PRIORITY 1)**
+
+- Copy logo from `apps/booking-web/src/assets/logo-new.webp` to uploads folder
+- Fix PDF logo reference to use uploaded logo
+- Ensure company information from Settings appears on invoices/quotes PDFs
+
+**2. Dev Tools Consolidation (PRIORITY 1)**
+
+- DELETE old `/dev` page and route completely
+- REMOVE old dev tools link from profile dropdown in App.tsx
+- MOVE all functionality to `/admin/dev` (admin-only access)
+- DELETE Integrations tab from Settings page
+- MOVE DVLA test lookup to Dev Tools page
+- ADD new dev tools features:
+  - Availability probe (date/service) with raw JSON display
+  - Holds create/release functionality
+  - Health/version check (already exists)
+  - Redis ping status
+  - Prisma migration status check
+  - DVLA test lookup (moved from Integrations)
+  - Email test functionality
+  - Webhook replayer (Stripe, mail provider)
+  - Storage test (upload/read signed URL)
+  - Feature flags (maintenance mode, hide checkout)
+  - Audit log tail (last 100 admin actions)
+- Email provider: Use SMTP from Microsoft 365 Essentials
+
+**3. Services Catalog Panel Fixes (PRIORITY 1)**
+
+- FIX up/down arrows to move services ONE position at a time (swap with adjacent item, not jump to top)
+- AUTO-DETECT and REMOVE duplicate services (exact name matches)
+- KEEP frequently-used car service items
+- KEEP online booking services at top (Oil & Filter, Major Service, Interim Service)
+
+**4. Financial Quotes Tab (PRIORITY 2)**
+
+- ADD "Create Quote" button (same style as invoices)
+- IMPLEMENT QuoteEditor component (clone InvoiceEditor pattern)
+- Enable manual quote creation workflow
+- Use existing quote numbering format: QUO-YYYY-####
+
+**5. Financial Products Tab (PRIORITY 2)**
+
+- ADD "Import from Catalog" button
+- Pull services from catalog and convert to financial items
+- Map service fields to product fields (name → description, price, VAT rate)
+
+**6. Users Management (PRIORITY 2)**
+
+- ADD "Create User" button in Users page
+- IMPLEMENT user creation form with ALL fields from online booking:
+  - Title (dropdown: Mr, Mrs, Ms, Miss, Dr, etc.)
+  - Company Name (optional)
+  - First Name (required)
+  - Last Name (required)
+  - Mobile Number (required)
+  - Landline Number (optional)
+  - Address Line 1 (required)
+  - Address Line 2 (optional)
+  - Address Line 3 (optional)
+  - Town / City (required)
+  - County (optional)
+  - Postcode (required)
+  - Email (required, unique)
+  - Password (required, min 8 chars)
+  - Role selection (CUSTOMER, ADMIN, STAFF) - all 3 available
+- Validate all required fields
+- Hash password using bcrypt
+- Set emailVerified: true for admin-created users
+
+**Database Roles Available:**
+
+- CUSTOMER (default for online bookings)
+- ADMIN (full access to admin panel)
+- STAFF (limited admin access)
+
+**Implementation Phases:**
+
+**Phase A - Quick Wins (30 minutes):**
+
+1. Fix services catalog up/down arrows (swap adjacent items)
+2. Remove old dev tools page, route, and dropdown link
+3. Copy logo to uploads folder and fix PDF reference
+4. Auto-detect and remove duplicate services
+
+**Phase B - New Features (2 hours):**
+
+1. Enhanced dev tools page with all requested features
+2. Manual quote creation (button + editor)
+3. Import services to products functionality
+4. Create user form with all required fields
+
+**Phase C - Cleanup & Testing (30 minutes):**
+
+1. Test all new features end-to-end
+2. Verify PDFs show logo and company info
+3. Verify quote creation workflow
+4. Test user creation with all roles
+5. Update admin-context.md with Implementation #41 summary
+
+**Key Files to Modify:**
+
+Frontend:
+
+- `apps/booking-web/src/App.tsx` - Remove old dev link
+- `apps/booking-web/src/routes.tsx` - Remove /dev route
+- `apps/booking-web/src/pages/DevPage.tsx` - DELETE entirely
+- `apps/booking-web/src/features/admin/pages/DevToolsPage.tsx` - Enhance with new features
+- `apps/booking-web/src/features/admin/pages/SettingsPage.tsx` - Remove Integrations tab
+- `apps/booking-web/src/features/admin/settings/IntegrationsSettings.tsx` - DELETE or move DVLA test
+- `apps/booking-web/src/features/admin/CatalogManager.tsx` - Fix up/down logic, add duplicate removal
+- `apps/booking-web/src/features/admin/financial/QuotesList.tsx` - Add Create Quote button
+- `apps/booking-web/src/features/admin/financial/QuoteEditor.tsx` - CREATE new (clone InvoiceEditor)
+- `apps/booking-web/src/features/admin/financial/FinancialItems.tsx` - Add Import from Catalog button
+- `apps/booking-web/src/features/admin/pages/UsersPage.tsx` - Add Create User button and form
+
+Backend:
+
+- `apps/booking-api/src/admin/dev-tools.controller.ts` - Add new endpoints for all dev tools
+- `apps/booking-api/src/admin/users.controller.ts` - Add POST endpoint for user creation
+- `apps/booking-api/src/admin/catalog.controller.ts` - Check/enhance sorting and duplicate detection
+- `apps/booking-api/src/documents/documents.service.ts` - Verify logo and company info in PDF generation
+- `apps/booking-api/src/settings/admin-settings.controller.ts` - Verify logo upload works correctly
+
+Assets:
+
+- Copy `apps/booking-web/src/assets/logo-new.webp` to `apps/booking-api/storage/uploads/logo.webp`
+
+---
+
+## PROMPT FOR NEXT CONTEXT WINDOW:
+
+```
+This session continues the admin panel enhancements for A1 Service Expert (Implementation #41).
+
+Read admin-context.md to understand the full context, especially CONTEXT #5.
+
+Goal: Implement admin panel enhancements and consolidation based on comprehensive stakeholder requirements.
+
+Implementation Plan (Execute in Order):
+
+**PHASE A - Quick Wins:**
+
+1. **Fix Services Catalog Up/Down Arrows**
+   - File: apps/booking-web/src/features/admin/CatalogManager.tsx
+   - Current issue: Arrows don't swap positions correctly
+   - Fix: Make up/down arrows swap service with adjacent item (move one position at a time)
+   - Also: Auto-detect and remove duplicate services (exact name matches)
+
+2. **Remove Old Dev Tools**
+   - DELETE: apps/booking-web/src/pages/DevPage.tsx
+   - EDIT: apps/booking-web/src/routes.tsx (remove /dev route)
+   - EDIT: apps/booking-web/src/App.tsx (remove old dev link from dropdown, lines 315-323, 375-382)
+
+3. **Fix Logo for PDFs**
+   - Copy apps/booking-web/src/assets/logo-new.webp to apps/booking-api/storage/uploads/logo.webp
+   - Verify apps/booking-api/src/documents/documents.service.ts references logo correctly
+   - Ensure company info from settings appears on PDFs
+
+**PHASE B - New Features:**
+
+4. **Enhanced Dev Tools Page**
+   - File: apps/booking-web/src/features/admin/pages/DevToolsPage.tsx
+   - Backend: apps/booking-api/src/admin/dev-tools.controller.ts
+   - Move DVLA test from IntegrationsSettings.tsx
+   - Add all requested features:
+     * Availability probe (date/service) - raw JSON
+     * Holds create/release
+     * Health/version (already exists)
+     * Redis ping
+     * Prisma migration status
+     * DVLA test lookup
+     * Email test (Microsoft 365 SMTP)
+     * Webhook replayer
+     * Storage test (upload/read)
+     * Feature flags (maintenance mode, hide checkout)
+     * Audit log tail (last 100 actions)
+   - DELETE Integrations tab from SettingsPage.tsx (lines 67-77, 87)
+
+5. **Manual Quote Creation**
+   - File: apps/booking-web/src/features/admin/financial/QuotesList.tsx
+   - Add "Create Quote" button
+   - CREATE: apps/booking-web/src/features/admin/financial/QuoteEditor.tsx (clone InvoiceEditor.tsx)
+   - Wire to existing backend (quotes already supported)
+
+6. **Import Services to Products**
+   - File: apps/booking-web/src/features/admin/financial/FinancialItems.tsx
+   - Add "Import from Catalog" button
+   - Fetch services from catalog, map to financial items format
+   - Append to existing items (avoid duplicates)
+
+7. **Create User Form**
+   - File: apps/booking-web/src/features/admin/pages/UsersPage.tsx
+   - Backend: apps/booking-api/src/admin/users.controller.ts (add POST endpoint)
+   - Form fields (match online booking):
+     * Title, Company Name, First/Last Name
+     * Mobile, Landline
+     * Address Lines 1-3, City, County, Postcode
+     * Email, Password
+     * Role (CUSTOMER, ADMIN, STAFF)
+   - Validation: Required fields, email unique, password min 8 chars
+   - Backend: Hash password with bcrypt, set emailVerified: true
+
+**PHASE C - Testing:**
+- Build API and Web
+- Test all features
+- Update admin-context.md with Implementation #41 summary
+
+Important Notes:
+- Admin dev tools are ADMIN-ONLY access
+- Logo file path: apps/booking-web/src/assets/logo-new.webp
+- Quote numbering: QUO-YYYY-#### (existing format)
+- Auto-remove duplicate services (exact name matches)
+- Keep online booking services at top of catalog
+
+Execute phases sequentially, mark todos as you progress, and ask for clarification if any requirement is unclear.
+```
