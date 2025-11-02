@@ -168,7 +168,7 @@ export function AdminUserDetailPage() {
 
   const deactivateUser = async () => {
     if (!userId) return;
-    const ok = window.confirm('Deactivate this user? They will be soft-deleted.');
+    const ok = window.confirm('Deactivate this user? They will be soft-deleted and hidden from the list.');
     if (!ok) return;
     try {
       await apiDelete(`/admin/users/${userId}`);
@@ -176,6 +176,24 @@ export function AdminUserDetailPage() {
       navigate('/admin/users');
     } catch (err) {
       toast.error((err as Error).message ?? 'Failed to deactivate user');
+    }
+  };
+
+  const permanentDeleteUser = async () => {
+    if (!userId) return;
+    const ok = window.confirm(
+      'PERMANENTLY DELETE this user from the database?\n\n' +
+      'This action CANNOT be undone!\n\n' +
+      'The user must have NO bookings to be deleted. ' +
+      'All related tokens will also be deleted.'
+    );
+    if (!ok) return;
+    try {
+      await apiDelete(`/admin/users/${userId}/permanent`);
+      toast.success('User permanently deleted');
+      navigate('/admin/users');
+    } catch (err) {
+      toast.error((err as Error).message ?? 'Failed to delete user');
     }
   };
 
@@ -202,9 +220,10 @@ export function AdminUserDetailPage() {
           <h2 className="text-2xl font-semibold text-white">User #{user.id}</h2>
           <p className="text-sm text-slate-400">{user.email}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button onClick={sendPasswordReset} className="rounded-full border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-200 hover:border-orange-500 hover:text-orange-300">Send password reset</button>
-          <button onClick={deactivateUser} className="rounded-full border border-red-500 px-4 py-2 text-xs font-semibold text-red-200 hover:bg-red-500/10">Deactivate</button>
+          <button onClick={deactivateUser} className="rounded-full border border-orange-500 px-4 py-2 text-xs font-semibold text-orange-200 hover:bg-orange-500/10">Deactivate (soft delete)</button>
+          <button onClick={permanentDeleteUser} className="rounded-full border border-red-500 bg-red-500/10 px-4 py-2 text-xs font-semibold text-red-200 hover:bg-red-500/20">Permanent Delete</button>
         </div>
       </div>
 

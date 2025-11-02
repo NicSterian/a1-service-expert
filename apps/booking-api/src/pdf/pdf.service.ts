@@ -71,12 +71,6 @@ export class PdfService {
         ],
       });
       const page = await browser.newPage();
-
-      // Log if HTML contains data URL images for debugging
-      if (html.includes('data:image')) {
-        this.logger.log('PDF HTML contains base64 image data URL');
-      }
-
       await page.setContent(html, { waitUntil: 'networkidle0' });
 
       // Give extra time for images to render

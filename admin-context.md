@@ -1,3 +1,201 @@
+## 2025-11-02 – Implementation #43 (Cleanup Scripts, Permanent User Deletion, Reduced Logging)
+
+Summary:
+
+- Removed verbose logging from PDF generation (logo loading, base64 detection)
+- Fixed cleanup-documents.ts script (countMany → count)
+- Created cleanup-bookings.ts script for deleting test bookings with related records
+- Added permanent user deletion endpoint and UI
+- Fixed soft-deleted users still appearing in admin users list
+
+Files Modified:
+
+- apps/booking-api/src/documents/documents.service.ts (removed verbose logging)
+- apps/booking-api/src/pdf/pdf.service.ts (removed base64 detection log)
+- apps/booking-api/scripts/cleanup-documents.ts (fixed Prisma method name)
+- apps/booking-api/scripts/cleanup-bookings.ts (NEW - booking cleanup script)
+- apps/booking-api/src/admin/users.controller.ts (permanent delete endpoint, filter deleted users)
+- apps/booking-web/src/features/admin/pages/AdminUserDetailPage.tsx (permanent delete button)
+
+Implementation Details:
+
+**1. Reduced Verbose Logging**
+
+Removed excessive logs that were cluttering the API output:
+- documents.service.ts:226-229: Removed logo URL length and preview logs
+- documents.service.ts:299: Removed "Logo loaded successfully" log
+- pdf.service.ts:75-78: Removed "PDF HTML contains base64 image" log
+
+Before (every PDF generation):
+```
+[Nest] LOG [DocumentsService] Logo loaded successfully: logo.webp (66522 bytes) -> data URL
+[Nest] LOG [DocumentsService] Logo URL length for PDF: 88719 chars
+[Nest] LOG [DocumentsService] Logo URL preview: data:image/webp;base64,UklGRt...
+[Nest] LOG [PdfService] PDF HTML contains base64 image data URL
+```
+
+After: Clean logs, only errors are shown
+
+**2. Fixed Cleanup Documents Script (cleanup-documents.ts:73)**
+
+Changed incorrect Prisma method:
+```typescript
+// Before (BROKEN):
+const documentCount = await prisma.document.countMany({ where });
+
+// After (FIXED):
+const documentCount = await prisma.document.count({ where });
+```
+
+Prisma doesn't have `countMany()` - only `count()` exists.
+
+**3. New Cleanup Bookings Script (cleanup-bookings.ts)**
+
+Full-featured script for deleting test bookings with cascading deletes:
+
+Usage:
+```bash
+# Preview what will be deleted
+pnpm --filter booking-api exec ts-node scripts/cleanup-bookings.ts --dry-run
+
+# Delete draft and cancelled bookings
+pnpm --filter booking-api exec ts-node scripts/cleanup-bookings.ts --status=DRAFT,CANCELLED
+
+# Delete all bookings (DANGEROUS!)
+pnpm --filter booking-api exec ts-node scripts/cleanup-bookings.ts --all --force
+```
+
+Features:
+- `--dry-run` - Preview deletions without executing
+- `--force` - Skip confirmation prompts
+- `--all` - Delete ALL bookings (dangerous!)
+- `--status=STATUS1,STATUS2` - Filter by booking status
+- Shows breakdown by status before deletion
+- Counts related records (documents, services)
+- Deletes in correct order to respect foreign keys:
+  1. Documents (invoices/quotes)
+  2. Booking services
+  3. Bookings
+- Resets sequences (INVOICE, QUOTE, BOOKING_REFERENCE) for current year
+
+Example output:
+```
+🔍 Cleanup Bookings Script
+============================
+
+📊 Found 15 booking(s) to delete
+ℹ️  Filtering by status: DRAFT, CANCELLED
+
+📋 Breakdown by status:
+  - DRAFT: 8
+  - CANCELLED: 7
+
+📦 Related records that will also be deleted:
+  - Documents (invoices/quotes): 3
+  - Booking services: 22
+
+⚠️  This will permanently delete:
+   - 15 booking(s)
+   - 3 document(s)
+   - 22 booking service(s)
+
+⚠️  Proceed with deletion? (yes/no):
+```
+
+**4. Permanent User Deletion**
+
+Backend (users.controller.ts:27):
+```typescript
+// Filter out soft-deleted users from list
+const where: any = { deletedAt: null };
+```
+
+New endpoint (users.controller.ts:290-310):
+```typescript
+@Delete(':id/permanent')
+async permanentDeleteUser(@Param('id', ParseIntPipe) userId: number) {
+  // Validate no bookings
+  const bookingsCount = await this.prisma.booking.count({ where: { userId } });
+  if (bookingsCount > 0) {
+    throw new Error('Cannot permanently delete user with existing bookings...');
+  }
+
+  // Delete in transaction
+  await this.prisma.$transaction([
+    this.prisma.passwordResetToken.deleteMany({ where: { userId } }),
+    this.prisma.emailVerificationToken.deleteMany({ where: { userId } }),
+    this.prisma.user.delete({ where: { id: userId } }),
+  ]);
+
+  return { ok: true };
+}
+```
+
+Frontend (AdminUserDetailPage.tsx:182-198):
+```typescript
+const permanentDeleteUser = async () => {
+  const ok = window.confirm(
+    'PERMANENTLY DELETE this user from the database?\n\n' +
+    'This action CANNOT be undone!\n\n' +
+    'The user must have NO bookings to be deleted. ' +
+    'All related tokens will also be deleted.'
+  );
+  if (!ok) return;
+
+  await apiDelete(`/admin/users/${userId}/permanent`);
+  toast.success('User permanently deleted');
+  navigate('/admin/users');
+};
+```
+
+UI Changes (AdminUserDetailPage.tsx:223-227):
+- Changed "Deactivate" button to orange: "Deactivate (soft delete)"
+- Added new "Permanent Delete" button (red with background)
+- Buttons wrap on mobile with `flex-wrap`
+
+**5. User List Filtering Fix**
+
+Before: Soft-deleted users still appeared in list after deactivation
+After: Only users with `deletedAt: null` are shown
+
+This fixes the issue where clicking "Deactivate" didn't remove the user from the list.
+
+Technical Notes:
+
+**Cleanup Scripts Best Practices:**
+- Always use `--dry-run` first to preview changes
+- Use status filters for surgical deletions
+- Bookings with COMPLETED status and invoices should typically be preserved
+- Consider using separate test database instead of cleanup scripts
+- Scripts automatically reset sequences to avoid number conflicts
+
+**Permanent Delete vs Soft Delete:**
+- Soft delete: Sets `deletedAt` timestamp, preserves data, hides from UI
+- Permanent delete: Removes from database completely, cannot be recovered
+- Permanent delete validates no bookings exist first
+- Use permanent delete only for test users with no booking history
+
+**Foreign Key Cascade:**
+Both cleanup scripts respect foreign key constraints by deleting in correct order:
+1. Child records (documents, services, tokens)
+2. Parent records (bookings, users)
+
+Using transactions ensures atomicity - either all deletions succeed or none do.
+
+Testing Checklist:
+
+- [x] Cleanup documents script runs without errors
+- [x] Cleanup bookings script runs with --dry-run
+- [x] Cleanup bookings script deletes with --status filter
+- [x] Soft-deleted users hidden from admin users list
+- [x] Permanent delete fails for users with bookings
+- [x] Permanent delete succeeds for users without bookings
+- [x] User is removed from database after permanent delete
+- [x] API logs no longer show verbose logo messages
+- [x] PDF generation still works correctly without logging
+
+---
+
 ## 2025-11-02 – Implementation #42 (Logo Base64 Fix, Mobile Responsive Financial Pages, Email Send Buttons)
 
 Summary:

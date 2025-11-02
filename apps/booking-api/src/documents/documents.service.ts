@@ -224,10 +224,6 @@ export class DocumentsService {
 
     const subtotal = lines.reduce((s, l) => s + Math.round((l.qty ?? 1) * (l.unitPricePence ?? 0)), 0);
     const logoUrl = this.resolveLogoPath(settings.logoUrl || null);
-    if (logoUrl) {
-      this.logger.log(`Logo URL length for PDF: ${logoUrl.length} chars`);
-      this.logger.log(`Logo URL preview: ${logoUrl.substring(0, 50)}...`);
-    }
     const data = {
       company: {
         name: settings.companyName ?? 'A1 Service Expert',
@@ -299,8 +295,6 @@ export class DocumentsService {
       const mimeType = ext === 'webp' ? 'image/webp' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/png';
       const base64 = buffer.toString('base64');
       const dataUrl = `data:${mimeType};base64,${base64}`;
-
-      this.logger.log(`Logo loaded successfully: ${file} (${buffer.length} bytes) -> data URL`);
       return dataUrl;
     } catch (error) {
       this.logger.error(`Failed to load logo file: ${(error as Error).message}`);

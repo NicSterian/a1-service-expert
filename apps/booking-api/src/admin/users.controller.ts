@@ -24,7 +24,7 @@ export class AdminUsersController {
     const skip = (page - 1) * pageSize;
 
     // Build where clause
-    const where: any = {};
+    const where: any = { deletedAt: null }; // Only show non-deleted users
     if (search) {
       where.OR = [
         { email: { contains: search, mode: 'insensitive' } },
@@ -284,6 +284,28 @@ export class AdminUsersController {
   @Delete(':id')
   async softDeleteUser(@Param('id', ParseIntPipe) userId: number) {
     await this.prisma.user.update({ where: { id: userId }, data: { deletedAt: new Date() } });
+    return { ok: true };
+  }
+
+  @Delete(':id/permanent')
+  async permanentDeleteUser(@Param('id', ParseIntPipe) userId: number) {
+    // Check if user has bookings
+    const bookingsCount = await this.prisma.booking.count({ where: { userId } });
+
+    if (bookingsCount > 0) {
+      throw new Error('Cannot permanently delete user with existing bookings. Please delete bookings first or use soft delete.');
+    }
+
+    // Delete related records first (in correct order to avoid FK constraints)
+    await this.prisma.$transaction([
+      // Delete password reset tokens
+      this.prisma.passwordResetToken.deleteMany({ where: { userId } }),
+      // Delete email verification tokens
+      this.prisma.emailVerificationToken.deleteMany({ where: { userId } }),
+      // Finally delete the user
+      this.prisma.user.delete({ where: { id: userId } }),
+    ]);
+
     return { ok: true };
   }
 }
