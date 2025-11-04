@@ -72,18 +72,7 @@ function formatDate(value: string | null) {
   });
 }
 
-function formatDateTime(value: string | null) {
-  if (!value) return 'N/A';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+
 
 export function CalendarView() {
   const [range, setRange] = useState<CalendarRange | null>(null);
