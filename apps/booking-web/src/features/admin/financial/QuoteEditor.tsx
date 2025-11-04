@@ -3,11 +3,33 @@ import { useNavigate } from 'react-router-dom';
 import { apiGet, apiPatch, apiPost } from '../../../lib/api';
 import toast from 'react-hot-toast';
 
+type QuoteCustomer = {
+  name?: string;
+  email?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  postcode?: string;
+};
+
+type QuoteLine = {
+  description?: string;
+  quantity?: number;
+  unitPricePence?: number;
+  vatRatePercent?: number;
+};
+
+type QuotePayload = {
+  customer?: QuoteCustomer;
+  lines?: QuoteLine[];
+  notes?: string | null;
+};
+
 type Doc = {
   id: number;
   number: string;
   status: 'DRAFT' | 'ISSUED' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED' | string;
-  payload: any;
+  payload: QuotePayload;
   validUntil: string | null;
   totalAmountPence: number;
   vatAmountPence: number;
@@ -37,7 +59,7 @@ export function QuoteEditor({ id }: { id: number }) {
         const d = await apiGet<Doc>(`/admin/documents/${id}`);
         if (cancelled) return;
         setDoc(d);
-        const p = (d.payload as any) || {};
+        const p: QuotePayload = d.payload ?? ({} as QuotePayload);
         setCustomer({
           name: p.customer?.name || '',
           email: p.customer?.email || '',
@@ -46,7 +68,7 @@ export function QuoteEditor({ id }: { id: number }) {
           city: p.customer?.city || '',
           postcode: p.customer?.postcode || '',
         });
-        const ls: any[] = Array.isArray(p.lines) ? p.lines : [];
+        const ls: QuoteLine[] = Array.isArray(p.lines) ? p.lines : [];
         setLines(
           ls.length > 0
             ? ls.map((l) => ({ description: l.description || '', quantity: String(l.quantity ?? '1'), unitPricePence: String(l.unitPricePence ?? '0'), vatRatePercent: l.vatRatePercent != null ? String(l.vatRatePercent) : undefined }))
@@ -62,8 +84,9 @@ export function QuoteEditor({ id }: { id: number }) {
     };
     load();
     // Load reusable items
-    apiGet<any>('/admin/settings').then((s) => {
-      const arr = (s.invoiceItemsJson as any[]) || [];
+    type AdminSettings = { invoiceItemsJson?: Array<{ code?: string; description: string; defaultQty?: number; unitPricePence: number; vatPercent?: number }> };
+    apiGet<AdminSettings>('/admin/settings').then((s) => {
+      const arr = s.invoiceItemsJson ?? [];
       setItems(arr);
     }).catch(() => undefined);
     return () => {

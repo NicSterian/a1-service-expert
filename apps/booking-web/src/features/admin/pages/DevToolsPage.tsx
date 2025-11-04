@@ -40,13 +40,14 @@ export function DevToolsPage() {
 
   // Availability Probe
   const [probeDate, setProbeDate] = useState('');
-  const [probeResult, setProbeResult] = useState<any>(null);
+  const [probeResult, setProbeResult] = useState<unknown>(null);
   const [probing, setProbing] = useState(false);
 
   // Holds Manager
   const [holdDate, setHoldDate] = useState('');
   const [holdTime, setHoldTime] = useState('');
-  const [holdResult, setHoldResult] = useState<any>(null);
+  type HoldResult = { hold?: { id: number } } | null;
+  const [holdResult, setHoldResult] = useState<HoldResult>(null);
 
   // DVLA Test
   const [testReg, setTestReg] = useState('');
@@ -57,20 +58,24 @@ export function DevToolsPage() {
   const [redisPing, setRedisPing] = useState<boolean | null>(null);
 
   // Migration Status
-  const [migrations, setMigrations] = useState<any[] | null>(null);
+  type MigrationRow = { migration_name: string; finished_at: string | null };
+  const [migrations, setMigrations] = useState<MigrationRow[] | null>(null);
 
   // Email Test
   const [emailTo, setEmailTo] = useState('');
-  const [emailResult, setEmailResult] = useState<any>(null);
+  type SimpleResult = { success: boolean; message?: string; error?: string };
+  const [emailResult, setEmailResult] = useState<SimpleResult | null>(null);
 
   // Storage Test
-  const [storageResult, setStorageResult] = useState<any>(null);
+  const [storageResult, setStorageResult] = useState<SimpleResult | null>(null);
 
   // Feature Flags
-  const [flags, setFlags] = useState<any>(null);
+  type FeatureFlags = { maintenanceMode?: boolean; hideCheckout?: boolean };
+  const [flags, setFlags] = useState<FeatureFlags | null>(null);
 
   // Audit Log
-  const [auditLogs, setAuditLogs] = useState<any[] | null>(null);
+  type AuditLog = { id: number; action: string; createdAt: string; entity?: string | null; entityId?: number | null; user?: { email?: string | null } | null };
+  const [auditLogs, setAuditLogs] = useState<AuditLog[] | null>(null);
 
   // System Settings
   const [timezone, setTimezone] = useState('Europe/London');
@@ -110,7 +115,8 @@ export function DevToolsPage() {
 
         // Load system settings
         try {
-          const settings = await apiGet<any>('/admin/settings');
+          type SystemSettings = { timezone?: string; bankHolidayRegion?: string };
+          const settings = await apiGet<SystemSettings>('/admin/settings');
           if (!cancelled) {
             setTimezone(settings.timezone || 'Europe/London');
             setBankHolidayRegion(settings.bankHolidayRegion || 'england-and-wales');
@@ -118,7 +124,7 @@ export function DevToolsPage() {
         } catch (err) {
           console.error('Failed to load system settings:', err);
         }
-      } catch (err) {
+      } catch {
         if (!cancelled) {
           navigate('/login', { state: { from: '/admin/dev' } });
         }
@@ -160,7 +166,7 @@ export function DevToolsPage() {
       return;
     }
     try {
-      const result = await apiPost('/admin/dev/holds/create', {
+      const result = await apiPost<HoldResult>('/admin/dev/holds/create', {
         slotDate: holdDate,
         slotTime: holdTime,
         durationMins: 60,
@@ -210,7 +216,7 @@ export function DevToolsPage() {
 
   const loadMigrations = async () => {
     try {
-      const result = await apiGet<any>('/admin/dev/migrations');
+      const result = await apiGet<{ success: boolean; migrations: MigrationRow[]; error?: string }>('/admin/dev/migrations');
       if (result.success) {
         setMigrations(result.migrations);
         toast.success('Loaded migration status');
@@ -229,7 +235,7 @@ export function DevToolsPage() {
       return;
     }
     try {
-      const result = await apiPost('/admin/dev/email/test', { to: emailTo.trim() });
+      const result = await apiPost<SimpleResult>('/admin/dev/email/test', { to: emailTo.trim() });
       setEmailResult(result);
       toast.success('Email test complete');
     } catch (err) {
@@ -239,7 +245,7 @@ export function DevToolsPage() {
 
   const handleTestStorage = async () => {
     try {
-      const result = await apiPost<any>('/admin/dev/storage/test', {});
+      const result = await apiPost<SimpleResult>('/admin/dev/storage/test', {});
       setStorageResult(result);
       if (result.success) {
         toast.success('Storage test passed');
@@ -253,7 +259,7 @@ export function DevToolsPage() {
 
   const loadFeatureFlags = async () => {
     try {
-      const result = await apiGet('/admin/dev/feature-flags');
+      const result = await apiGet<FeatureFlags>('/admin/dev/feature-flags');
       setFlags(result);
       toast.success('Loaded feature flags');
     } catch (err) {
@@ -263,7 +269,7 @@ export function DevToolsPage() {
 
   const loadAuditLog = async () => {
     try {
-      const result = await apiGet<any>('/admin/dev/audit-log');
+      const result = await apiGet<{ success: boolean; logs: AuditLog[] }>('/admin/dev/audit-log');
       if (result.success) {
         setAuditLogs(result.logs);
         toast.success(`Loaded ${result.logs.length} audit entries`);
@@ -368,7 +374,7 @@ export function DevToolsPage() {
               {probing ? 'Probing...' : 'Probe'}
             </button>
           </form>
-          {probeResult && (
+          {Boolean(probeResult) && (
             <pre className="mt-3 overflow-auto rounded-lg border border-slate-700 bg-slate-800 p-3 text-xs text-slate-300">
               {JSON.stringify(probeResult, null, 2)}
             </pre>
@@ -401,7 +407,7 @@ export function DevToolsPage() {
           </form>
           {holdResult && (
             <div className="mt-3 rounded-lg border border-slate-700 bg-slate-800 p-3">
-              <p className="text-sm text-green-400">Hold created (ID: {holdResult.hold.id})</p>
+              <p className="text-sm text-green-400">Hold created (ID: {holdResult?.hold?.id ?? ''})</p>
               <button
                 type="button"
                 onClick={handleReleaseHold}
@@ -475,11 +481,11 @@ export function DevToolsPage() {
           </button>
           {migrations && (
             <div className="mt-3 space-y-1">
-              {migrations.map((m: any, i: number) => (
-                <div key={i} className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-300">
-                  {m.migration_name} - {new Date(m.finished_at).toLocaleString()}
-                </div>
-              ))}
+                  {migrations.map((m, i: number) => (
+                    <div key={i} className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-300">
+                  {m.migration_name} - {(m.finished_at ? new Date(m.finished_at).toLocaleString() : '')}
+                    </div>
+                  ))}
             </div>
           )}
         </div>
@@ -578,7 +584,7 @@ export function DevToolsPage() {
           </button>
           {auditLogs && (
             <div className="mt-3 max-h-96 space-y-1 overflow-auto">
-              {auditLogs.map((log: any) => (
+              {auditLogs.map((log) => (
                 <div key={log.id} className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs">
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-white">{log.action}</span>

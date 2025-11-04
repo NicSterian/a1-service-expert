@@ -3,7 +3,6 @@ import { CompanySettings } from '../settings/CompanySettings';
 import { CatalogManager } from '../CatalogManager';
 import { CalendarManager } from '../CalendarManager';
 import { RecipientsManager } from '../RecipientsManager';
-import { IntegrationsSettings } from '../settings/IntegrationsSettings';
 
 export function SettingsPage() {
   const [searchParams] = useSearchParams();

@@ -1,4 +1,3 @@
-﻿import React from 'react';
 
 const gbCurrency = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
 
@@ -38,7 +37,7 @@ export function ServiceCard(props: {
             onClick={onToggleSelected ?? onSelect}
             className="inline-flex items-center gap-2 rounded border border-orange-400 bg-orange-50 px-3 py-1 text-sm font-semibold text-orange-600 hover:bg-orange-100"
           >
-            <span aria-hidden>✓</span>
+            <span aria-hidden>?</span>
             Selected
           </button>
         ) : (
