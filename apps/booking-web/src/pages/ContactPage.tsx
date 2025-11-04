@@ -85,8 +85,8 @@ export function ContactPage() {
           <p className="text-sm font-semibold uppercase tracking-[0.4em] text-brand-orange">Contact</p>
           <h1 className="text-4xl font-semibold sm:text-5xl">Get in touch with A1 Service Expert</h1>
           <p className="max-w-3xl text-base text-slate-200">
-            We're ready to help with servicing, repairs, diagnostics, and bespoke fleet support. Book online, give us a
-            call, or drop a message using the form below and we'll respond promptly.
+            We{"'"}re ready to help with servicing, repairs, diagnostics, and bespoke fleet support. Book online, give us a
+            call, or drop a message using the form below and we{"'"}ll respond promptly.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <a
@@ -200,7 +200,7 @@ export function ContactPage() {
           </div>
           {error ? <p className="text-xs text-red-600">{error}</p> : null}
           {status === 'success' ? (
-            <p className="text-xs text-emerald-600">Thanks for your message. We'll be in touch shortly.</p>
+            <p className="text-xs text-emerald-600">Thanks for your message. We{"'"}ll be in touch shortly.</p>
           ) : null}
           <button
             type="submit"
