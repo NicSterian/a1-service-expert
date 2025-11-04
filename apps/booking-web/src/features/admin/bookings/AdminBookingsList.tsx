@@ -250,17 +250,12 @@ export function AdminBookingsList({ mode }: AdminBookingsListProps) {
         }
       }
     };
-
     loadBookings();
     return () => {
       cancelled = true;
     };
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [
-    debouncedSearch,
-    engineTierFilter,
-    fromDate,
-    sortBy,
-    sortOrder,
     sourceFilter,
     statusFilter,
     toDate,
@@ -286,8 +281,8 @@ export function AdminBookingsList({ mode }: AdminBookingsListProps) {
     return [{ value: 'HISTORIC', label: 'Historic (Completed/Cancelled/No Show)' }, ...base];
   }, [mode]);
 
-  const presetOptions = useMemo(() => {
-    if (mode === 'DELETED') return [] as any[];
+  const presetOptions = useMemo<Array<{ value: DatePreset; label: string }>>(() => {
+    if (mode === 'DELETED') return [];
     if (mode === 'UPCOMING') {
       return [
         { value: 'TODAY', label: 'Today' },
@@ -331,7 +326,7 @@ export function AdminBookingsList({ mode }: AdminBookingsListProps) {
     const ok = window.confirm('Restore this booking? It will appear back in the main lists.');
     if (!ok) return;
     try {
-      await apiGet(`/admin/bookings/${id}/restore`, { method: 'PATCH' } as any);
+      await apiGet(`/admin/bookings/${id}/restore`, { method: 'PATCH' });
       toast.success('Booking restored');
       setReloadKey((k) => k + 1);
     } catch (err) {
@@ -345,7 +340,7 @@ export function AdminBookingsList({ mode }: AdminBookingsListProps) {
     );
     if (!ok) return;
     try {
-      await apiGet(`/admin/bookings/${id}/hard-delete`, { method: 'POST' } as any);
+      await apiGet(`/admin/bookings/${id}/hard-delete`, { method: 'POST' });
       toast.success('Booking permanently deleted');
       setReloadKey((k) => k + 1);
     } catch (err) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiGet } from '../../../lib/api';
 
@@ -51,10 +51,10 @@ export function OverviewPage() {
           apiGet<{ total: number }>(`/admin/bookings?from=${fmt(startOfWeek)}&to=${fmt(endOfWeek)}&page=1&pageSize=1&sort=created&order=desc`),
           apiGet<{ total: number }>(`/admin/bookings?from=${fmt(startOfMonth)}&to=${fmt(endOfMonth)}&page=1&pageSize=1&sort=created&order=desc`),
           apiGet<{ total: number }>(`/admin/users?page=1&pageSize=1`),
-          apiGet<{ bookings: any[] }>(`/admin/bookings?page=1&pageSize=5&sort=created&order=desc`),
+          apiGet<{ bookings: RecentBooking[] }>(`/admin/bookings?page=1&pageSize=5&sort=created&order=desc`),
         ]);
 
-        const recent: RecentBooking[] = (recentResp.bookings || []).map((b: any) => ({
+        const recent: RecentBooking[] = (recentResp.bookings || []).map((b) => ({
           id: b.id,
           customerName: b.customerName,
           slotDate: b.slotDate,
@@ -116,7 +116,7 @@ export function OverviewPage() {
       {/* Stats Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-slate-700 bg-slate-900 p-4">
-          <div className="text-xs font-medium uppercase tracking-wide text-slate-400">Today's Bookings</div>
+          <div className="text-xs font-medium uppercase tracking-wide text-slate-400">Today&apos;s Bookings</div>
           <div className="mt-2 text-3xl font-bold text-white">{stats?.todayBookings ?? 0}</div>
         </div>
         <div className="rounded-2xl border border-slate-700 bg-slate-900 p-4">

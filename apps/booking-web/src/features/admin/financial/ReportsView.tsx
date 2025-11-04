@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { apiGet } from '../../../lib/api';
 
 type TotalsStrip = {
@@ -62,8 +62,8 @@ export function ReportsView() {
     apiGet<{ items: TopService[] }>(`/admin/documents/reports/top-services${suffix}`).then((d) => setTop(d.items));
   };
 
+  /* eslint-disable-next-line react-hooks/exhaustive-deps */
   useEffect(() => { load(); }, []);
-
   const exportCsv = (rows: string[][], name: string) => {
     const csv = rows.map((r) => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });

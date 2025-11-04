@@ -50,7 +50,7 @@ export function CalendarManager() {
           setExtraSlots(slots);
           setDefaultSlots(Array.isArray(settings.defaultSlotsJson) ? settings.defaultSlotsJson : []);
           setSatSlots(Array.isArray(settings.saturdaySlotsJson) ? settings.saturdaySlotsJson! : []);
-          setSunSlots(Array.isArray(settings.sundaySlotsJson) ? settings.sundaySlots! : []);
+          setSunSlots(Array.isArray(settings.sundaySlotsJson) ? settings.sundaySlotsJson! : []);
         }
       } catch (err) {
         if (!cancelled) {

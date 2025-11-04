@@ -437,7 +437,8 @@ export function AdminBookingDetailPage() {
     if (!bookingId) return;
     try {
       setLoadingAction(true);
-      const payload: any = {
+      type UpdateVehiclePayload = { registration: string; make: string; model: string; engineSizeCc?: number };
+      const payload: UpdateVehiclePayload = {
         registration: String(vehicleDraft.registration || ''),
         make: String(vehicleDraft.make || ''),
         model: String(vehicleDraft.model || ''),

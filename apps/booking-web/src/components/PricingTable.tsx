@@ -1,4 +1,3 @@
-﻿import React from 'react';
 import type { CatalogSummary } from '../features/booking/types';
 
 const gbCurrency = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });

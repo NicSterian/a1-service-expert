@@ -1,9 +1,8 @@
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+﻿import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiGet, apiPatch } from '../lib/api';
 import { clearAuthToken, getToken } from '../lib/auth';
-
 interface MeResponse {
   user: {
     id: number;
@@ -12,7 +11,6 @@ interface MeResponse {
     emailVerified: boolean;
   };
 }
-
 interface ProfileUser {
   title: string | null;
   firstName: string | null;
@@ -32,11 +30,9 @@ interface ProfileUser {
   role: string;
   emailVerified: boolean;
 }
-
 interface ProfileResponse {
   user: ProfileUser;
 }
-
 interface BookingSummary {
   id: number;
   status: string;
@@ -48,7 +44,6 @@ interface BookingSummary {
   totalAmountPence: number;
   notes?: string | null;
 }
-
 export function AccountPage() {
   const navigate = useNavigate();
   const [profileStatus, setProfileStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -56,7 +51,7 @@ export function AccountPage() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [bookingsError, setBookingsError] = useState<string | null>(null);
   const [user, setUser] = useState<MeResponse['user'] | null>(null);
-  const [profile, setProfile] = useState<ProfileUser | null>(null);
+  // removed unused state to satisfy lint rules
   const [bookings, setBookings] = useState<BookingSummary[]>([]);
   const [profileForm, setProfileForm] = useState({
     title: 'MR',
@@ -80,7 +75,6 @@ export function AccountPage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const token = getToken();
-
   const currencyFormatter = useMemo(
     () =>
       new Intl.NumberFormat('en-GB', {
@@ -89,19 +83,15 @@ export function AccountPage() {
       }),
     [],
   );
-
   useEffect(() => {
     if (!token) {
       setProfileStatus('idle');
       setBookingsStatus('idle');
       setUser(null);
-      setProfile(null);
       setBookings([]);
       return;
     }
-
     let cancelled = false;
-
     const fetchProfile = async () => {
       try {
         setProfileStatus('loading');
@@ -112,9 +102,8 @@ export function AccountPage() {
         ]);
         if (!cancelled) {
           setUser(me.user);
-          setProfile(profileResponse.user);
           setProfileForm({
-            title: (profileResponse.user.title ?? 'MR') as any,
+            title: (profileResponse.user.title ?? 'MR'),
             firstName: profileResponse.user.firstName ?? '',
             lastName: profileResponse.user.lastName ?? '',
             companyName: profileResponse.user.companyName ?? '',
@@ -138,13 +127,11 @@ export function AccountPage() {
         }
       }
     };
-
     fetchProfile();
     return () => {
       cancelled = true;
     };
   }, [token]);
-
   useEffect(() => {
     if (!token || !user) return;
     let cancelled = false;
@@ -169,13 +156,11 @@ export function AccountPage() {
       cancelled = true;
     };
   }, [token, user]);
-
   useEffect(() => {
     if (user?.role === 'ADMIN') {
       navigate('/admin', { replace: true });
     }
   }, [navigate, user?.role]);
-
   const formatDate = (value: string) => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
@@ -183,20 +168,17 @@ export function AccountPage() {
   };
   const formatTime = (value: string) => value;
   const formatCurrency = (amountPence: number) => currencyFormatter.format(amountPence / 100);
-
   const handleLogout = () => {
     clearAuthToken();
     toast.success('You have been logged out.');
     navigate('/', { replace: true });
   };
-
   const handleProfileInput =
     (field: keyof typeof profileForm) =>
     (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       const value = event.target.type === 'checkbox' ? (event.target as HTMLInputElement).checked : event.target.value;
       setProfileForm((prev) => ({ ...prev, [field]: value }));
     };
-
   const handleProfileSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!token) {
@@ -229,14 +211,12 @@ export function AccountPage() {
         notes: profileForm.notes || undefined,
       });
       toast.success('Profile updated successfully.');
-      setProfile((prev) => (prev ? { ...prev, ...profileForm } : prev));
     } catch (error) {
       toast.error((error as Error).message ?? 'Unable to update profile.');
     } finally {
       setProfileSaving(false);
     }
   };
-
   const handlePasswordSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (newPassword.length < 8) {
@@ -260,7 +240,6 @@ export function AccountPage() {
       setPasswordSaving(false);
     }
   };
-
   const renderStatusBadge = (status: string) => {
     const normalized = status.toUpperCase();
     const styles: Record<string, string> = {
@@ -271,7 +250,6 @@ export function AccountPage() {
     const badgeStyles = styles[normalized] ?? 'bg-slate-700 text-slate-300 border-slate-600';
     return <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${badgeStyles}`}>{normalized.charAt(0) + normalized.slice(1).toLowerCase()}</span>;
   };
-
   return (
     <div className="space-y-8">
       <section className="rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8 text-white shadow-lg">
@@ -297,7 +275,6 @@ export function AccountPage() {
           </div>
         </div>
       </section>
-
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <div className="space-y-4 rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-inner">
           <h2 className="text-xl font-semibold text-white">Booking history</h2>
@@ -335,7 +312,6 @@ export function AccountPage() {
             </ul>
           )}
         </div>
-
         <div className="space-y-4 rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-inner text-sm text-slate-300">
           <h2 className="text-xl font-semibold text-white">Update your profile</h2>
           {profileStatus === 'loading' ? (
@@ -405,21 +381,20 @@ export function AccountPage() {
               </div>
               <label className="flex items-start gap-3 text-xs text-slate-300">
                 <input type="checkbox" checked={profileForm.marketingOptIn} onChange={handleProfileInput('marketingOptIn')} className="mt-0.5 h-4 w-4 rounded border-slate-600 bg-slate-800" />
-                <span>I'd like to receive occasional service reminders and offers. You can opt out at any time.</span>
+                <span>I&apos;d like to receive occasional service reminders and offers. You can opt out at any time.</span>
               </label>
               <button type="submit" disabled={profileSaving} className="inline-flex items-center justify-center rounded-full bg-brand-orange px-4 py-2 text-xs font-semibold text-slate-950 transition hover:-translate-y-0.5 hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-70">{profileSaving ? 'Saving...' : 'Save profile'}</button>
             </form>
           )}
           <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900 p-4 text-xs text-slate-400">
-            <p>Prefer to talk? Call 07394 433889 and we'll update your details while you're on the phone.</p>
+            <p>Prefer to talk? Call 07394 433889 and we&apos;ll update your details while you&apos;re on the phone.</p>
           </div>
         </div>
       </section>
-
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className="space-y-4 rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-inner text-sm text-slate-300">
           <h2 className="text-xl font-semibold text-white">Change password</h2>
-          <p className="text-xs text-slate-400">Pick a strong password you haven't used elsewhere. We'll ask for your current password before saving changes.</p>
+          <p className="text-xs text-slate-400">Pick a strong password you haven&apos;t used elsewhere. we&apos;ll ask for your current password before saving changes.</p>
           <form className="space-y-4" onSubmit={handlePasswordSubmit} noValidate>
             <div>
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="password-current">Current password</label>
@@ -438,7 +413,7 @@ export function AccountPage() {
         </div>
         <div className="space-y-4 rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-inner text-sm text-slate-300">
           <h2 className="text-xl font-semibold text-white">Need a hand?</h2>
-          <p>If you spot anything that doesn't look right, just give us a call or mention it when you confirm your next booking and we'll fix it for you.</p>
+          <p>If you spot anything that doesn&apos;t look right, just give us a call or mention it when you confirm your next booking and we&apos;ll fix it for you.</p>
           <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900 p-4 text-xs text-slate-400">
             <p className="font-semibold text-white">Workshop contact</p>
             <p className="mt-1">Phone: 07394 433889</p>
@@ -450,6 +425,4 @@ export function AccountPage() {
     </div>
   );
 }
-
 export default AccountPage;
-

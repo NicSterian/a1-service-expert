@@ -3,11 +3,33 @@ import { useNavigate } from 'react-router-dom';
 import { apiGet, apiPatch, apiPost } from '../../../lib/api';
 import toast from 'react-hot-toast';
 
+type InvoiceCustomer = {
+  name?: string;
+  email?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  postcode?: string;
+};
+
+type InvoiceLine = {
+  description?: string;
+  quantity?: number;
+  unitPricePence?: number;
+  vatRatePercent?: number;
+};
+
+type InvoicePayload = {
+  customer?: InvoiceCustomer;
+  lines?: InvoiceLine[];
+  paymentNotes?: string | null;
+};
+
 type Doc = {
   id: number;
   number: string;
   status: 'DRAFT' | 'ISSUED' | 'PAID' | 'VOID' | string;
-  payload: any;
+  payload: InvoicePayload;
   dueAt: string | null;
   paidAt: string | null;
   paymentMethod: string | null;
@@ -44,7 +66,7 @@ export function InvoiceEditor({ id }: { id: number }) {
         const d = await apiGet<Doc>(`/admin/documents/${id}`);
         if (cancelled) return;
         setDoc(d);
-        const p = (d.payload as any) || {};
+        const p: InvoicePayload = d.payload ?? ({} as InvoicePayload);
         setCustomer({
           name: p.customer?.name || '',
           email: p.customer?.email || '',
@@ -53,7 +75,7 @@ export function InvoiceEditor({ id }: { id: number }) {
           city: p.customer?.city || '',
           postcode: p.customer?.postcode || '',
         });
-        const ls: any[] = Array.isArray(p.lines) ? p.lines : [];
+        const ls: InvoiceLine[] = Array.isArray(p.lines) ? p.lines : [];
         setLines(
           ls.length > 0
             ? ls.map((l) => ({ description: l.description || '', quantity: String(l.quantity ?? '1'), unitPricePence: String(l.unitPricePence ?? '0'), vatRatePercent: l.vatRatePercent != null ? String(l.vatRatePercent) : undefined }))
@@ -69,8 +91,9 @@ export function InvoiceEditor({ id }: { id: number }) {
     };
     load();
     // Load reusable items
-    apiGet<any>('/admin/settings').then((s) => {
-      const arr = (s.invoiceItemsJson as any[]) || [];
+    type AdminSettings = { invoiceItemsJson?: Array<{ code?: string; description: string; defaultQty?: number; unitPricePence: number; vatPercent?: number }> };
+    apiGet<AdminSettings>('/admin/settings').then((s) => {
+      const arr = s.invoiceItemsJson ?? [];
       setItems(arr);
     }).catch(() => undefined);
     return () => {
@@ -131,7 +154,7 @@ export function InvoiceEditor({ id }: { id: number }) {
 
   const openEmailModal = () => {
     if (!doc) return;
-    const payload = doc.payload as any;
+    const payload = doc.payload;
     setEmailTo(payload?.customer?.email || '');
     setUseCustomEmail(false);
     setShowEmailModal(true);
@@ -139,7 +162,7 @@ export function InvoiceEditor({ id }: { id: number }) {
 
   const sendEmail = async () => {
     if (!doc) return;
-    const to = useCustomEmail ? emailTo : (doc.payload as any)?.customer?.email || '';
+    const to = useCustomEmail ? emailTo : doc.payload?.customer?.email || '';
     if (!to || !to.trim()) {
       toast.error('Email address is required');
       return;
@@ -153,20 +176,7 @@ export function InvoiceEditor({ id }: { id: number }) {
     }
   };
 
-  const markAsPaid = async () => {
-    if (!doc) return;
-    try {
-      const updated = await apiPatch<Doc>(`/admin/documents/${doc.id}`, {
-        status: 'PAID',
-        paidAt: new Date().toISOString(),
-        paymentMethod,
-      });
-      setDoc(updated);
-      toast.success(`Invoice marked as paid (${paymentMethod})`);
-    } catch (err) {
-      toast.error((err as Error).message ?? 'Failed to mark as paid');
-    }
-  };
+  // removed unused markAsPaid helper to satisfy lint
 
   const liveTotalPence = useMemo(() => {
     try {
@@ -376,14 +386,14 @@ export function InvoiceEditor({ id }: { id: number }) {
                     checked={!useCustomEmail}
                     onChange={() => {
                       setUseCustomEmail(false);
-                      setEmailTo((doc.payload as any)?.customer?.email || '');
+                      setEmailTo(doc.payload?.customer?.email || '');
                     }}
                   />
                   <span className="text-sm text-slate-200">Send to customer email</span>
                 </label>
                 {!useCustomEmail && (
                   <div className="ml-6 text-sm text-slate-400">
-                    {(doc.payload as any)?.customer?.email || 'No customer email set'}
+                    {doc.payload?.customer?.email || 'No customer email set'}
                   </div>
                 )}
               </div>

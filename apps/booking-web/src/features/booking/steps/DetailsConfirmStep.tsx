@@ -216,7 +216,7 @@ function ForgotPasswordModal({ open, onClose }: { open: boolean; onClose: () => 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
-    toast.success("If the email exists, we'll send a reset link.");
+    toast.success("If the email exists, We&apos;ll send a reset link.");
     onClose();
   };
   return (
@@ -376,8 +376,8 @@ export function DetailsConfirmStep() {
       })
       .finally(() => { if (!cancelled) setLoadingProfile(false); });
     return () => { cancelled = true; };
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [token]);
-
   useEffect(() => {
     if (!loginPanelOpen) return;
     setTimeout(() => {
@@ -436,7 +436,7 @@ export function DetailsConfirmStep() {
 
   const releaseHoldIfAny = useCallback(async () => {
     if (!draft.holdId) return;
-    try { await apiDelete(`/holds/${draft.holdId}`); } catch {}
+    try { await apiDelete(`/holds/${draft.holdId}`); } catch { /* ignore */ }
     updateDraft({ holdId: undefined, holdExpiresAt: undefined });
   }, [draft.holdId, updateDraft]);
 
@@ -453,7 +453,7 @@ export function DetailsConfirmStep() {
     const detailsOk = await profileForm.trigger(undefined, { shouldFocus: false });
     if (!detailsOk) {
       const firstError = Object.values(profileForm.formState.errors)[0];
-      const firstMsg = (firstError as any)?.message || 'Please review your details.';
+      const firstMsg = (firstError as { message?: string } | undefined)?.message || 'Please review your details.';
       toast.error(String(firstMsg));
       return;
     }
@@ -693,7 +693,7 @@ export function DetailsConfirmStep() {
           <h2 className="text-xl font-semibold text-white">3. Final checks</h2>
           <div className="mt-4 space-y-3 rounded-2xl border border-slate-700 bg-slate-800/60 p-4">
             <TurnstileWidget className="flex justify-center" onChange={(tokenValue) => setConfirmCaptchaToken(tokenValue ?? '')} fallbackLabel="I confirm I am not a robot." />
-            <p className="text-xs text-slate-300">Complete the security check, then confirm. We'll email your confirmation and documents instantly.</p>
+            <p className="text-xs text-slate-300">Complete the security check, then confirm. We&apos;ll email your confirmation and documents instantly.</p>
             {confirmError ? <p className="text-sm text-red-300">{confirmError}</p> : null}
           </div>
           <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

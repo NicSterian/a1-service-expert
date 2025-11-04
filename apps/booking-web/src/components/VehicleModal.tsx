@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -65,6 +65,7 @@ export function VehicleModal(props: { open: boolean; onClose: () => void; onAdde
   const vrmForm = useForm<z.infer<typeof vrmSchema>>({ resolver: zodResolver(vrmSchema), defaultValues: { vrm: '' }, mode: 'onChange' });
   const manualForm = useForm<z.infer<typeof manualSchema>>({ resolver: zodResolver(manualSchema), defaultValues: { fuelType: '' }, mode: 'onChange' });
 
+  /* eslint-disable-next-line react-hooks/exhaustive-deps */
   useEffect(()=>{ if(!open){ vrmForm.reset({vrm:''}); manualForm.reset({fuelType:''}); setActive('vrm'); } },[open]);
 
   const [busy,setBusy]=useState(false);
@@ -83,11 +84,11 @@ export function VehicleModal(props: { open: boolean; onClose: () => void; onAdde
         payload.serviceId = serviceId;
       }
       const resp = await apiPost<LookupResponse>('/vehicles/vrm', payload);
-      if(!resp.ok){ setError('We couldn’t find your vehicle right now. You can try again or enter the details manually.'); setActive('manual'); return; }
+      if(!resp.ok){ setError('We couldn�t find your vehicle right now. You can try again or enter the details manually.'); setActive('manual'); return; }
       const data = resp.data ?? {};
       const rec = data.recommendation ?? null;
       setSummary({ vrm, make: data.make ?? null, model: sanitizeModel(data.model), engineSizeCc: data.engineSizeCc ?? null, engineTierName: rec?.engineTierName ?? null, engineTierCode: rec?.engineTierCode ?? null, pricePence: rec?.pricePence ?? null });
-    }catch{ setError('We couldn’t find your vehicle right now. You can try again or enter the details manually.'); }
+    }catch{ setError('We couldn�t find your vehicle right now. You can try again or enter the details manually.'); }
     finally{ setBusy(false); }
   });
 
@@ -155,10 +156,10 @@ export function VehicleModal(props: { open: boolean; onClose: () => void; onAdde
                   <input type="text" placeholder="AB12 CDE" className="flex-1 rounded-lg border border-slate-600 bg-yellow-400 px-4 py-3 text-lg font-bold uppercase tracking-wider text-slate-900 placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500" {...vrmForm.register('vrm')} />
                   <button type="submit" disabled={!vrmForm.formState.isValid || busy} className="rounded-full bg-orange-500 px-6 py-3 text-sm font-semibold text-black transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50">Search</button>
                 </div>
-                <div className="text-sm text-slate-400">We'll use DVLA to look up your vehicle. You can enter details manually <button type="button" onClick={()=>setActive('manual')} className="font-medium text-orange-400 underline-offset-2 hover:underline">here</button>.</div>
+                <div className="text-sm text-slate-400">We&apos;ll use DVLA to look up your vehicle. You can enter details manually <button type="button" onClick={()=>setActive('manual')} className="font-medium text-orange-400 underline-offset-2 hover:underline">here</button>.</div>
               </>
             ) : null}
-            {busy ? <LoadingIndicator label="Searching DVLA…" />: null}
+            {busy ? <LoadingIndicator label="Searching DVLA�" />: null}
             {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm text-red-400">{error}</p>: null}
             {summary ? (
               <div className="space-y-3 rounded-2xl border border-slate-700 bg-slate-800 p-5 shadow-lg">
@@ -240,7 +241,7 @@ export function VehicleModal(props: { open: boolean; onClose: () => void; onAdde
                 {manualForm.formState.errors.fuelType ? (<p className="mt-1 text-xs text-red-400">{manualForm.formState.errors.fuelType.message}</p>) : null}
               </div>
             </div>
-            {busy ? <LoadingIndicator label="Calculating price…" /> : null}
+            {busy ? <LoadingIndicator label="Calculating price�" /> : null}
             {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm text-red-400">{error}</p> : null}
             {summary ? (
               <div className="space-y-3 rounded-2xl border border-slate-700 bg-slate-800 p-5 shadow-lg">
@@ -286,5 +287,4 @@ export function VehicleModal(props: { open: boolean; onClose: () => void; onAdde
     </div>
   );
 }
-
 
