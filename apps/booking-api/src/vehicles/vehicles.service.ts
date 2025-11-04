@@ -82,7 +82,7 @@ export class VehiclesService {
 
     // cache hit
     const cached = this.vehicleCache.get(normalized);
-    if (!options.dryRun && cached && cached.expiresAt > Date.now()) {
+    if (!options.dryRun && !options.includeRaw && cached && cached.expiresAt > Date.now()) {
       const recommendation = await this.buildRecommendation(
         cached.data.engineSizeCc,
         serviceId,
