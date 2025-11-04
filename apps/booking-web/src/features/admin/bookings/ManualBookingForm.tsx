@@ -29,6 +29,15 @@ interface ServicePrice {
   amountPence: number;
 }
 
+// Payload for creating a new catalog service inline
+type CreateServicePayload = {
+  code: string;
+  name: string;
+  pricingMode: 'FIXED' | 'TIERED';
+  isActive: boolean;
+  fixedPricePence?: number;
+};
+
 export function ManualBookingForm({ onClose, onSuccess }: ManualBookingFormProps) {
   // Common services (no MOT / Tyres)
   const commonServices = [
@@ -149,7 +158,7 @@ export function ManualBookingForm({ onClose, onSuccess }: ManualBookingFormProps
       .replace(/[^A-Z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
     const code = `MANUAL-${Date.now()}-${codeBase}`.slice(0, 64);
-    const payload: any = {
+    const payload: CreateServicePayload = {
       code,
       name,
       pricingMode: newPricingMode,
