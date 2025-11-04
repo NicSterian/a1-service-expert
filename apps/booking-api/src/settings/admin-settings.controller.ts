@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Patch, Post, Put, Req, Res, SetMetadata, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { extname, join } from 'path';
 import { promises as fs } from 'fs';
@@ -37,9 +37,13 @@ export class AdminSettingsController {
   }
 
   @Put('dvla')
-  async updateDvlaKey(@Body() dto: UpdateDvlaKeyDto, @Req() request: any) {
-    const actor = request?.user?.email ?? request?.user?.id ?? 'admin';
-    const updated = await this.settingsService.updateDvlaApiKey(dto.dvlaApiKeyPlain ?? null, { actor });
+  async updateDvlaKey(@Body() dto: UpdateDvlaKeyDto, @Req() request: Request) {
+    const user: unknown = (request as unknown as { user?: { email?: string; id?: string | number } }).user;
+    const actor = (user && typeof user === 'object' && ('email' in user || 'id' in user))
+      ? ((user as { email?: string; id?: string | number }).email ?? (user as { id?: string | number }).id ?? 'admin')
+      : 'admin';
+    const actorStr = typeof actor === 'string' ? actor : String(actor);
+    const updated = await this.settingsService.updateDvlaApiKey(dto.dvlaApiKeyPlain ?? null, { actor: actorStr });
     return this.present(updated);
   }
 
@@ -64,24 +68,24 @@ export class AdminSettingsController {
 
   @Post('logo')
   @UseInterceptors(FileInterceptor('file'))
-  async uploadLogo(@UploadedFile() file?: any) {
-    if (!file || !(file as any).buffer) return { ok: false } as const;
+  async uploadLogo(@UploadedFile() file?: { originalname?: string; buffer?: Buffer }) {
+    if (!file || !file.buffer) return { ok: false } as const;
     const dir = join(process.cwd(), 'storage', 'uploads');
     await fs.mkdir(dir, { recursive: true });
     const ts = Date.now();
     const ext = extname(file.originalname || '') || '.bin';
     const filename = `logo-${ts}${ext}`;
     const full = join(dir, filename);
-    await fs.writeFile(full, (file as any).buffer);
+    await fs.writeFile(full, file.buffer);
     // Save just the filename, not the full URL path
-    const updated = await this.settingsService.updateSettings({ logoUrl: filename } as any);
+    const updated = await this.settingsService.updateSettings({ logoUrl: filename });
     return { ok: true, logoUrl: updated.logoUrl };
   }
 
   @Public()
   @Get('logo/:filename')
-  async getLogo(@Req() req: any, @Res() res: Response) {
-    const filename = req.params.filename as string;
+  async getLogo(@Req() req: Request, @Res() res: Response) {
+    const filename = String((req.params as Record<string, string | undefined>).filename || '');
     const filePath = join(process.cwd(), 'storage', 'uploads', filename);
     return res.sendFile(filePath);
   }

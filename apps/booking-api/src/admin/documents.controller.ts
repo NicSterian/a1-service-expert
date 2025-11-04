@@ -77,8 +77,8 @@ export class AdminDocumentsController {
       const term = q.trim();
       where.OR = [
         { number: { contains: term, mode: 'insensitive' } },
-        { payload: { path: ['customer', 'name'], string_contains: term } as any },
-        { payload: { path: ['customer', 'email'], string_contains: term } as any },
+        { payload: { path: ['customer', 'name'], string_contains: term } as Prisma.JsonFilter },
+        { payload: { path: ['customer', 'email'], string_contains: term } as Prisma.JsonFilter },
       ];
     }
 
@@ -119,8 +119,8 @@ export class AdminDocumentsController {
       const term = q.trim();
       where.OR = [
         { number: { contains: term, mode: 'insensitive' } },
-        { payload: { path: ['customer', 'name'], string_contains: term } as any },
-        { payload: { path: ['customer', 'email'], string_contains: term } as any },
+        { payload: { path: ['customer', 'name'], string_contains: term } as Prisma.JsonFilter },
+        { payload: { path: ['customer', 'email'], string_contains: term } as Prisma.JsonFilter },
       ];
     }
     const rows = await this.prisma.document.findMany({

@@ -1,4 +1,5 @@
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
+import type { ValidationError } from 'class-validator';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
@@ -17,7 +18,7 @@ type FormattedValidationError = {
   errors: string[];
 };
 
-const formatValidationErrors = (errors: any[], parentPath = ''): FormattedValidationError[] => {
+const formatValidationErrors = (errors: ValidationError[], parentPath = ''): FormattedValidationError[] => {
   if (!Array.isArray(errors) || errors.length === 0) {
     return [];
   }
@@ -26,7 +27,7 @@ const formatValidationErrors = (errors: any[], parentPath = ''): FormattedValida
     const property: string | undefined = error?.property;
     const path = property ? (parentPath ? `${parentPath}.${property}` : property) : parentPath;
     const constraints = error?.constraints ? Object.values(error.constraints) : [];
-    const children = formatValidationErrors(error?.children ?? [], path);
+    const children = formatValidationErrors((error?.children as ValidationError[] | undefined) ?? [], path);
     const current: FormattedValidationError[] = constraints.length ? [{ field: path, errors: constraints.map(String) }] : [];
     return [...current, ...children];
   });

@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, BookingStatus, BookingSource } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
 import { PrismaService } from '../prisma/prisma.service';
@@ -42,15 +42,13 @@ export class AdminBookingsController {
     const skip = (page - 1) * pageSize;
 
     // Build where clause
-    const where: any = {};
+    const where: Prisma.BookingWhereInput = {};
 
     // Date filters
-    if (fromStr) {
-      where.slotDate = { ...where.slotDate, gte: new Date(fromStr) };
-    }
-    if (toStr) {
-      where.slotDate = { ...where.slotDate, lte: new Date(toStr) };
-    }
+    const slotDateFilter: Prisma.DateTimeFilter = {};
+    if (fromStr) slotDateFilter.gte = new Date(fromStr);
+    if (toStr) slotDateFilter.lte = new Date(toStr);
+    if (Object.keys(slotDateFilter).length) where.slotDate = slotDateFilter;
 
     // Status filter
     if (status && status !== 'ALL') {
@@ -58,16 +56,22 @@ export class AdminBookingsController {
         .split(',')
         .map((value) => value.trim().toUpperCase())
         .filter((value) => value.length > 0);
-      if (statuses.length === 1) {
-        where.status = statuses[0];
+      const statusVals = (statuses as string[]).filter((s): s is BookingStatus =>
+        (Object.values(BookingStatus) as string[]).includes(s),
+      );
+      if (statusVals.length === 1) {
+        where.status = statusVals[0];
       } else if (statuses.length > 1) {
-        where.status = { in: statuses };
+        where.status = { in: statusVals };
       }
     }
 
     // Source filter
     if (source && source !== 'ALL') {
-      where.source = source;
+      const upper = source.toUpperCase();
+      if ((Object.values(BookingSource) as string[]).includes(upper)) {
+        where.source = upper as BookingSource;
+      }
     }
 
     // Service filter
@@ -110,15 +114,16 @@ export class AdminBookingsController {
       // Keep non-deleted only, while preserving any existing OR/filters
       // Include records where paymentStatus is null OR not 'DELETED'
       // Use AND to avoid interfering with search OR conditions
+      const andParts = Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : [];
       where.AND = [
-        ...(where.AND ?? []),
+        ...andParts,
         { OR: [{ paymentStatus: null }, { paymentStatus: { not: 'DELETED' } }] },
       ];
     }
 
     // Sorting
     const sortOrder = sortOrderParam === 'desc' ? 'desc' : 'asc';
-    const orderBy: any[] = [];
+    const orderBy: Prisma.BookingOrderByWithRelationInput[] = [];
     if (sortBy === 'created') {
       orderBy.push({ createdAt: sortOrder });
     } else if (sortBy === 'customer') {

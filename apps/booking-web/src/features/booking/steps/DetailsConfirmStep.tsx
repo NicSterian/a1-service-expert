@@ -453,7 +453,10 @@ export function DetailsConfirmStep() {
     const detailsOk = await profileForm.trigger(undefined, { shouldFocus: false });
     if (!detailsOk) {
       const firstError = Object.values(profileForm.formState.errors)[0];
-      const firstMsg = (firstError as any)?.message || 'Please review your details.';
+      const firstMsg =
+        typeof firstError === 'object' && firstError !== null && 'message' in (firstError as Record<string, unknown>)
+          ? String((firstError as { message?: unknown }).message ?? 'Please review your details.')
+          : 'Please review your details.';
       toast.error(String(firstMsg));
       return;
     }

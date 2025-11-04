@@ -1596,7 +1596,7 @@ export class BookingsService {
       const v = sanitiseString(dto.model);
       if (v !== null) updateData.vehicleModel = v;
     }
-    if (dto.engineSizeCc !== undefined) updateData.vehicleEngineSizeCc = dto.engineSizeCc as any;
+    if (dto.engineSizeCc !== undefined) updateData.vehicleEngineSizeCc = dto.engineSizeCc;
 
     await this.prisma.booking.update({ where: { id: bookingId }, data: updateData });
     return this.getBookingForAdmin(bookingId);

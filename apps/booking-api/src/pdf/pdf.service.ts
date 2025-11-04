@@ -5,7 +5,7 @@ import Handlebars from 'handlebars';
 import puppeteer from 'puppeteer';
 import type { Browser } from 'puppeteer';
 
-type InvoiceTemplateData = any;
+type InvoiceTemplateData = Record<string, unknown>;
 
 @Injectable()
 export class PdfService {
@@ -22,7 +22,7 @@ export class PdfService {
     await this.renderHtmlToPdf(html, outputPath);
   }
 
-  private async render(name: 'invoice', data: any): Promise<string> {
+  private async render(name: 'invoice', data: InvoiceTemplateData): Promise<string> {
     const template = await this.getTemplate(name);
     const css = await this.getCss(name);
     const body = template(data);
@@ -127,7 +127,7 @@ export class PdfService {
     if (envPath) return envPath;
     // 2) Puppeteer-managed browser
     try {
-      const managed = (puppeteer as any).executablePath?.();
+      const managed = (puppeteer as unknown as { executablePath?: () => string | undefined }).executablePath?.();
       if (managed && (await this.pathExists(managed))) return managed;
     } catch {}
     // 3) Common Windows Chrome locations
@@ -147,7 +147,7 @@ export class PdfService {
 
   private async pathExists(p: string): Promise<boolean> {
     try {
-      await fs.access(p as any);
+      await fs.access(p);
       return true;
     } catch {
       return false;
@@ -155,22 +155,22 @@ export class PdfService {
   }
 
   private registerHelpers() {
-    Handlebars.registerHelper('money', (pence: any) => {
-      const n = Number(pence ?? 0);
+    Handlebars.registerHelper('money', (pence: unknown) => {
+      const n = Number((pence as number | string | null | undefined) ?? 0);
       return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n / 100);
     });
-    Handlebars.registerHelper('date', (iso: any) => {
+    Handlebars.registerHelper('date', (iso: unknown) => {
       try {
         if (!iso) return '';
-        const d = typeof iso === 'string' ? new Date(iso) : iso;
+        const d = typeof iso === 'string' ? new Date(iso) : (iso as Date);
         return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
       } catch {
         return String(iso ?? '');
       }
     });
-    Handlebars.registerHelper('eq', (a: any, b: any) => a === b);
-    Handlebars.registerHelper('and', (a: any, b: any) => Boolean(a && b));
-    Handlebars.registerHelper('not', (a: any) => !a);
+    Handlebars.registerHelper('eq', (a: unknown, b: unknown) => a === b);
+    Handlebars.registerHelper('and', (a: unknown, b: unknown) => Boolean(a && b));
+    Handlebars.registerHelper('not', (a: unknown) => !a);
   }
 }
 

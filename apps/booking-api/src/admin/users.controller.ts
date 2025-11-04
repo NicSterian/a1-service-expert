@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query,
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
 import { PrismaService } from '../prisma/prisma.service';
+import { $Enums } from '@prisma/client';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { normalisePostcode, sanitisePhone, sanitiseString } from '../common/utils/profile.util';
 import * as bcrypt from 'bcryptjs';
@@ -24,7 +25,7 @@ export class AdminUsersController {
     const skip = (page - 1) * pageSize;
 
     // Build where clause
-    const where: any = { deletedAt: null }; // Only show non-deleted users
+    const where: import('@prisma/client').Prisma.UserWhereInput = { deletedAt: null };
     if (search) {
       where.OR = [
         { email: { contains: search, mode: 'insensitive' } },
@@ -34,7 +35,7 @@ export class AdminUsersController {
     }
 
     // Build orderBy clause
-    let orderBy: any = {};
+    let orderBy: import('@prisma/client').Prisma.UserOrderByWithRelationInput | import('@prisma/client').Prisma.UserOrderByWithRelationInput[] = {};
     if (sort === 'name') {
       orderBy = [{ firstName: order }, { lastName: order }];
     } else if (sort === 'bookings') {
@@ -90,7 +91,26 @@ export class AdminUsersController {
   }
 
   @Post()
-  async createUser(@Body() body: any) {
+  async createUser(
+    @Body()
+    body: {
+      title?: string | null;
+      companyName?: string | null;
+      firstName: string;
+      lastName: string;
+      email: string;
+      password: string;
+      mobileNumber?: string | null;
+      landlineNumber?: string | null;
+      addressLine1?: string | null;
+      addressLine2?: string | null;
+      addressLine3?: string | null;
+      city?: string | null;
+      county?: string | null;
+      postcode?: string | null;
+      role?: string | null;
+    },
+  ) {
     const {
       title,
       companyName,
@@ -129,6 +149,9 @@ export class AdminUsersController {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create user
+    const roleValue: $Enums.UserRole = (role && (Object.values($Enums.UserRole) as string[]).includes(role))
+      ? (role as $Enums.UserRole)
+      : $Enums.UserRole.CUSTOMER;
     const user = await this.prisma.user.create({
       data: {
         title: sanitiseString(title),
@@ -144,8 +167,8 @@ export class AdminUsersController {
         addressLine3: sanitiseString(addressLine3),
         city: sanitiseString(city),
         county: sanitiseString(county),
-        postcode: normalisePostcode(postcode),
-        role: role || 'CUSTOMER',
+        postcode: postcode ? normalisePostcode(postcode) : null,
+        role: roleValue,
         emailVerified: true, // Admin-created users are pre-verified
       },
       select: {
@@ -253,7 +276,7 @@ export class AdminUsersController {
 
   @Patch(':id')
   async updateUser(@Param('id', ParseIntPipe) userId: number, @Body() dto: UpdateAdminUserDto) {
-    const data: any = {};
+    const data: import('@prisma/client').Prisma.UserUpdateInput = {};
     if (dto.title !== undefined) data.title = sanitiseString(dto.title);
     if (dto.firstName !== undefined) data.firstName = sanitiseString(dto.firstName);
     if (dto.lastName !== undefined) data.lastName = sanitiseString(dto.lastName);

@@ -136,7 +136,7 @@ export class VehiclesService {
         make: this.extractString(raw.make),
         model: this.extractString(raw.model),
         engineSizeCc: this.sanitizeEngineSize(
-          (raw as any).engineCapacity ?? (raw as any).cylinderCapacity ?? (raw as any).engineSize,
+          raw.engineCapacity ?? raw.cylinderCapacity ?? raw.engineSize,
         ),
       };
 

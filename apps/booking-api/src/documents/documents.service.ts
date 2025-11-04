@@ -143,7 +143,7 @@ export class DocumentsService {
     try {
       if (key === SequenceKey.INVOICE) {
         // Try custom invoice number format from settings
-        const settings = (global as any).__a1SettingsCache as Settings | undefined;
+    const settings = (globalThis as { __a1SettingsCache?: Settings }).__a1SettingsCache as Settings | undefined;
         const fmt = settings?.invoiceNumberFormat;
         if (fmt && fmt.includes('{{')) {
           return apply(fmt);
@@ -203,9 +203,9 @@ export class DocumentsService {
     settings: Settings,
   ) {
     await fs.mkdir(dirname(filePath), { recursive: true }).catch(() => undefined);
-    const payloadLines = (document as any)?.payload?.lines as
-      | Array<{ description: string; quantity: number; unitPricePence: number; vatRatePercent?: number }>
-      | undefined;
+    type PayloadLine = { description: string; quantity?: number; unitPricePence?: number; vatRatePercent?: number };
+    const payloadObj = (document.payload as unknown) as Record<string, unknown> | null;
+    const payloadLines = (payloadObj?.lines as PayloadLine[] | undefined);
     const lines = Array.isArray(payloadLines) && payloadLines.length > 0
       ? payloadLines.map((l) => ({
           description: l.description,
@@ -230,7 +230,7 @@ export class DocumentsService {
         address1: settings.companyAddress ?? '',
         phone: settings.companyPhone ?? undefined,
         logoUrl: logoUrl || undefined,
-        companyNo: (settings as any).companyRegNumber ?? undefined,
+        companyNo: (settings as unknown as { companyRegNumber?: string }).companyRegNumber ?? undefined,
       },
       customer: { name: summary.customerName, email: summary.customerEmail },
       invoice: {
@@ -239,18 +239,18 @@ export class DocumentsService {
         dueDate: document.dueAt ?? undefined,
         currency: 'GBP',
         status: document.status,
-        paymentMethod: (document as any).paymentMethod ?? undefined,
-        paidAt: document.status === 'PAID' ? (document as any).paidAt ?? document.updatedAt : undefined,
+        paymentMethod: (document as unknown as { paymentMethod?: string }).paymentMethod ?? undefined,
+        paidAt: document.status === 'PAID' ? ((document as unknown as { paidAt?: Date }).paidAt ?? document.updatedAt) : undefined,
       },
-      vat: { enabled: (settings as any).vatRegistered ?? false },
+      vat: { enabled: (settings as unknown as { vatRegistered?: boolean }).vatRegistered ?? false },
       lines,
       totals: {
         subtotalPence: subtotal,
         vatPence: Math.max(0, totals.vatAmountPence ?? 0),
         totalPence: Math.max(subtotal, totals.totalAmountPence ?? subtotal),
       },
-      branding: { primary: ((settings as any).brandPrimaryColor as string) || '#f97316' },
-      notes: (document as any)?.payload?.paymentNotes ?? undefined,
+      branding: { primary: ((settings as unknown as { brandPrimaryColor?: string }).brandPrimaryColor as string) || '#f97316' },
+      notes: (payloadObj?.paymentNotes as string | undefined) ?? undefined,
     };
     await this.pdfService.renderInvoiceToFile(data, filePath);
   }
