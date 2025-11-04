@@ -13,6 +13,12 @@ interface ExtraSlot {
   time: string;
 }
 
+type CalendarSettings = {
+  defaultSlotsJson: string[];
+  saturdaySlotsJson?: string[];
+  sundaySlotsJson?: string[];
+};
+
 export function CalendarManager() {
   const [exceptions, setExceptions] = useState<ExceptionDate[]>([]);
   const [extraSlots, setExtraSlots] = useState<ExtraSlot[]>([]);
@@ -37,14 +43,14 @@ export function CalendarManager() {
         const [ex, slots, settings] = await Promise.all([
           apiGet<ExceptionDate[]>('/admin/calendar/exceptions'),
           apiGet<ExtraSlot[]>('/admin/calendar/extra-slots'),
-          apiGet<{ defaultSlotsJson: string[] }>('\\admin/settings'.replace('\\','/')),
+          apiGet<CalendarSettings>('\\admin/settings'.replace('\\','/')),
         ]);
         if (!cancelled) {
           setExceptions(ex);
           setExtraSlots(slots);
-          setDefaultSlots(Array.isArray((settings as any).defaultSlotsJson) ? (settings as any).defaultSlotsJson : []);
-          setSatSlots(Array.isArray((settings as any).saturdaySlotsJson) ? (settings as any).saturdaySlotsJson : []);
-          setSunSlots(Array.isArray((settings as any).sundaySlotsJson) ? (settings as any).sundaySlotsJson : []);
+          setDefaultSlots(Array.isArray(settings.defaultSlotsJson) ? settings.defaultSlotsJson : []);
+          setSatSlots(Array.isArray(settings.saturdaySlotsJson) ? settings.saturdaySlotsJson! : []);
+          setSunSlots(Array.isArray(settings.sundaySlotsJson) ? settings.sundaySlots! : []);
         }
       } catch (err) {
         if (!cancelled) {
@@ -72,8 +78,8 @@ export function CalendarManager() {
     setExceptions(ex);
     setExtraSlots(slots);
     setDefaultSlots(Array.isArray(settings.defaultSlotsJson) ? settings.defaultSlotsJson : []);
-    setSatSlots(Array.isArray((settings as any).saturdaySlotsJson) ? (settings as any).saturdaySlotsJson : []);
-    setSunSlots(Array.isArray((settings as any).sundaySlotsJson) ? (settings as any).sundaySlotsJson : []);
+    setSatSlots(Array.isArray(settings.saturdaySlotsJson) ? settings.saturdaySlotsJson! : []);
+    setSunSlots(Array.isArray(settings.sundaySlotsJson) ? settings.sundaySlotsJson! : []);
   };
 
   const handleCreateException = async (event: FormEvent) => {

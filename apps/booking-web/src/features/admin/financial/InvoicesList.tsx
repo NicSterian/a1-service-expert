@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { apiGet, apiPatch, apiPost, apiGetBlob } from '../../../lib/api';
+import { apiGet, apiPost, apiGetBlob } from '../../../lib/api';
 import { PaymentModal } from './PaymentModal';
 import { VoidModal } from './VoidModal';
 
@@ -68,7 +68,7 @@ export function InvoicesList({ onChanged }: { onChanged?: () => void }) {
 
   const createDraft = async () => {
     try {
-      const draft = await apiPost<any>(`/admin/documents`, {
+      const draft = await apiPost<{ id: number }>(`/admin/documents`, {
         lines: [{ description: 'Labour', quantity: 1, unitPricePence: 0 }],
       });
       toast.success('Draft invoice created');

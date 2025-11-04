@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiGet, apiPatch, apiPost, apiGetBlob } from '../../../lib/api';
+import { apiGet, apiPatch, apiPost } from '../../../lib/api';
 import toast from 'react-hot-toast';
 
 type Doc = {

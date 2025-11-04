@@ -46,7 +46,7 @@ export function QuotesList() {
 
   const convertToInvoice = async (id: number) => {
     try {
-      const created = await apiPost(`/admin/documents/${id}/convert-to-invoice`, {});
+      await apiPost(`/admin/documents/${id}/convert-to-invoice`, {});
       toast.success('Converted to invoice');
       window.open(`/admin/financial?tab=invoices`, '_self');
     } catch (err) {

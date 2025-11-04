@@ -119,7 +119,6 @@ function App() {
   }, []);
 
   const isStaff = user?.role === 'ADMIN' || user?.role === 'STAFF';
-  const isAdmin = user?.role === 'ADMIN';
 
   const handleLogout = useCallback(() => {
     clearAuthToken();
