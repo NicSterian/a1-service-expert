@@ -976,3 +976,19 @@ export function AdminBookingDetailPage() {
     </div>
   );
 }
+/**
+ * AdminBookingDetailPage
+ *
+ * Purpose
+ * - Admin view to inspect and manage a single booking: customer, vehicle,
+ *   service/tier, pricing, documents, and status transitions.
+ *
+ * Refactor Plan (incremental)
+ * - Split into:
+ *   - CustomerPanel
+ *   - VehiclePanel
+ *   - ServicePricingPanel
+ *   - DocumentsPanel
+ *   - Timeline/NotesPanel
+ * - Lift shared fetch/mutations to a small hook (useAdminBooking(id)).
+ */

@@ -652,3 +652,14 @@ export function DevToolsPage() {
     </div>
   );
 }
+/**
+ * DevToolsPage (Admin)
+ *
+ * Purpose
+ * - Operational tools: health checks, migrations, email/storage tests,
+ *   feature flags, audit log tail, and system settings preview.
+ *
+ * Refactor Plan
+ * - Split each tool into a small card component under pages/dev-tools/.
+ * - Keep this page as a simple container grid.
+ */

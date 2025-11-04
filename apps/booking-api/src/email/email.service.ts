@@ -690,3 +690,19 @@ Email: ${SUPPORT_EMAIL}
 
 }
 
+/**
+ * EmailService
+ *
+ * Purpose
+ * - Builds and sends transactional emails (booking confirmations, invoices,
+ *   quotes, reminders) using templates and provider transport.
+ *
+ * Notes
+ * - File contains transport config, template rendering, and message assembly.
+ * - Consider separating template building from transport sending.
+ *
+ * Safe Refactor Plan
+ * - Extract TemplateRenderer (inputs: template id + data → subject/body).
+ * - Extract TransportGateway (sendMail abstraction with provider config).
+ * - Keep EmailService as a façade composing renderer + transport.
+ */

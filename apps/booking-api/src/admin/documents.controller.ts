@@ -550,3 +550,17 @@ export class AdminDocumentsController {
     return final;
   }
 }
+/**
+ * DocumentsController
+ *
+ * Purpose
+ * - Admin endpoints for invoices and quotes: create, issue, send, export.
+ *
+ * Notes
+ * - Controller mixes validation, mapping, and service calls.
+ * - Keep controller thin: move mapping/serialization to a dedicated mapper.
+ *
+ * Safe Refactor Plan
+ * - Introduce DocumentDtoMapper for request/response mapping.
+ * - Keep controller responsibilities: routing, auth guards, simple wiring.
+ */

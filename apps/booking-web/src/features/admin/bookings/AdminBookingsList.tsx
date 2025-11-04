@@ -627,3 +627,13 @@ export function AdminBookingsList({ mode }: AdminBookingsListProps) {
     </div>
   );
 }
+/**
+ * AdminBookingsList
+ *
+ * Purpose
+ * - Filterable/searchable list of bookings for operational overview.
+ *
+ * Refactor Ideas
+ * - Extract filter state into useBookingsFilters hook.
+ * - Extract ListItem component for row rendering.
+ */

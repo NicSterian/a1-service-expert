@@ -721,3 +721,15 @@ function extractBookingId(response: CreateBookingResponse | { bookingId?: unknow
 }
 
 export default DetailsConfirmStep;
+/**
+ * DetailsConfirmStep
+ *
+ * Purpose
+ * - Final customer/account details + confirmation step in booking wizard.
+ * - Validates profile, manages auth (login/register), holds, and submit.
+ *
+ * Refactor Plan
+ * - Extract subhooks: useAccountAuth, useProfileDraft, useHoldManager.
+ * - Extract small presentational components for sections (Account, Details,
+ *   Summary, FinalChecks) to reduce this file’s size.
+ */

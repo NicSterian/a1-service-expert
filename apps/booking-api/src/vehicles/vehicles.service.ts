@@ -352,3 +352,13 @@ if (!res.ok) {
     };
   }
 }
+/**
+ * VehiclesService
+ *
+ * Purpose
+ * - Vehicle data lookup and normalisation (VRM, make/model/engine size).
+ * - Provides engine-tier recommendation used by pricing.
+ *
+ * Safe Refactor Idea
+ * - Extract external lookup adapter(s) behind an interface for testing.
+ */
