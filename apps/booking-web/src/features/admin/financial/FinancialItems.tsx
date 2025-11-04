@@ -3,22 +3,20 @@ import toast from 'react-hot-toast';
 import { apiGet, apiPatch } from '../../../lib/api';
 
 type Item = { code?: string; description: string; defaultQty?: number; unitPricePence: number; vatPercent?: number };
+type AdminSettingsItems = { invoiceItemsJson?: Item[] };
+type CatalogService = { code?: string; name: string; fixedPricePence?: number };
 
 export function FinancialItems() {
   const [items, setItems] = useState<Item[]>([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       try {
-        setLoading(true);
-        const settings = await apiGet<any>('/admin/settings');
-        setItems((settings.invoiceItemsJson as Item[]) || []);
+        const settings = await apiGet<AdminSettingsItems>('/admin/settings');
+        setItems(settings.invoiceItemsJson || []);
       } catch (err) {
         toast.error((err as Error).message ?? 'Failed to load items');
-      } finally {
-        setLoading(false);
       }
     };
     load();
@@ -43,7 +41,7 @@ export function FinancialItems() {
   const importFromCatalog = async () => {
     try {
       // Fetch services from catalog
-      const services = await apiGet<any[]>('/admin/catalog/services');
+      const services = await apiGet<CatalogService[]>('/admin/catalog/services');
 
       // Convert services to financial items format, avoiding duplicates
       const existingDescriptions = new Set(items.map((it) => it.description.toLowerCase()));
