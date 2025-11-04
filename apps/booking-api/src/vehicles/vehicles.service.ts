@@ -76,7 +76,7 @@ export class VehiclesService {
    */
   async lookupVrm(
     { vrm, serviceId }: VehicleLookupDto,
-    options: { dryRun?: boolean } = {},
+    options: { dryRun?: boolean; includeRaw?: boolean } = {},
   ) {
     const normalized = this.normalizeVrm(vrm);
 
@@ -87,11 +87,18 @@ export class VehiclesService {
         cached.data.engineSizeCc,
         serviceId,
       );
-      return {
-        ok: true,
-        allowManual: false,
-        data: this.toResponsePayload(cached.data, recommendation),
-      };
+      return options.includeRaw
+        ? {
+            ok: true,
+            allowManual: false,
+            data: this.toResponsePayload(cached.data, recommendation),
+            raw: cached.data,
+          }
+        : {
+            ok: true,
+            allowManual: false,
+            data: this.toResponsePayload(cached.data, recommendation),
+          };
     }
 
     // resolve API key: DB (encrypted) -> .env fallback
@@ -169,11 +176,18 @@ export class VehiclesService {
       serviceId,
     );
 
-    return {
-      ok: true,
-      allowManual: false,
-      data: this.toResponsePayload(data, recommendation),
-    };
+    return options.includeRaw
+      ? {
+          ok: true,
+          allowManual: false,
+          data: this.toResponsePayload(data, recommendation),
+          raw,
+        }
+      : {
+          ok: true,
+          allowManual: false,
+          data: this.toResponsePayload(data, recommendation),
+        };
   }
 
   async recommendEngineTier(serviceId: number, engineSizeCc: number) {
