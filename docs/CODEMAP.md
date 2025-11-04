@@ -18,6 +18,7 @@ Large Files and Suggested Splits
       DocumentOrchestrator
   - email.service.ts (~700 lines)
     - Extract: TemplateRenderer, TransportGateway (keep EmailService as façade)
+    - Status: scaffolded interfaces added under src/email/ (not yet wired)
   - documents.controller.ts (~550 lines)
     - Extract: DocumentDtoMapper; keep controller to routing/guards only
   - vehicles.service.ts (~350 lines)
