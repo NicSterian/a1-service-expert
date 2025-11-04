@@ -1621,3 +1621,22 @@ export class BookingsService {
     return this.getBookingForAdmin(bookingId);
   }
 }
+/**
+ * BookingsService
+ *
+ * Purpose
+ * - Core domain service orchestrating booking lifecycle: availability checks,
+ *   holds/reservations, creation, updates, cancellation, and completion.
+ * - Integrates with pricing, vehicle metadata, notifications, and documents.
+ *
+ * Notes
+ * - This file is large and mixes orchestration, validation, and persistence.
+ * - Consider extracting focused collaborators to reduce surface area.
+ *
+ * Safe Refactor Plan (incremental)
+ * 1) Extract availability/holds to AvailabilityCoordinator (pure service).
+ * 2) Extract pricing computation to PricingGateway (wraps shared pricing).
+ * 3) Extract notification triggers to BookingNotifier (integration glue).
+ * 4) Extract document issuance to DocumentOrchestrator (issue/send).
+ * 5) Leave repository calls and high-level flows in BookingsService.
+ */

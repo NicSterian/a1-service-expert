@@ -579,3 +579,13 @@ export function CatalogManager() {
   );
 }
 
+/**
+ * CatalogManager (Admin)
+ *
+ * Purpose
+ * - Manage services, engine tiers, and tiered prices.
+ *
+ * Refactor Plan
+ * - Split forms into ServiceForm, TierForm, PriceGrid components.
+ * - Encapsulate API calls behind a small catalog client module.
+ */

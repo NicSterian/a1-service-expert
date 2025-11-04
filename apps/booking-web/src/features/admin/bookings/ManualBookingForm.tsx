@@ -701,3 +701,14 @@ export function ManualBookingForm({ onClose, onSuccess }: ManualBookingFormProps
     </div>
   );
 }
+/**
+ * ManualBookingForm
+ *
+ * Purpose
+ * - Admin UI for creating a manual booking, with optional inline service
+ *   creation and custom pricing.
+ *
+ * Refactor Ideas
+ * - Extract form state into a reducer or react-hook-form schema.
+ * - Split UI into ServiceSelector, ScheduleSelector, CustomerDetails, PriceBox.
+ */
