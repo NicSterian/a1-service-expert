@@ -46,7 +46,7 @@ export class AdminSettingsController {
   @Post('test-dvla')
   @UseGuards(VrmLookupRateLimitGuard)
   async testDvla(@Body() dto: TestDvlaLookupDto) {
-    return this.vehiclesService.lookupVrm({ vrm: dto.reg }, { dryRun: true });
+    return this.vehiclesService.lookupVrm({ vrm: dto.reg }, { dryRun: true, includeRaw: true });
   }
 
   private present(settings: Settings) {

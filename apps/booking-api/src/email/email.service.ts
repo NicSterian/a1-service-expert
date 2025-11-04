@@ -2,7 +2,8 @@
 import { join } from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import nodemailer, { Transporter } from 'nodemailer';
+import * as nodemailer from 'nodemailer';
+import type { Transporter } from 'nodemailer';
 
 const SUPPORT_EMAIL = 'support@a1serviceexpert.com';
 
@@ -125,9 +126,59 @@ export class EmailService {
         user: config.user,
         pass: config.pass,
       },
+      logger: process.env.SMTP_DEBUG === 'true',
+      debug: process.env.SMTP_DEBUG === 'true',
     });
 
     return this.transporter;
+  }
+
+  /**
+   * Return the effective SMTP configuration (without password) for diagnostics.
+   */
+  getConfigSnapshot(): Omit<SmtpConfig, 'pass'> | null {
+    const cfg = this.loadConfig();
+    if (!cfg) return null;
+    const { pass: _omit, ...rest } = cfg;
+    return rest;
+  }
+
+  /** Verify connectivity/auth with the SMTP server. */
+  async verifySmtp(): Promise<{ ok: boolean; message?: string }> {
+    const transporter = await this.getTransporter();
+    const config = this.loadConfig();
+    if (!transporter || !config) {
+      return { ok: false, message: 'SMTP configuration incomplete' };
+    }
+    try {
+      await transporter.verify();
+      return { ok: true };
+    } catch (error) {
+      this.logger.error('SMTP verify failed', error as Error);
+      return { ok: false, message: (error as Error).message };
+    }
+  }
+
+  /** Send a simple test email to verify sending end-to-end. */
+  async sendTestEmail(to: string, subject = 'SMTP test from A1 Service Expert'): Promise<{ sent: boolean; error?: string }>{
+    const transporter = await this.getTransporter();
+    const config = this.loadConfig();
+    if (!transporter || !config) {
+      return { sent: false, error: 'SMTP configuration incomplete' };
+    }
+    try {
+      const text = 'This is a test email to verify SMTP configuration.';
+      await transporter.sendMail({
+        from: this.getFromHeader(config),
+        to,
+        subject,
+        text,
+      });
+      return { sent: true };
+    } catch (error) {
+      this.logger.error('Failed to send SMTP test email', error as Error);
+      return { sent: false, error: (error as Error).message };
+    }
   }
 
   async sendInvoiceEmail(to: string, subject: string, text: string, html?: string): Promise<void> {
@@ -645,7 +696,10 @@ Email: ${SUPPORT_EMAIL}
   async sendContactMessage(payload: ContactMessage): Promise<void> {
     const transporter = await this.getTransporter();
     const config = this.loadConfig();
-    const to = payload.recipients.filter((recipient) => recipient.trim().length > 0);
+    const to = this.dedupeValues([
+      ...payload.recipients.filter((recipient) => recipient.trim().length > 0),
+      SUPPORT_EMAIL,
+    ]);
 
     const subject = `New contact enquiry from ${payload.fromName}`;
     const phoneLine = payload.fromPhone ? `<p>Phone: ${payload.fromPhone}</p>` : '';
@@ -685,6 +739,64 @@ Email: ${SUPPORT_EMAIL}
     } catch (error) {
       this.logger.error('Failed to send contact notification email via SMTP', error as Error);
       this.logger.log(`Contact request from ${payload.fromName} <${payload.fromEmail}>: ${payload.message}`);
+    }
+
+    // Send an acknowledgement email back to the sender
+    try {
+      if (!transporter || !config) {
+        return;
+      }
+      const logo = this.loadLogoDataUri();
+      const ackSubject = 'Thanks for contacting A1 Service Expert';
+      const ackHtml = `
+        <div style="background-color:#0f172a;padding:32px 16px;font-family:'Inter',Arial,sans-serif;color:#0f172a;">
+          <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 12px 32px rgba(15,23,42,0.25);">
+            <div style="background:linear-gradient(135deg,#020617,#0f172a);padding:32px;text-align:center;">
+              ${logo ? `<img src="${logo}" alt="A1 Service Expert" style="height:56px;" />` : '<h1 style="color:#f97316;font-size:24px;margin:0;">A1 Service Expert</h1>'}
+              <p style="color:#e2e8f0;font-size:14px;margin:12px 0 0;letter-spacing:0.08em;text-transform:uppercase;">We received your message</p>
+            </div>
+            <div style="padding:32px 28px 24px;">
+              <p style="font-size:16px;color:#0f172a;margin:0 0 16px;">Hi ${payload.fromName},</p>
+              <p style="margin:0 0 16px;color:#475569;font-size:15px;line-height:1.6;">
+                Thanks for getting in touch. We’ve received your message and a member of our team will reply shortly.
+              </p>
+              <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:18px 0;">
+                <p style="margin:0 0 8px;color:#0f172a;font-weight:600;">Your message</p>
+                <p style="margin:0;color:#334155;white-space:pre-line;">${payload.message.replace(/\n/g, '<br />')}</p>
+              </div>
+              <p style="margin:0 0 16px;color:#475569;font-size:14px;">If you need to reach us sooner, call <strong>07394 433889</strong> or email <a href="mailto:${SUPPORT_EMAIL}" style="color:#f97316;text-decoration:none;">${SUPPORT_EMAIL}</a>.</p>
+              <div style="border-top:1px solid #e2e8f0;padding-top:18px;margin-top:18px;font-size:13px;color:#475569;line-height:1.6;">
+                <p style="margin:0 0 6px;">A1 Service Expert</p>
+                <p style="margin:0 0 6px;">11 Cunliffe Dr, Kettering NN16 8LD</p>
+                <p style="margin:0 0 6px;">Phone: 07394 433889 • Email: ${SUPPORT_EMAIL}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      const ackText = [
+        `Hi ${payload.fromName},`,
+        '',
+        'Thanks for getting in touch. We’ve received your message and will reply shortly.',
+        '',
+        'Your message:',
+        payload.message,
+        '',
+        'A1 Service Expert',
+        '11 Cunliffe Dr, Kettering NN16 8LD',
+        'Phone: 07394 433889',
+        `Email: ${SUPPORT_EMAIL}`,
+      ].join('\n');
+
+      await transporter.sendMail({
+        from: this.getFromHeader(config),
+        to: payload.fromEmail,
+        subject: ackSubject,
+        html: ackHtml,
+        text: ackText,
+      });
+    } catch (error) {
+      this.logger.error('Failed to send contact acknowledgement email via SMTP', error as Error);
     }
   }
 

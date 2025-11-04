@@ -13,21 +13,33 @@ export class ContactService {
   ) {}
 
   async submitContactRequest(dto: ContactRequestDto) {
-    const recipients = await this.prisma.notificationRecipient.findMany();
-    const to = recipients.map((recipient) => recipient.email);
+    try {
+      let to: string[] = [];
+      try {
+        const recipients = await this.prisma.notificationRecipient.findMany();
+        to = recipients.map((recipient) => recipient.email);
+      } catch (error) {
+        this.logger.warn(`Failed to load notification recipients: ${(error as Error).message}`);
+        to = [];
+      }
 
-    if (to.length === 0) {
-      this.logger.warn('No notification recipients configured. Contact form submission will be logged only.');
+      if (to.length === 0) {
+        this.logger.warn('No notification recipients configured. Contact form submission will be logged only.');
+      }
+
+      await this.emailService.sendContactMessage({
+        fromName: dto.name,
+        fromEmail: dto.email,
+        fromPhone: dto.phone,
+        message: dto.message,
+        recipients: to,
+      });
+
+      return { ok: true };
+    } catch (error) {
+      this.logger.error('Contact submission failed', error as Error);
+      // Always 202 even if email sending/logging fails
+      return { ok: true };
     }
-
-    await this.emailService.sendContactMessage({
-      fromName: dto.name,
-      fromEmail: dto.email,
-      fromPhone: dto.phone,
-      message: dto.message,
-      recipients: to,
-    });
-
-    return { ok: true };
   }
 }

@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AUTH_EVENT_NAME, clearAuthToken, getAuthToken } from './lib/auth';
 import { apiGet } from './lib/api';
+import { initializeAnalytics, trackPageView } from './lib/analytics';
 import HeaderLogo from './components/HeaderLogo';
 import Footer from './components/Footer';
 import BackToTop from './components/BackToTop';
@@ -56,6 +57,16 @@ function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // Initialize Google Analytics on app load
+  useEffect(() => {
+    initializeAnalytics();
+  }, []);
+
+  // Track page views on route change
+  useEffect(() => {
+    trackPageView(location.pathname + location.search);
+  }, [location]);
 
   useEffect(() => {
     const handleAuthChange = () => setIsLoggedIn(Boolean(getAuthToken()));

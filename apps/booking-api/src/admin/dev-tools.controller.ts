@@ -2,13 +2,14 @@ import { Controller, Get, Post, Body, UseGuards, Logger } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin/dev')
 export class DevToolsController {
   private readonly logger = new Logger(DevToolsController.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly email: EmailService) {}
 
   @Get('health')
   async getHealth() {
@@ -107,13 +108,18 @@ export class DevToolsController {
 
   @Post('email/test')
   async testEmail(@Body() body: { to: string; subject?: string }) {
-    // This would integrate with the EmailService
-    // For now, return mock response
-    return {
-      success: true,
-      message: `Test email would be sent to ${body.to}`,
-      provider: 'Microsoft 365 SMTP',
-    };
+    const verify = await this.email.verifySmtp();
+    if (!verify.ok) {
+      return { success: false, stage: 'verify', error: verify.message, config: this.email.getConfigSnapshot() };
+    }
+    const result = await this.email.sendTestEmail(body.to, body.subject);
+    return { success: result.sent, stage: 'send', error: result.error, config: this.email.getConfigSnapshot() };
+  }
+
+  @Get('email/verify')
+  async verifyEmail() {
+    const verify = await this.email.verifySmtp();
+    return { success: verify.ok, error: verify.message, config: this.email.getConfigSnapshot() };
   }
 
   @Post('storage/test')

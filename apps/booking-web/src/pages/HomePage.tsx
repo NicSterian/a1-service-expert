@@ -1,5 +1,6 @@
 import { MouseEvent, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { SEO, createLocalBusinessSchema } from '../components/SEO';
 import heroBackground from '../assets/images/home-hero.svg';
 import servicesFeature from '../assets/images/services-feature.png';
 import reviewsBackground from '../assets/images/reviews-background.svg';
@@ -118,7 +119,22 @@ export function HomePage() {
   const videoUrl = useMemo(() => '/media/a1-video.mp4', []);
 
   return (
-    <div className="space-y-16">
+    <>
+      <SEO
+        title="MOT Testing & Car Servicing in Kettering"
+        description="Professional MOT tests, full car servicing, air conditioning, and diagnostics in Kettering. Book online today with A1 Service Expert. Fast, reliable, affordable automotive services."
+        keywords={[
+          'MOT test Kettering',
+          'car service Kettering',
+          'MOT booking',
+          'car repair Kettering',
+          'auto service Northamptonshire',
+          'vehicle diagnostics',
+          'air conditioning service',
+        ]}
+        structuredData={createLocalBusinessSchema()}
+      />
+      <div className="space-y-16">
       <section
         className="relative overflow-hidden rounded-3xl text-white shadow-xl"
         style={{ backgroundImage: `url(${heroBackground})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
@@ -442,6 +458,7 @@ export function HomePage() {
         </div>
       </section>
     </div>
+    </>
   );
 }
 

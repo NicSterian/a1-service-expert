@@ -1,6 +1,6 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiGet, apiPost, apiPatch } from '../../../lib/api';
+import { apiGet, apiPost, apiPatch, apiPut } from '../../../lib/api';
 import { getToken } from '../../../lib/auth';
 import toast from 'react-hot-toast';
 
@@ -20,6 +20,7 @@ interface HealthData {
 interface DvlaLookupResponse {
   ok: boolean;
   allowManual: boolean;
+  reason?: string;
   data?: {
     make?: string | null;
     model?: string | null;
@@ -30,6 +31,7 @@ interface DvlaLookupResponse {
       pricePence?: number | null;
     } | null;
   } | null;
+  raw?: any;
 }
 
 export function DevToolsPage() {
@@ -52,6 +54,10 @@ export function DevToolsPage() {
   const [testReg, setTestReg] = useState('');
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<DvlaLookupResponse | null>(null);
+
+  // DVLA Key Management
+  const [dvlaKeyInput, setDvlaKeyInput] = useState('');
+  const [dvlaStatus, setDvlaStatus] = useState<{ configured: boolean; source: 'db' | 'env' | 'none' } | null>(null);
 
   // Redis Ping
   const [redisPing, setRedisPing] = useState<boolean | null>(null);
@@ -117,6 +123,16 @@ export function DevToolsPage() {
           }
         } catch (err) {
           console.error('Failed to load system settings:', err);
+        }
+
+        // Load DVLA status
+        try {
+          const status = await apiGet<{ configured: boolean; source: 'db' | 'env' | 'none' }>(
+            '/admin/settings/dvla-status',
+          );
+          if (!cancelled) setDvlaStatus(status);
+        } catch (err) {
+          console.error('Failed to load DVLA status:', err);
         }
       } catch (err) {
         if (!cancelled) {
@@ -192,8 +208,9 @@ export function DevToolsPage() {
     try {
       setTesting(true);
       setTestResult(null);
-      const response = await apiPost<DvlaLookupResponse>('/admin/dvla/test-lookup', {
-        registration: testReg.trim().toUpperCase(),
+      // Use the same test endpoint as the Settings page (dryRun path)
+      const response = await apiPost<DvlaLookupResponse>('/admin/settings/test-dvla', {
+        reg: testReg.trim().toUpperCase(),
       });
       setTestResult(response);
       if (response.ok) {
@@ -205,6 +222,46 @@ export function DevToolsPage() {
       toast.error((err as Error).message ?? 'Failed to test DVLA lookup');
     } finally {
       setTesting(false);
+    }
+  };
+
+  const handleSaveDvlaKey = async (e: FormEvent) => {
+    e.preventDefault();
+    const value = dvlaKeyInput.trim();
+    if (!value) {
+      toast.error('Please enter a DVLA API key, or use Clear to remove it');
+      return;
+    }
+    try {
+      const resp = await apiPut<{ success: boolean; updated: boolean }>(
+        '/admin/settings/dvla-key',
+        { apiKey: value },
+      );
+      if (resp?.updated) {
+        toast.success('DVLA key saved');
+      } else {
+        toast.success('DVLA key cleared');
+      }
+      const status = await apiGet<{ configured: boolean; source: 'db' | 'env' | 'none' }>(
+        '/admin/settings/dvla-status',
+      );
+      setDvlaStatus(status);
+      setDvlaKeyInput('');
+    } catch (err) {
+      toast.error((err as Error).message ?? 'Failed to save DVLA key');
+    }
+  };
+
+  const handleClearDvlaKey = async () => {
+    try {
+      await apiPut('/admin/settings/dvla-key', { apiKey: '' });
+      const status = await apiGet<{ configured: boolean; source: 'db' | 'env' | 'none' }>(
+        '/admin/settings/dvla-status',
+      );
+      setDvlaStatus(status);
+      toast.success('DVLA key cleared');
+    } catch (err) {
+      toast.error((err as Error).message ?? 'Failed to clear DVLA key');
     }
   };
 
@@ -413,6 +470,39 @@ export function DevToolsPage() {
           )}
         </div>
 
+        {/* DVLA API Key */}
+        <div className="rounded-3xl border border-slate-700 bg-slate-900 p-6">
+          <h3 className="text-lg font-semibold text-white">DVLA API Key</h3>
+          <p className="mt-1 text-sm text-slate-400">
+            Configure the DVLA key used for vehicle lookups. Status:{' '}
+            <span className={`font-semibold ${dvlaStatus?.configured ? 'text-green-400' : 'text-red-400'}`}>
+              {dvlaStatus?.configured ? `Configured via ${dvlaStatus?.source.toUpperCase()}` : 'Not Configured'}
+            </span>
+          </p>
+          <form onSubmit={handleSaveDvlaKey} className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <input
+              type="text"
+              value={dvlaKeyInput}
+              onChange={(e) => setDvlaKeyInput(e.target.value)}
+              placeholder="Enter DVLA API key"
+              className="flex-1 rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200"
+            />
+            <button
+              type="submit"
+              className="rounded-full bg-brand-orange px-3 py-2 text-sm font-semibold text-slate-950 transition hover:-translate-y-0.5 hover:bg-orange-400"
+            >
+              Save Key
+            </button>
+            <button
+              type="button"
+              onClick={handleClearDvlaKey}
+              className="rounded-full border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-200 hover:-translate-y-0.5 hover:bg-slate-800"
+            >
+              Clear
+            </button>
+          </form>
+        </div>
+
         {/* DVLA Test Lookup */}
         <div className="rounded-3xl border border-slate-700 bg-slate-900 p-6">
           <h3 className="text-lg font-semibold text-white">DVLA Test Lookup</h3>
@@ -454,9 +544,22 @@ export function DevToolsPage() {
                       {testResult.data.recommendation.engineTierName || 'N/A'}
                     </p>
                   )}
+                  {testResult.raw ? (
+                    <div className="mt-3">
+                      <p className="mb-1 text-xs uppercase tracking-wider text-slate-400">Raw DVLA response</p>
+                      <pre className="max-h-64 overflow-auto rounded border border-slate-700 bg-slate-900 p-2 text-xs text-slate-200">
+                        {JSON.stringify(testResult.raw, null, 2)}
+                      </pre>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
-                <p className="text-red-300">Lookup failed</p>
+                <div className="space-y-1">
+                  <p className="text-red-300">Lookup failed</p>
+                  {testResult.reason ? (
+                    <p className="text-slate-400">{testResult.reason}</p>
+                  ) : null}
+                </div>
               )}
             </div>
           )}
