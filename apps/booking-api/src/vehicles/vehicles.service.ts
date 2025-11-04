@@ -163,7 +163,6 @@ export class VehiclesService {
         expiresAt: Date.now() + this.vehicleCacheTtlMs,
       });
     }
-    }
 
     const recommendation = await this.buildRecommendation(
       data.engineSizeCc,
@@ -223,8 +222,10 @@ export class VehiclesService {
         where: { serviceId },
         select: { engineTierId: true, amountPence: true },
       });
-      const priceMap = new Map(
-        prices.map((p) => [p.engineTierId, p.amountPence]),
+      const priceMap = new Map<number, number>(
+        prices
+          .filter((p) => p.engineTierId != null)
+          .map((p) => [p.engineTierId as number, p.amountPence]),
       );
 
       if (priceMap.size) {
