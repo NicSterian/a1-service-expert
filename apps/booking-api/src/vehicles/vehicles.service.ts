@@ -80,41 +80,31 @@ export class VehiclesService {
   ) {
     const normalized = this.normalizeVrm(vrm);
 
-    // cache hit
+    // cache hit (skip cache if includeRaw is requested)
     const cached = this.vehicleCache.get(normalized);
     if (!options.dryRun && !options.includeRaw && cached && cached.expiresAt > Date.now()) {
       const recommendation = await this.buildRecommendation(
         cached.data.engineSizeCc,
         serviceId,
       );
-      return options.includeRaw
-        ? {
-            ok: true,
-            allowManual: false,
-            data: this.toResponsePayload(cached.data, recommendation),
-            raw: cached.data,
-          }
-        : {
-            ok: true,
-            allowManual: false,
-            data: this.toResponsePayload(cached.data, recommendation),
-          };
+      return {
+        ok: true,
+        allowManual: false,
+        data: this.toResponsePayload(cached.data, recommendation),
+      };
     }
 
     // resolve API key: DB (encrypted) -> .env fallback
     const apiKey = await this.resolveApiKey();
     if (!apiKey) {
-  const msg = 'DVLA API key is not configured';
-  this.logger.warn(msg);
-  return { ok: false, allowManual: true, reason: msg };
-}
+      this.logger.warn('DVLA API key is not configured. Falling back to manual entry.');
+      return { ok: false, allowManual: true };
+    }
 
-    // call DVLA with timeout support
+    // call DVLA with timeout
     let res: HttpResponse;
     const abortController = new AbortController();
-    const timeout = setTimeout(() => {
-      abortController.abort();
-    }, this.dvlaFetchTimeoutMs);
+    const timeout = setTimeout(() => abortController.abort(), this.dvlaFetchTimeoutMs);
     try {
       // Node 18+ global fetch returns an undici Response (typed via 'undici')
       res = (await fetch(DVLA_URL, {
@@ -127,6 +117,41 @@ export class VehiclesService {
         body: JSON.stringify({ registrationNumber: normalized }),
         signal: abortController.signal,
       })) as unknown as HttpResponse;
+
+      if (res.status === 404) {
+        const msg = 'DVLA 404 (VRM not found)';
+        this.logger.warn(msg);
+        return { ok: false, allowManual: true, reason: msg };
+      }
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        const msg = `DVLA error ${res.status}: ${text || res.statusText || 'Unknown error'}`;
+        this.logger.warn(msg);
+        return { ok: false, allowManual: true, reason: msg };
+      }
+
+      const raw = (await res.json()) as DVLAResponse;
+      const data: CachedVehicleData = {
+        make: this.extractString(raw.make),
+        model: this.extractString(raw.model),
+        engineSizeCc: this.sanitizeEngineSize(
+          (raw as any).engineCapacity ?? (raw as any).cylinderCapacity ?? (raw as any).engineSize,
+        ),
+      };
+
+      if (!options.dryRun) {
+        this.vehicleCache.set(normalized, {
+          data,
+          expiresAt: Date.now() + this.vehicleCacheTtlMs,
+        });
+      }
+
+      const recommendation = await this.buildRecommendation(data.engineSizeCc, serviceId);
+
+      return options.includeRaw
+        ? { ok: true, allowManual: false, data: this.toResponsePayload(data, recommendation), raw }
+        : { ok: true, allowManual: false, data: this.toResponsePayload(data, recommendation) };
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         this.logger.warn(
@@ -140,54 +165,6 @@ export class VehiclesService {
     } finally {
       clearTimeout(timeout);
     }
-
-    if (res.status === 404) {
-      const msg = 'DVLA 404 (VRM not found)';
-      this.logger.warn(msg);
-      return { ok: false, allowManual: true, reason: msg };
-    }
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      const msg = `DVLA error ${res.status}: ${text || res.statusText || 'Unknown error'}`;
-      this.logger.warn(msg);
-      return { ok: false, allowManual: true, reason: msg };
-    }
-
-    // success
-    const raw = (await res.json()) as DVLAResponse;
-    const data: CachedVehicleData = {
-      make: this.extractString(raw.make),
-      model: this.extractString(raw.model),
-      engineSizeCc: this.sanitizeEngineSize(
-        raw.engineCapacity ?? raw.cylinderCapacity ?? raw.engineSize,
-      ),
-    };
-
-    if (!options.dryRun) {
-      this.vehicleCache.set(normalized, {
-        data,
-        expiresAt: Date.now() + this.vehicleCacheTtlMs,
-      });
-    }
-
-    const recommendation = await this.buildRecommendation(
-      data.engineSizeCc,
-      serviceId,
-    );
-
-    return options.includeRaw
-      ? {
-          ok: true,
-          allowManual: false,
-          data: this.toResponsePayload(data, recommendation),
-          raw,
-        }
-      : {
-          ok: true,
-          allowManual: false,
-          data: this.toResponsePayload(data, recommendation),
-        };
   }
 
   async recommendEngineTier(serviceId: number, engineSizeCc: number) {
