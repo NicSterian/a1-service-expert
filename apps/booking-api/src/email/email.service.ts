@@ -3,6 +3,8 @@ import { join } from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import nodemailer, { Transporter } from 'nodemailer';
+import type { TransportGateway, SendRequest, SendResult } from './transport-gateway';
+import type { TemplateRenderer, TemplateRenderOutput } from './template-renderer';
 
 const SUPPORT_EMAIL = 'support@a1serviceexpert.com';
 
@@ -76,6 +78,9 @@ export class EmailService {
   private cachedConfig: SmtpConfig | null = null;
   private configLoaded = false;
   private logoDataUri: string | null | undefined;
+  // Optional seams for future refactor. Defaults keep current behaviour.
+  private renderer: TemplateRenderer | null = null;
+  private gateway: TransportGateway | null = null;
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -128,6 +133,76 @@ export class EmailService {
     });
 
     return this.transporter;
+  }
+
+  private async getTransportGateway(): Promise<TransportGateway | null> {
+    if (this.gateway) return this.gateway;
+    const transporter = await this.getTransporter();
+    if (!transporter) return null;
+    // Minimal adapter that preserves current behaviour
+    this.gateway = {
+      send: async (req: SendRequest): Promise<SendResult> => {
+        const info = await transporter.sendMail({
+          from: req.from,
+          to: req.to as any,
+          subject: req.subject,
+          text: req.text,
+          html: req.html,
+          attachments: req.attachments as any,
+        });
+        return { messageId: info?.messageId, provider: 'smtp' };
+      },
+    };
+    return this.gateway;
+  }
+
+  // Built‑in renderer that delegates to existing builders to avoid behaviour change
+  private getTemplateRenderer(): TemplateRenderer {
+    if (this.renderer) return this.renderer;
+    const self = this;
+    this.renderer = {
+      async render(input: { template: string; data: Record<string, unknown> }): Promise<TemplateRenderOutput> {
+        switch (input.template) {
+          case 'booking-customer': {
+            const p = input.data as any;
+            return {
+              subject: `Booking confirmed for ${self.formatDate(p.slotDate)} at ${p.slotTime}`,
+              html: self.renderCustomerBookingHtml(p),
+              text: self.renderCustomerBookingText(p),
+            };
+          }
+          case 'booking-staff': {
+            const p = input.data as any;
+            return {
+              subject: `New booking: ${p.customer.name} on ${self.formatDate(p.slotDate)} ${p.slotTime}`,
+              html: self.renderStaffBookingHtml(p, p.adminRecipients ?? []),
+              text: self.renderStaffBookingText(p),
+            };
+          }
+          case 'contact-message': {
+            const p = input.data as any;
+            const subject = `New contact enquiry from ${p.fromName}`;
+            const phoneLine = p.fromPhone ? `<p>Phone: ${p.fromPhone}</p>` : '';
+            const html = `\n      <p>You received a new contact request from the website.</p>\n      <p><strong>Name:</strong> ${p.fromName}</p>\n      <p><strong>Email:</strong> ${p.fromEmail}</p>\n      ${phoneLine}\n      <p><strong>Message:</strong></p>\n      <p>${String(p.message ?? '').replace(/\n/g, '<br />')}</p>\n    `;
+            const text = [
+              'You received a new contact request from the website.',
+              `Name: ${p.fromName}`,
+              `Email: ${p.fromEmail}`,
+              p.fromPhone ? `Phone: ${p.fromPhone}` : undefined,
+              'Message:',
+              p.message,
+            ]
+              .filter(Boolean)
+              .join('\n');
+            return { subject, html, text };
+          }
+          default:
+            // Fallback to simple subject only
+            return { subject: `[${input.template}]` };
+        }
+      },
+    };
+    return this.renderer;
   }
 
   async sendInvoiceEmail(to: string, subject: string, text: string, html?: string): Promise<void> {
@@ -594,23 +669,24 @@ Email: ${SUPPORT_EMAIL}
   // Verification emails are not used; users are auto-verified on registration.
 
   async sendBookingConfirmation(payload: BookingConfirmationEmail): Promise<void> {
-    const transporter = await this.getTransporter();
+    const gateway = await this.getTransportGateway();
     const config = this.loadConfig();
     const staffRecipients = this.dedupeValues([...(payload.adminRecipients ?? []), SUPPORT_EMAIL]);
 
-    if (!transporter || !config) {
+    if (!gateway || !config) {
       this.logger.log(
         `Booking confirmed for ${payload.customer.name}: ${payload.service.name} at ${payload.slotDate.toISOString()} ${payload.slotTime}. Staff notified: ${staffRecipients.join(', ') || 'none'}`,
       );
       return;
     }
-
-    const customerSubject = `Booking confirmed for ${this.formatDate(payload.slotDate)} at ${payload.slotTime}`;
-    const customerHtml = this.renderCustomerBookingHtml(payload);
-    const customerText = this.renderCustomerBookingText(payload);
+    const renderer = this.getTemplateRenderer();
+    const { subject: customerSubject, html: customerHtml, text: customerText } = await renderer.render({
+      template: 'booking-customer',
+      data: payload as unknown as Record<string, unknown>,
+    });
 
     try {
-      await transporter.sendMail({
+      await gateway.send({
         from: this.getFromHeader(config),
         to: payload.customer.email,
         subject: customerSubject,
@@ -625,12 +701,13 @@ Email: ${SUPPORT_EMAIL}
       return;
     }
 
-    const staffSubject = `New booking: ${payload.customer.name} on ${this.formatDate(payload.slotDate)} ${payload.slotTime}`;
-    const staffHtml = this.renderStaffBookingHtml(payload, staffRecipients);
-    const staffText = this.renderStaffBookingText(payload);
+    const { subject: staffSubject, html: staffHtml, text: staffText } = await renderer.render({
+      template: 'booking-staff',
+      data: payload as unknown as Record<string, unknown>,
+    });
 
     try {
-      await transporter.sendMail({
+      await gateway.send({
         from: this.getFromHeader(config),
         to: staffRecipients,
         subject: staffSubject,
@@ -643,41 +720,25 @@ Email: ${SUPPORT_EMAIL}
   }
 
   async sendContactMessage(payload: ContactMessage): Promise<void> {
-    const transporter = await this.getTransporter();
+    const gateway = await this.getTransportGateway();
     const config = this.loadConfig();
     const to = payload.recipients.filter((recipient) => recipient.trim().length > 0);
 
-    const subject = `New contact enquiry from ${payload.fromName}`;
-    const phoneLine = payload.fromPhone ? `<p>Phone: ${payload.fromPhone}</p>` : '';
-    const htmlBody = `
-      <p>You received a new contact request from the website.</p>
-      <p><strong>Name:</strong> ${payload.fromName}</p>
-      <p><strong>Email:</strong> ${payload.fromEmail}</p>
-      ${phoneLine}
-      <p><strong>Message:</strong></p>
-      <p>${payload.message.replace(/\n/g, '<br />')}</p>
-    `;
-    const textBody = [
-      'You received a new contact request from the website.',
-      `Name: ${payload.fromName}`,
-      `Email: ${payload.fromEmail}`,
-      payload.fromPhone ? `Phone: ${payload.fromPhone}` : undefined,
-      'Message:',
-      payload.message,
-    ]
-      .filter(Boolean)
-      .join('\n');
+    const renderer = this.getTemplateRenderer();
+    const { subject, html: htmlBody, text: textBody } = await renderer.render({
+      template: 'contact-message',
+      data: payload as unknown as Record<string, unknown>,
+    });
 
-    if (!transporter || !config || to.length === 0) {
+    if (!gateway || !config || to.length === 0) {
       this.logger.log(`Contact request from ${payload.fromName} <${payload.fromEmail}>: ${payload.message}`);
       return;
     }
 
     try {
-      await transporter.sendMail({
+      await gateway.send({
         from: this.getFromHeader(config),
         to,
-        replyTo: `${payload.fromName} <${payload.fromEmail}>`,
         subject,
         html: htmlBody,
         text: textBody,
