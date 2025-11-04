@@ -68,3 +68,20 @@ export const apiPut = <T>(path: string, body?: unknown, options?: RequestOptions
     body: body ? JSON.stringify(body) : undefined,
     ...options,
   });
+
+// Download helpers
+export async function apiGetBlob(path: string, options: RequestOptions = {}): Promise<Blob> {
+  const url = path.startsWith('http') ? path : `${API_BASE_URL}${path}`;
+  const headers = new Headers(options.headers);
+  if (!options.skipAuth) {
+    const token = getAuthToken();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+  }
+  const response = await fetch(url, { ...options, method: 'GET', headers });
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(text || response.statusText || 'Request failed');
+  }
+  const blob = await response.blob();
+  return blob;
+}

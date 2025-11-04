@@ -1,9 +1,9 @@
 import { Link, useSearchParams } from 'react-router-dom';
-import { CompanySettings } from '../settings/CompanySettings';
+import { SettingsManager } from '../SettingsManager';
 import { CatalogManager } from '../CatalogManager';
 import { CalendarManager } from '../CalendarManager';
 import { RecipientsManager } from '../RecipientsManager';
-import { IntegrationsSettings } from '../settings/IntegrationsSettings';
+// Integrations are handled inside SettingsManager in this codebase
 
 export function SettingsPage() {
   const [searchParams] = useSearchParams();
@@ -69,7 +69,7 @@ export function SettingsPage() {
 
       {/* Tab Content */}
       <div>
-        {activeTab === 'company' && <CompanySettings />}
+        {activeTab === 'company' && <SettingsManager />}
         {activeTab === 'catalog' && <CatalogManager />}
         {activeTab === 'calendar' && <CalendarManager />}
         {activeTab === 'notifications' && <RecipientsManager />}
