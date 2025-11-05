@@ -48,6 +48,8 @@ import { AvailabilityCoordinator } from './availability.coordinator';
 import { BookingNotifier } from './booking.notifier';
 // Admin manager (Phase 6).
 import { AdminBookingManager } from './admin-booking.manager';
+// Booking repository (Phase 7).
+import { BookingRepository } from './booking.repository';
 
 type BookingWithServices = Prisma.BookingGetPayload<{
   include: {
@@ -78,6 +80,7 @@ export class BookingsService {
   private availabilityCoordinator: AvailabilityCoordinator | null = null;
   private bookingNotifier: BookingNotifier | null = null;
   private adminManager: AdminBookingManager | null = null;
+  private bookingRepository: BookingRepository | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -129,20 +132,15 @@ export class BookingsService {
     return this.adminManager;
   }
 
+  private getBookingRepository(): BookingRepository {
+    if (!this.bookingRepository) {
+      this.bookingRepository = new BookingRepository(this.prisma);
+    }
+    return this.bookingRepository;
+  }
+
   async listBookingsForUser(user: User) {
-    const bookings = await this.prisma.booking.findMany({
-      where: { userId: user.id },
-      orderBy: [{ slotDate: 'desc' }, { slotTime: 'desc' }, { createdAt: 'desc' }],
-      include: {
-        services: {
-          include: {
-            service: true,
-            engineTier: true,
-          },
-        },
-        documents: true,
-      },
-    });
+    const bookings = await this.getBookingRepository().listForUser(user.id);
 
     return bookings.map((booking) => {
       const primaryService = booking.services[0] ?? null;
@@ -177,21 +175,7 @@ export class BookingsService {
   }
 
   async getBookingForUser(user: User, bookingId: number) {
-    const booking = await this.prisma.booking.findFirst({
-      where: {
-        id: bookingId,
-        userId: user.id,
-      },
-      include: {
-        services: {
-          include: {
-            service: true,
-            engineTier: true,
-          },
-        },
-        documents: true,
-      },
-    });
+    const booking = await this.getBookingRepository().findForUser(bookingId, user.id);
 
     if (!booking) {
       throw new NotFoundException('Booking not found');
@@ -561,29 +545,7 @@ export class BookingsService {
   // sendConfirmationEmails moved to BookingNotifier (Phase 5)
 
   async getBookingForAdmin(bookingId: number) {
-    const booking = await this.prisma.booking.findUnique({
-      where: { id: bookingId },
-      include: {
-        services: {
-          orderBy: { id: 'asc' },
-          include: {
-            service: true,
-            engineTier: true,
-          },
-        },
-        documents: true,
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            mobileNumber: true,
-            landlineNumber: true,
-          },
-        },
-      },
-    });
+    const booking = await this.getBookingRepository().findByIdWithAdmin(bookingId);
 
     if (!booking) {
       throw new NotFoundException('Booking not found');

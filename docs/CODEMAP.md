@@ -320,4 +320,8 @@ Status
   - Added `booking.notifier.ts`; delegated booking confirmation emails from `confirmBooking` and manual booking flow.
   - Preserved email payload shape and reference resolution; error logging remains at call sites.
   - Tests/build green; lint clean on changed files.
-- Next: Phase 6 (AdminBookingManager).
+- Phase 6 (AdminBookingManager): completed.
+  - Added `admin-booking.manager.ts`; delegated admin mutations (status, notes, payment status, customer, vehicle, service line, soft/hard delete, restore).
+  - Preserved validation, messages, and hold-release behaviour.
+  - Tests/build green; lint clean on changed files within bookings module.
+- Next: Phase 7 (BookingRepository).
