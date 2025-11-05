@@ -14,6 +14,8 @@ import {
   Logger,
 } from '@nestjs/common';
 import { DocumentStatus, DocumentType, Prisma, SequenceKey } from '@prisma/client';
+import { buildDocumentWhere } from './documents/document-query.builder';
+import { buildDocumentsCsv } from './documents/document-csv.builder';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
 import { PrismaService } from '../prisma/prisma.service';
@@ -65,22 +67,7 @@ export class AdminDocumentsController {
     @Query('to') to?: string,
     @Query('q') q?: string,
   ) {
-    const where: Prisma.DocumentWhereInput = { type };
-    if (status) where.status = status;
-    if (from || to) {
-      where.createdAt = {
-        gte: from ? new Date(from) : undefined,
-        lte: to ? new Date(to) : undefined,
-      };
-    }
-    if (q && q.trim().length > 0) {
-      const term = q.trim();
-      where.OR = [
-        { number: { contains: term, mode: 'insensitive' } },
-        { payload: { path: ['customer', 'name'], string_contains: term } as any },
-        { payload: { path: ['customer', 'email'], string_contains: term } as any },
-      ];
-    }
+    const where = buildDocumentWhere({ type, status, from, to, q });
 
     const items = await this.prisma.document.findMany({
       where,
@@ -112,42 +99,12 @@ export class AdminDocumentsController {
     @Query('to') to?: string,
     @Query('q') q?: string,
   ) {
-    const where: Prisma.DocumentWhereInput = { type };
-    if (status) where.status = status;
-    if (from || to) where.createdAt = { gte: from ? new Date(from) : undefined, lte: to ? new Date(to) : undefined };
-    if (q && q.trim().length > 0) {
-      const term = q.trim();
-      where.OR = [
-        { number: { contains: term, mode: 'insensitive' } },
-        { payload: { path: ['customer', 'name'], string_contains: term } as any },
-        { payload: { path: ['customer', 'email'], string_contains: term } as any },
-      ];
-    }
+    const where = buildDocumentWhere({ type, status, from, to, q });
     const rows = await this.prisma.document.findMany({
       where,
       orderBy: [{ createdAt: 'desc' }],
     });
-    const header = [
-      'number','type','status','totalPence','vatPence','createdAt','issuedAt','dueAt','paidAt','paymentMethod','bookingId'
-    ];
-    const csv = [header.join(',')]
-      .concat(
-        rows.map((r) => [
-          r.number,
-          r.type,
-          r.status,
-          r.totalAmountPence,
-          r.vatAmountPence,
-          r.createdAt.toISOString(),
-          r.issuedAt ? r.issuedAt.toISOString() : '',
-          r.dueAt ? r.dueAt.toISOString() : '',
-          (r as any).paidAt ? (r as any).paidAt.toISOString() : '',
-          (r as any).paymentMethod ?? '',
-          r.bookingId ?? '',
-        ].join(',')),
-      )
-      .join('\n');
-    return csv;
+    return buildDocumentsCsv(rows);
   }
 
   @Get(':id')
