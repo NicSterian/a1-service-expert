@@ -381,7 +381,7 @@ Step 2 – Finance/Sequence Utils (planned)
 - Verification
   - API build/tests pass; bookings module lint clean.
 
-Step 2 – Finance/Sequence Utils (done)
+Step 2 � Finance/Sequence Utils (done)
 - Implemented
   - Added `bookings.utils.ts` with the four helpers mirroring prior logic.
   - Rewired `confirmBooking`, manual booking flow, and reference usage to call imported helpers.
@@ -391,3 +391,4 @@ Step 2 – Finance/Sequence Utils (done)
 - Verification
   - API build/tests pass; module lint remains clean.
   - File size reduced: `bookings.service.ts` now ~747 LOC.
+
