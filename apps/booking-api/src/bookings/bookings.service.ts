@@ -1,3 +1,14 @@
+/**
+ * BookingsService
+ *
+ * Facade for booking operations (customer + admin). This service currently
+ * owns orchestration logic for pricing, availability, documents, email, and
+ * persistence. Ongoing refactor extracts cohesive delegates while preserving
+ * behavior and public method signatures.
+ *
+ * Behavior lock: Do not change field mappings, error messages, or sequencing
+ * of side effects during refactors unless explicitly approved.
+ */
 import {
   BadRequestException,
   ConflictException,
@@ -8,7 +19,6 @@ import {
 import {
   BookingSource,
   BookingStatus,
-  Document,
   DocumentType,
   Prisma,
   SequenceKey,
@@ -31,6 +41,9 @@ import {
   mapEngineTierNameToCode,
   mapEngineTierSortOrderToCode,
 } from '@a1/shared/pricing';
+
+// Extracted pure helpers (Phase 1).
+import { normalizeEngineSize, presentDocument } from './bookings.helpers';
 
 type BookingWithServices = Prisma.BookingGetPayload<{
   include: {
@@ -204,10 +217,10 @@ export class BookingsService {
         registration: booking.vehicleRegistration,
         make: booking.vehicleMake ?? null,
         model: booking.vehicleModel ?? null,
-        engineSizeCc: this.normalizeEngineSize(booking.vehicleEngineSizeCc),
+        engineSizeCc: normalizeEngineSize(booking.vehicleEngineSizeCc),
       },
       services,
-      documents: booking.documents.map((doc) => this.presentDocument(doc)),
+      documents: booking.documents.map((doc) => presentDocument(doc)),
     };
   }
 
@@ -238,7 +251,7 @@ export class BookingsService {
       throw new BadRequestException('Selected service is not available.');
     }
 
-    const normalizedEngineSize = this.normalizeEngineSize(dto.vehicle?.engineSizeCc);
+    const normalizedEngineSize = normalizeEngineSize(dto.vehicle?.engineSizeCc);
     const requestedEngineTierId = dto.engineTierId ?? null;
     let resolvedEngineTierId: number | null = requestedEngineTierId;
     let engineTierCode: EngineTierCode | null = null;
@@ -508,13 +521,7 @@ export class BookingsService {
     });
   }
 
-  private normalizeEngineSize(value?: number | null) {
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-      return null;
-    }
-    const rounded = Math.round(value);
-    return rounded > 0 ? rounded : null;
-  }
+  // normalizeEngineSize moved to bookings.helpers.ts (Phase 1)
 
   private calculateVatFromGross(totalAmountPence: number, vatRatePercent: number): number {
     if (!Number.isFinite(vatRatePercent) || vatRatePercent <= 0) {
@@ -579,18 +586,7 @@ export class BookingsService {
     };
   }
 
-  private presentDocument(doc: Document) {
-    return {
-      id: doc.id,
-      type: doc.type,
-      number: doc.number,
-      status: doc.status,
-      totalAmountPence: doc.totalAmountPence,
-      vatAmountPence: doc.vatAmountPence,
-      pdfUrl: doc.pdfUrl,
-      validUntil: doc.validUntil ? doc.validUntil.toISOString() : null,
-    };
-  }
+  // presentDocument moved to bookings.helpers.ts (Phase 1)
 
   private buildDocumentSummary(booking: BookingWithDocuments): DocumentSummary {
     const primaryService = booking.services[0];
@@ -1349,7 +1345,7 @@ export class BookingsService {
 
     // Normalize vehicle registration
     const vehicleRegistration = dto.vehicle.registration.trim().toUpperCase();
-    const normalizedEngineSize = this.normalizeEngineSize(dto.vehicle.engineSizeCc);
+    const normalizedEngineSize = normalizeEngineSize(dto.vehicle.engineSizeCc);
 
     // Prepare customer data
     const customerName = sanitiseString(dto.customer.name) ?? dto.customer.name.trim();
@@ -1596,7 +1592,7 @@ export class BookingsService {
       const v = sanitiseString(dto.model);
       if (v !== null) updateData.vehicleModel = v;
     }
-    if (dto.engineSizeCc !== undefined) updateData.vehicleEngineSizeCc = dto.engineSizeCc as any;
+    if (dto.engineSizeCc !== undefined) updateData.vehicleEngineSizeCc = dto.engineSizeCc;
 
     await this.prisma.booking.update({ where: { id: bookingId }, data: updateData });
     return this.getBookingForAdmin(bookingId);

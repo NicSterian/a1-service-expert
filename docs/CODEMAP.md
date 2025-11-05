@@ -115,3 +115,190 @@ Next refactor opportunities (no behavior change)
 Branch/PR notes
 - All commits landed on `working-branch`. No promotions to `ready-for-deploy` during this refactor phase per request.
 - Prior PRs for earlier lint/type fixes were raised separately and merged after verification.
+
+---
+
+SOLID Refactor Plan (2025-11)
+
+Scope and Constraints
+- No behavior or API contract changes.
+- Keep API tests/build green; keep Web lint/build green.
+- Small, focused commits with prefixes: `refactor(api|web|shared): …`, `docs:` for this file.
+- Do not promote to `ready-for-deploy` until explicitly requested.
+
+Targets (≥500 LOC)
+- API
+  - `apps/booking-api/src/bookings/bookings.service.ts` (~1643)
+  - `apps/booking-api/src/email/email.service.ts` (~770)
+  - `apps/booking-api/src/admin/documents.controller.ts` (~567)
+- Web
+  - `apps/booking-web/src/features/booking/steps/DetailsConfirmStep.tsx` (~736)
+  - `apps/booking-web/src/features/admin/bookings/ManualBookingForm.tsx` (~715)
+  - `apps/booking-web/src/features/admin/pages/AdminBookingDetailPage.tsx` (~699)
+  - `apps/booking-web/src/features/admin/pages/DevToolsPage.tsx` (~666)
+  - `apps/booking-web/src/features/admin/bookings/AdminBookingsList.tsx` (~640)
+  - `apps/booking-web/src/features/admin/pages/UsersPage.tsx` (~545)
+  - `apps/booking-web/src/features/admin/SettingsManager.tsx` (~538)
+  - `apps/booking-web/src/features/admin/CatalogManager.tsx` (~503)
+
+API Refactors
+- bookings.service.ts
+  - Extract delegates (BookinsService remains the façade):
+    - AvailabilityCoordinator: slot checks and hold management (wraps `HoldsService`, date normalization).
+    - PricingPolicy: pricing resolution (FIXED/TIERED), engine tier mapping via `@a1/shared/pricing`.
+    - DocumentOrchestrator: draft/issue/email documents and presenters (wraps `DocumentsService`, `EmailService`, `SettingsService`).
+    - BookingNotifier: customer/admin booking notifications (wraps `EmailService`).
+    - BookingRepository: typed Prisma queries/transactions for bookings + includes.
+    - AdminBookingManager: admin mutations (status, payment status, internal notes, customer, vehicle, service lines).
+    - Helpers file: move `normalizeEngineSize`, `presentDocument` to `bookings.helpers.ts`.
+  - Interfaces: `IAvailabilityCoordinator`, `IPricingPolicy`, `IDocumentOrchestrator`, `IBookingNotifier`, `IBookingRepository`, `IAdminBookingManager`.
+
+- email.service.ts
+  - Introduce DI-friendly adapters with defaults to preserve behavior:
+    - `DefaultTemplateRenderer` implements `TemplateRenderer`.
+    - `DefaultTransportGateway` implements `TransportGateway` (wraps nodemailer).
+    - `email.utils.ts` for `formatDate`, logo loader, small formatting helpers.
+  - EmailService accepts optional renderer/gateway; falls back to defaults.
+
+- admin/documents.controller.ts
+  - Thin controller by extracting:
+    - `DocumentCsvBuilder`: rows → CSV.
+    - `DocumentQueryBuilder`: builds Prisma `where` from query params.
+    - `DocumentsAdminService`: heavy operations (issue/email/update) wrapping `PrismaService`, `DocumentsService`, `SettingsService`, `EmailService`.
+    - `dto/` for request DTOs (keep shape; optional class-validator later).
+
+- vehicles.service.ts (near-threshold)
+  - Define `DvlaLookup` interface and mock adapter; keep current lookups unchanged.
+
+Web Refactors
+- DetailsConfirmStep.tsx
+  - Components: `DetailsForm`, `VehicleForm`, `AddressForm`, `ReviewSummary`, `TermsCheckbox`.
+  - Hook: `useBookingDetails` (state, validation, submit).
+  - Utils: `validators.ts`, `dates.ts` for formatting.
+
+- ManualBookingForm.tsx
+  - Sections: `CustomerSection`, `VehicleSection`, `ServicesSection`, `ScheduleSection`, `NotesSection`.
+  - Hook: `useManualBooking` (state, normalization, submit).
+
+- AdminBookingDetailPage.tsx
+  - Continue panelization: add `CustomerPanel`, `DocumentsPanel`, `DangerZonePanel`.
+  - Shared types: `features/admin/types.ts`.
+  - Utils: `lib/dates.ts`.
+  - Extend `useAdminBooking` with document actions + delete/restore.
+
+- DevToolsPage.tsx
+  - Panels per tool: `EmailTestPanel`, `SeedDataPanel`, `FeatureFlagsPanel`, `DiagnosticsPanel`.
+  - API module: `devToolsApi.ts`.
+
+- AdminBookingsList.tsx
+  - Components: `BookingsFilterBar`, `BookingsTable`, `BookingRow`, `PaginationControls`.
+  - Hook: `useAdminBookings` (query, paging, sorting).
+
+- UsersPage.tsx
+  - Components: `UsersTable`, `UserEditorModal`; API: `useUsersApi`.
+
+- SettingsManager.tsx
+  - Panels: `GeneralSettingsPanel`, `EmailSettingsPanel`, `PricingSettingsPanel`.
+  - Hook/API: `useSettings`, `settingsApi.ts`.
+
+- CatalogManager.tsx
+  - Components: `PriceGrid`, `PriceList`, `ServiceList`, `TierList`.
+  - Hook/API: `useCatalog`, `catalogApi.ts`.
+  - Money utils: `lib/money.ts` for `formatPrice`.
+
+Phased Execution
+- Phase 1 (low risk, pure extractions)
+  - API: Extract `bookings.helpers.ts` for pure helpers.
+  - API: Move email adapters to `email/adapters/*` and utils; wire defaults in `EmailService`.
+  - Web: Extract `catalogApi.ts`, `useCatalog`, and `PriceList` without UI change.
+
+- Phase 2 (orchestration delegates)
+  - API: Extract `PricingPolicy` and `DocumentOrchestrator` presenters; delegate from `BookingsService`.
+  - Web: Add `CustomerPanel`, `DocumentsPanel` to AdminBooking page using existing hook.
+
+- Phase 3 (admin/service segmentation)
+  - API: Extract `AvailabilityCoordinator`, `BookingNotifier`, partial `AdminBookingManager`.
+  - Web: Split `ManualBookingForm` into sections + `useManualBooking`.
+
+- Phase 4 (thin controllers/services)
+  - API: Add `DocumentQueryBuilder`, `DocumentCsvBuilder`, `DocumentsAdminService` and thin the controller.
+  - Web: Extract list views into hooks + table components (AdminBookings, Users).
+
+- Phase 5 (repository/interfaces cleanup)
+  - API: Centralize booking queries/transactions in `BookingRepository`; introduce lean interfaces; minimize `any`.
+  - Web: Centralize `dates.ts`, `money.ts`, `validators.ts` and remove duplication.
+
+Verification per Step
+- Commands:
+  - `pnpm.cmd --filter booking-api test -- --config jest.config.ts`
+  - `pnpm.cmd --filter booking-api build`
+  - `pnpm.cmd --filter booking-web lint`
+  - `pnpm.cmd --filter booking-web build`
+- No changes to public APIs or UI.
+
+Commit and Documentation
+- Use small commits with clear prefixes.
+- Update `docs/CODEMAP.md` after each completed sub-step with a brief summary.
+
+Commenting Approach During Refactors
+- File headers: brief purpose, ownership, and collaboration points.
+- JSDoc: public classes/functions/interfaces with parameter/return docs and invariants.
+- Block comments: before non-trivial logic to explain intent, not mechanics.
+- Behavior lock: add a short note where behavior must remain unchanged (e.g., “Do not alter pricing resolution order”).
+- Avoid noise: prefer concise, high-signal comments; keep code self-explanatory where possible.
+
+Ready State
+- Awaiting explicit go-ahead to begin Phase 1 implementation. When proceeding, changes will include clarifying comments as noted, with no behavior changes.
+
+---
+
+Window Context #2 – BookingsService Refactor Plan
+
+File: apps/booking-api/src/bookings/bookings.service.ts (~1643 LOC)
+
+Goal
+- Reduce responsibility by extracting cohesive delegates while preserving all public method signatures and runtime behavior.
+- Improve readability via concise, high-signal comments and JSDoc on touched areas.
+
+Phases (per this file)
+- Phase 1 — Helpers and comments (no behavior change)
+  - Extract pure helpers into `bookings.helpers.ts`:
+    - `normalizeEngineSize(number | null | undefined): number | null`.
+    - `presentDocument(doc: Document): { id, type, number, status, totalAmountPence, vatAmountPence, pdfUrl, validUntil }`.
+  - Add a short file header to `bookings.service.ts` documenting purpose, collaborators, and behavior lock.
+  - Add JSDoc to public methods and the new helper functions.
+
+- Phase 2 — PricingPolicy (typed, pure)
+  - Introduce `PricingPolicy.resolveUnitPrice()` to handle FIXED/TIERED logic and engine-tier mapping (using `@a1/shared/pricing`).
+  - Delegate from `createBooking` and keep error semantics/messages identical.
+
+- Phase 3 — Document presenters + orchestrator
+  - Move document mappers to `DocumentOrchestrator` (presenters first), then add draft/issue/email orchestration (wraps `DocumentsService`, `EmailService`, `SettingsService`).
+  - Delegate admin document actions from `BookingsService` to orchestrator.
+
+- Phase 4 — AvailabilityCoordinator (slots + holds)
+  - Extract slot checks and hold lifecycle into `AvailabilityCoordinator` (wraps `HoldsService`, date utils), and use from create/confirm paths.
+
+- Phase 5 — BookingNotifier
+  - Extract booking notification composition/dispatch for customer and staff to `BookingNotifier` (wraps `EmailService`).
+
+- Phase 6 — AdminBookingManager
+  - Extract admin-only mutations: status, payment status, internal notes, customer, vehicle, service lines, soft/hard delete and restore.
+
+- Phase 7 — BookingRepository
+  - Centralize Prisma queries/transactions with typed includes; `BookingsService` remains the façade.
+
+- Phase 8 — Interfaces + cleanup
+  - Introduce lean interfaces for delegates and replace `any` in touched areas with precise types; add concise comments on business rules.
+
+Verification per Phase
+- Run: `pnpm.cmd --filter booking-api test -- --config jest.config.ts` and `pnpm.cmd --filter booking-api build`.
+- Lint changed files to avoid introducing new violations.
+
+Commenting Approach (this file)
+- File header with purpose and behavior lock.
+- JSDoc for public methods and extracted helpers.
+- Short block comments before non-trivial business rules (no behavior change notes).
+
+Status
+- Approved to start Phase 1 (helpers + comments). Implementation will proceed with a small, focused change set and no behavior changes.
