@@ -316,4 +316,8 @@ Status
   - Added `availability.coordinator.ts`; delegated slot checks in `createBooking` and `createManualBooking`.
   - Delegated hold release in `confirmBooking` with same logging.
   - Tests/build green; lint clean on changed files.
-- Next: Phase 5 (BookingNotifier).
+- Phase 5 (BookingNotifier): completed.
+  - Added `booking.notifier.ts`; delegated booking confirmation emails from `confirmBooking` and manual booking flow.
+  - Preserved email payload shape and reference resolution; error logging remains at call sites.
+  - Tests/build green; lint clean on changed files.
+- Next: Phase 6 (AdminBookingManager).

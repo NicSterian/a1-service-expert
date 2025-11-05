@@ -46,6 +46,8 @@ import { DocumentOrchestrator } from './document.orchestrator';
 import { AvailabilityCoordinator } from './availability.coordinator';
 // Booking notifier (Phase 5).
 import { BookingNotifier } from './booking.notifier';
+// Admin manager (Phase 6).
+import { AdminBookingManager } from './admin-booking.manager';
 
 type BookingWithServices = Prisma.BookingGetPayload<{
   include: {
@@ -75,6 +77,7 @@ export class BookingsService {
   private documentOrchestrator: DocumentOrchestrator | null = null;
   private availabilityCoordinator: AvailabilityCoordinator | null = null;
   private bookingNotifier: BookingNotifier | null = null;
+  private adminManager: AdminBookingManager | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -117,6 +120,13 @@ export class BookingsService {
       this.bookingNotifier = new BookingNotifier(this.prisma, this.emailService);
     }
     return this.bookingNotifier;
+  }
+
+  private getAdminManager(): AdminBookingManager {
+    if (!this.adminManager) {
+      this.adminManager = new AdminBookingManager(this.prisma, this.holdsService, this.logger);
+    }
+    return this.adminManager;
   }
 
   async listBookingsForUser(user: User) {
@@ -665,102 +675,17 @@ export class BookingsService {
   }
 
   async adminUpdateStatus(bookingId: number, status: BookingStatus) {
-    const allowed = new Set<BookingStatus>([
-      BookingStatus.CONFIRMED,
-      BookingStatus.CANCELLED,
-      BookingStatus.COMPLETED,
-      BookingStatus.NO_SHOW,
-      BookingStatus.HELD,
-    ]);
-
-    if (!allowed.has(status)) {
-      throw new BadRequestException('Status cannot be updated to the requested value.');
-    }
-
-    const booking = await this.prisma.booking.findUnique({
-      where: { id: bookingId },
-      select: {
-        id: true,
-        status: true,
-        holdId: true,
-      },
-    });
-
-    if (!booking) {
-      throw new NotFoundException('Booking not found');
-    }
-
-    if (booking.status === status) {
-      return this.getBookingForAdmin(bookingId);
-    }
-
-    const shouldReleaseHold =
-      !!booking.holdId &&
-      (status === BookingStatus.CANCELLED || status === BookingStatus.COMPLETED || status === BookingStatus.NO_SHOW);
-
-    await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: {
-        status,
-        holdId: shouldReleaseHold ? null : booking.holdId,
-      },
-    });
-
-    if (shouldReleaseHold && booking.holdId) {
-      try {
-        await this.holdsService.releaseHold(booking.holdId);
-      } catch (error) {
-        this.logger.warn(
-          `Failed to release hold ${booking.holdId} when updating booking ${bookingId}: ${(error as Error).message}`,
-        );
-      }
-    }
-
+    await this.getAdminManager().updateStatus(bookingId, status);
     return this.getBookingForAdmin(bookingId);
   }
 
   async adminUpdateInternalNotes(bookingId: number, internalNotes: string | null) {
-    const bookingExists = await this.prisma.booking.findUnique({
-      where: { id: bookingId },
-      select: { id: true },
-    });
-
-    if (!bookingExists) {
-      throw new NotFoundException('Booking not found');
-    }
-
-    const cleaned = sanitiseString(internalNotes ?? undefined);
-
-    await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: { internalNotes: cleaned },
-    });
-
+    await this.getAdminManager().updateInternalNotes(bookingId, internalNotes);
     return this.getBookingForAdmin(bookingId);
   }
 
   async adminUpdatePaymentStatus(bookingId: number, paymentStatus: string | null) {
-    const allowedPaymentStatuses = new Set(['UNPAID', 'PAID', 'PARTIAL']);
-
-    const normalized = paymentStatus ? paymentStatus.toUpperCase() : null;
-    if (normalized && !allowedPaymentStatuses.has(normalized)) {
-      throw new BadRequestException('Invalid payment status.');
-    }
-
-    const bookingExists = await this.prisma.booking.findUnique({
-      where: { id: bookingId },
-      select: { id: true },
-    });
-
-    if (!bookingExists) {
-      throw new NotFoundException('Booking not found');
-    }
-
-    await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: { paymentStatus: normalized },
-    });
-
+    await this.getAdminManager().updatePaymentStatus(bookingId, paymentStatus);
     return this.getBookingForAdmin(bookingId);
   }
 
@@ -1013,42 +938,17 @@ export class BookingsService {
   }
 
   async adminSoftDeleteBooking(bookingId: number) {
-    const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
-    if (!booking) throw new NotFoundException('Booking not found');
-
-    await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: {
-        status: BookingStatus.CANCELLED,
-        holdId: null,
-        paymentStatus: 'DELETED',
-      },
-    });
+    await this.getAdminManager().softDelete(bookingId);
     return this.getBookingForAdmin(bookingId);
   }
 
   async adminRestoreBooking(bookingId: number) {
-    const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
-    if (!booking) throw new NotFoundException('Booking not found');
-
-    await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: {
-        paymentStatus: null,
-      },
-    });
+    await this.getAdminManager().restore(bookingId);
     return this.getBookingForAdmin(bookingId);
   }
 
   async adminHardDeleteBooking(bookingId: number) {
-    const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
-    if (!booking) throw new NotFoundException('Booking not found');
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.bookingService.deleteMany({ where: { bookingId } });
-      await tx.document.deleteMany({ where: { bookingId } });
-      await tx.booking.delete({ where: { id: bookingId } });
-    });
+    await this.getAdminManager().hardDelete(bookingId);
   }
 
   async adminUpdateCustomer(
@@ -1071,72 +971,7 @@ export class BookingsService {
       postcode?: string;
     },
   ) {
-    const exists = await this.prisma.booking.findUnique({ where: { id: bookingId }, select: { id: true } });
-    if (!exists) throw new NotFoundException('Booking not found');
-
-    const updateData: Prisma.BookingUpdateInput = {};
-    if (dto.name !== undefined) {
-      const v = sanitiseString(dto.name);
-      if (v !== null) updateData.customerName = v;
-    }
-    if (dto.email !== undefined) {
-      const v = sanitiseString(dto.email);
-      if (v !== null) updateData.customerEmail = v.toLowerCase();
-    }
-    if (dto.phone !== undefined) {
-      const v = sanitisePhone(dto.phone);
-      if (v !== null) updateData.customerPhone = v;
-    }
-    if (dto.mobile !== undefined) {
-      const v = sanitisePhone(dto.mobile);
-      if (v !== null) updateData.customerMobile = v;
-    }
-    if (dto.landline !== undefined) {
-      const v = sanitisePhone(dto.landline);
-      if (v !== null) updateData.customerLandline = v;
-    }
-    if (dto.company !== undefined) {
-      const v = sanitiseString(dto.company);
-      if (v !== null) updateData.customerCompany = v;
-    }
-    if (dto.title !== undefined) {
-      const v = sanitiseString(dto.title);
-      if (v !== null) updateData.customerTitle = v;
-    }
-    if (dto.firstName !== undefined) {
-      const v = sanitiseString(dto.firstName);
-      if (v !== null) updateData.customerFirstName = v;
-    }
-    if (dto.lastName !== undefined) {
-      const v = sanitiseString(dto.lastName);
-      if (v !== null) updateData.customerLastName = v;
-    }
-    if (dto.addressLine1 !== undefined) {
-      const v = sanitiseString(dto.addressLine1);
-      if (v !== null) updateData.customerAddressLine1 = v;
-    }
-    if (dto.addressLine2 !== undefined) {
-      const v = sanitiseString(dto.addressLine2);
-      if (v !== null) updateData.customerAddressLine2 = v;
-    }
-    if (dto.addressLine3 !== undefined) {
-      const v = sanitiseString(dto.addressLine3);
-      if (v !== null) updateData.customerAddressLine3 = v;
-    }
-    if (dto.city !== undefined) {
-      const v = sanitiseString(dto.city);
-      if (v !== null) updateData.customerCity = v;
-    }
-    if (dto.county !== undefined) {
-      const v = sanitiseString(dto.county);
-      if (v !== null) updateData.customerCounty = v;
-    }
-    if (dto.postcode !== undefined) {
-      const v = normalisePostcode(dto.postcode);
-      if (v !== null) updateData.customerPostcode = v;
-    }
-
-    await this.prisma.booking.update({ where: { id: bookingId }, data: updateData });
+    await this.getAdminManager().updateCustomer(bookingId, dto);
     return this.getBookingForAdmin(bookingId);
   }
 
@@ -1144,25 +979,7 @@ export class BookingsService {
     bookingId: number,
     dto: { registration?: string; make?: string; model?: string; engineSizeCc?: number | null },
   ) {
-    const exists = await this.prisma.booking.findUnique({ where: { id: bookingId }, select: { id: true } });
-    if (!exists) throw new NotFoundException('Booking not found');
-
-    const updateData: Prisma.BookingUpdateInput = {};
-    if (dto.registration !== undefined) {
-      const v = sanitiseString(dto.registration);
-      if (v !== null) updateData.vehicleRegistration = v;
-    }
-    if (dto.make !== undefined) {
-      const v = sanitiseString(dto.make);
-      if (v !== null) updateData.vehicleMake = v;
-    }
-    if (dto.model !== undefined) {
-      const v = sanitiseString(dto.model);
-      if (v !== null) updateData.vehicleModel = v;
-    }
-    if (dto.engineSizeCc !== undefined) updateData.vehicleEngineSizeCc = dto.engineSizeCc;
-
-    await this.prisma.booking.update({ where: { id: bookingId }, data: updateData });
+    await this.getAdminManager().updateVehicle(bookingId, dto);
     return this.getBookingForAdmin(bookingId);
   }
 
@@ -1171,17 +988,7 @@ export class BookingsService {
     serviceLineId: number,
     dto: { unitPricePence?: number; engineTierId?: number | null; serviceId?: number },
   ) {
-    const line = await this.prisma.bookingService.findUnique({ where: { id: serviceLineId } });
-    if (!line || line.bookingId !== bookingId) {
-      throw new NotFoundException('Service line not found for this booking');
-    }
-
-    const data: Prisma.BookingServiceUpdateInput = {};
-    if (dto.unitPricePence !== undefined) data.unitPricePence = dto.unitPricePence;
-    if (dto.engineTierId !== undefined) data.engineTier = dto.engineTierId ? { connect: { id: dto.engineTierId } } : { disconnect: true };
-    if (dto.serviceId !== undefined) data.service = { connect: { id: dto.serviceId } };
-
-    await this.prisma.bookingService.update({ where: { id: serviceLineId }, data });
+    await this.getAdminManager().updateServiceLine(bookingId, serviceLineId, dto);
     return this.getBookingForAdmin(bookingId);
   }
 }
