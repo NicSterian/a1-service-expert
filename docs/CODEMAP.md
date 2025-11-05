@@ -328,4 +328,43 @@ Status
   - Added `booking.repository.ts`; delegated common queries used by user/admin views.
   - Reduced include duplication; preserved return shapes and ordering.
   - Tests/build green; lint clean on changed files.
-- Next: Phase 8 (Interfaces + cleanup).
+- Phase 8 (Interfaces + cleanup): completed.
+  - Added `bookings.ports.ts` and typed private collaborators to interfaces for DIP.
+  - No behaviour changes; added concise comments to delegates and service.
+  - Tests/build green; lint clean on changed files in bookings module.
+
+Step 1 – Presenters Extraction (planned)
+- Objective
+  - Move all API response shaping/mapping out of `bookings.service.ts` into a small presenter module.
+  - Keep logic and response shapes identical; add concise JSDoc and intent comments.
+- Targets to extract
+  - list item mapping (used by `listBookingsForUser`).
+  - user booking mapping (used by `getBookingForUser`).
+  - admin booking mapping (used by `getBookingForAdmin`).
+  - confirmation mapping (used by `confirmBooking`).
+- New module
+  - `apps/booking-api/src/bookings/bookings.presenter.ts` with:
+    - `presentListItem(booking)`
+    - `presentUserBooking(booking)`
+    - `presentAdminBooking(booking)`
+    - `presentConfirmation(booking, totals)`
+  - Uses existing helpers (`presentDocument`) and mirrors current field mapping.
+  - Internal helper duplicates the current booking reference formatting for confirmation’s fallback to avoid behaviour change.
+- Changes in service
+  - Replace inline maps with calls to presenter functions.
+  - Remove private `presentConfirmation` and `computeServicesTotal` methods.
+  - Keep method signatures and error messages unchanged.
+- Verification
+  - Run API: build + tests; lint the changed files in bookings module.
+  - No UI/behaviour changes; response payloads remain identical.
+
+Step 1 – Presenters Extraction (done)
+- Implemented
+  - Added `bookings.presenter.ts` with four mappers: `presentListItem`, `presentUserBooking`, `presentAdminBooking`, `presentConfirmation`.
+  - Rewired `listBookingsForUser`, `getBookingForUser`, `getBookingForAdmin`, and `confirmBooking` to call presenters.
+  - Removed private `presentConfirmation` and `computeServicesTotal` from service.
+- Behaviour
+  - Response shapes, field names, and values preserved. Fallback reference formatting mirrors existing logic.
+- Verification
+  - API build/tests pass; module lint is clean (existing controller lint untouched).
+  - File size reduced: `bookings.service.ts` now ~776 LOC (from ~984). Further reductions planned in next steps.

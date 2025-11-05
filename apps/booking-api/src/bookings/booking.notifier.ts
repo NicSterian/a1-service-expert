@@ -4,7 +4,6 @@
  * Composes and sends booking confirmation notifications to the customer and
  * staff recipients. Preserves existing payload shape and behaviour.
  */
-import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import type { BookingWithServicesPort } from './bookings.ports';
