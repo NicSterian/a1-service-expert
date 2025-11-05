@@ -436,3 +436,13 @@ Phase 1 - Adapters + utils (done)
 - Verification
   - Build: pnpm.cmd --filter booking-api build -> pass.
   - Tests: pnpm.cmd --filter booking-api test -- --config jest.config.ts -> pass (2 suites, 7 tests).
+
+Phase 2 - Email renderer consolidation (done)
+- Implemented
+  - Moved subject/body/HTML builders into DefaultTemplateRenderer; EmailService now delegates fully.
+  - Added DTO types: email/dto/booking-confirmation-email.ts and email/dto/contact-message.ts (for adapter typing).
+- Service changes
+  - Removed in-service rendering methods; getTemplateRenderer now supplies deps (date/currency/logo/url/supportEmail).
+- Verification
+  - Build: pnpm.cmd --filter booking-api build -> pass.
+  - Tests: pnpm.cmd --filter booking-api test -- --config jest.config.ts -> pass (2 suites, 7 tests).
