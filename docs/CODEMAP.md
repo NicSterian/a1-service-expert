@@ -312,4 +312,8 @@ Status
   - Added `document.orchestrator.ts` and delegated `adminIssueInvoice`, `adminEmailInvoice`, `adminCreateInvoiceDraft`, `adminCreateQuoteDraft`.
   - Moved document summary presenter; preserved messages and sequencing. Tests/build green.
   - Lint clean on changed files.
-- Next: Phase 4 (AvailabilityCoordinator).
+- Phase 4 (AvailabilityCoordinator): completed.
+  - Added `availability.coordinator.ts`; delegated slot checks in `createBooking` and `createManualBooking`.
+  - Delegated hold release in `confirmBooking` with same logging.
+  - Tests/build green; lint clean on changed files.
+- Next: Phase 5 (BookingNotifier).

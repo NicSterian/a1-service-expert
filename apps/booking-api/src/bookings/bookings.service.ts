@@ -44,6 +44,8 @@ import { PricingPolicy } from './pricing.policy';
 import { DocumentOrchestrator } from './document.orchestrator';
 // Availability coordinator (Phase 4).
 import { AvailabilityCoordinator } from './availability.coordinator';
+// Booking notifier (Phase 5).
+import { BookingNotifier } from './booking.notifier';
 
 type BookingWithServices = Prisma.BookingGetPayload<{
   include: {
@@ -72,6 +74,7 @@ export class BookingsService {
   private pricingPolicy: PricingPolicy | null = null;
   private documentOrchestrator: DocumentOrchestrator | null = null;
   private availabilityCoordinator: AvailabilityCoordinator | null = null;
+  private bookingNotifier: BookingNotifier | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -107,6 +110,13 @@ export class BookingsService {
       this.availabilityCoordinator = new AvailabilityCoordinator(this.prisma, this.holdsService, this.logger);
     }
     return this.availabilityCoordinator;
+  }
+
+  private getBookingNotifier(): BookingNotifier {
+    if (!this.bookingNotifier) {
+      this.bookingNotifier = new BookingNotifier(this.prisma, this.emailService);
+    }
+    return this.bookingNotifier;
   }
 
   async listBookingsForUser(user: User) {
@@ -448,10 +458,10 @@ export class BookingsService {
     await this.getAvailabilityCoordinator().releaseHoldIfPresent(result.holdId);
 
     try {
-      await this.sendConfirmationEmails(result.booking, {
+      await this.getBookingNotifier().sendBookingConfirmation(result.booking, {
         totalAmountPence: result.totalAmountPence,
         vatAmountPence: result.vatAmountPence,
-      });
+      }, (b) => this.resolveBookingReference(b));
     } catch (error) {
       this.logger.error(
         `Failed to send booking confirmation emails for booking ${result.booking.id}`,
@@ -538,52 +548,7 @@ export class BookingsService {
     return booking.services.reduce((sum, service) => sum + service.unitPricePence, 0);
   }
 
-  private async sendConfirmationEmails(
-    booking: BookingWithServices,
-    totals: { totalAmountPence: number; vatAmountPence: number },
-  ) {
-    const bookingService = booking.services[0];
-    const recipients = await this.prisma.notificationRecipient.findMany();
-
-    await this.emailService.sendBookingConfirmation({
-      bookingId: booking.id,
-      reference: this.resolveBookingReference(booking),
-      slotDate: booking.slotDate,
-      slotTime: booking.slotTime,
-      service: {
-        name: bookingService?.service.name ?? 'Service',
-        engineTier: bookingService?.engineTier?.name ?? null,
-      },
-      totals: {
-        pricePence: totals.totalAmountPence,
-      },
-      vehicle: {
-        registration: booking.vehicleRegistration,
-        make: booking.vehicleMake,
-        model: booking.vehicleModel,
-        engineSizeCc: booking.vehicleEngineSizeCc,
-      },
-      customer: {
-        email: booking.customerEmail,
-        name: booking.customerName,
-        title: booking.customerTitle,
-        firstName: booking.customerFirstName,
-        lastName: booking.customerLastName,
-        companyName: booking.customerCompany,
-        phone: booking.customerPhone,
-        mobile: booking.customerMobile,
-        landline: booking.customerLandline,
-        addressLine1: booking.customerAddressLine1,
-        addressLine2: booking.customerAddressLine2,
-        addressLine3: booking.customerAddressLine3,
-        city: booking.customerCity,
-        county: booking.customerCounty,
-        postcode: booking.customerPostcode,
-        notes: booking.notes ?? null,
-      },
-      adminRecipients: recipients.map((recipient) => recipient.email),
-    });
-  }
+  // sendConfirmationEmails moved to BookingNotifier (Phase 5)
 
   async getBookingForAdmin(bookingId: number) {
     const booking = await this.prisma.booking.findUnique({
@@ -1023,10 +988,14 @@ export class BookingsService {
 
     // Send confirmation emails (optional - can fail silently)
     try {
-      await this.sendConfirmationEmails(result.booking, {
-        totalAmountPence: result.totalAmountPence,
-        vatAmountPence: result.vatAmountPence,
-      });
+      await this.getBookingNotifier().sendBookingConfirmation(
+        result.booking,
+        {
+          totalAmountPence: result.totalAmountPence,
+          vatAmountPence: result.vatAmountPence,
+        },
+        (b) => this.resolveBookingReference(b),
+      );
     } catch (error) {
       this.logger.warn(
         `Failed to send confirmation emails for manual booking ${result.booking.id}`,
