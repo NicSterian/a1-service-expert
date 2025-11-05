@@ -19,7 +19,14 @@ enum BookingStatus {
   DRAFT
   HELD
   CONFIRMED
+  COMPLETED
   CANCELLED
+  NO_SHOW
+}
+
+enum BookingSource {
+  ONLINE
+  MANUAL
 }
 
 enum DocumentType {
@@ -29,13 +36,19 @@ enum DocumentType {
 
 enum DocumentStatus {
   DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  EXPIRED
   ISSUED
+  PAID
   VOID
 }
 
 enum SequenceKey {
   INVOICE
   QUOTE
+  BOOKING_REFERENCE
 }
 
 enum EngineTierCode {
@@ -74,15 +87,27 @@ model User {
   registrationIp       String?
   profileUpdatedAt     DateTime?
   lastLoginAt          DateTime?
+  deletedAt            DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   bookings           Booking[]
   verificationTokens EmailVerificationToken[]
   sessions           UserSession[]
+  passwordResets     PasswordResetToken[]
 }
 
 model EmailVerificationToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PasswordResetToken {
   id        Int      @id @default(autoincrement())
   token     String   @unique
   userId    Int
@@ -113,6 +138,9 @@ model Service {
   fixedPricePence Int?
   footnotes   String?
   isActive    Boolean  @default(true)
+  showInWizard        Boolean  @default(false)
+  showInPricingTable  Boolean  @default(false)
+  sortOrder           Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -123,13 +151,13 @@ model Service {
 model ServicePrice {
   id           Int      @id @default(autoincrement())
   serviceId    Int
-  engineTierId Int
+  engineTierId Int?
   amountPence  Int
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  service    Service    @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  engineTier EngineTier @relation(fields: [engineTierId], references: [id], onDelete: Cascade)
+  service    Service     @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  engineTier EngineTier? @relation(fields: [engineTierId], references: [id], onDelete: Cascade)
 
   @@unique([serviceId, engineTierId], name: "serviceId_engineTierId")
 }
@@ -139,12 +167,26 @@ model Settings {
   companyName                   String?
   companyAddress                String?
   companyPhone                  String?
+  companyRegNumber              String?
+  companyWebsite                String?
   vatNumber                     String?
+  vatRegistered                 Boolean  @default(false)
   vatRatePercent                Decimal  @db.Decimal(5, 2)
   timezone                      String
   defaultSlotsJson              Json
+  saturdaySlotsJson             Json?
+  sundaySlotsJson               Json?
   bankHolidayRegion             String
   logoUrl                       String?
+  invoicePaymentNotes           String?
+  bankName                      String?
+  bankSortCode                  String?
+  bankAccountNumber             String?
+  bankIban                      String?
+  bankSwift                     String?
+  invoiceNumberFormat           String?
+  brandPrimaryColor             String?
+  invoiceItemsJson              Json?
   holdMinutes                   Int
   captchaEnabled                Boolean  @default(true)
   captchaRequireInDev           Boolean  @default(false)
@@ -187,9 +229,11 @@ model Booking {
   id                  Int           @id @default(autoincrement())
   userId              Int
   status              BookingStatus @default(DRAFT)
+  source              BookingSource @default(ONLINE)
   slotDate            DateTime
   slotTime            String
   holdId              String?
+  reference           String?       @unique
   customerName        String
   customerTitle       String?
   customerFirstName   String?
@@ -212,6 +256,8 @@ model Booking {
   vehicleModel        String?
   vehicleEngineSizeCc Int?
   notes               String?
+  internalNotes       String?
+  paymentStatus       String?
   serviceCode         String?
   engineTierCode      EngineTierCode?
   servicePricePence   Int?
@@ -223,6 +269,10 @@ model Booking {
   documents Document[]
 
   @@unique([slotDate, slotTime])
+  @@index([slotDate])
+  @@index([status])
+  @@index([userId])
+  @@index([source])
 }
 
 model BookingService {
@@ -254,13 +304,21 @@ model Sequence {
 model Document {
   id               Int            @id @default(autoincrement())
   bookingId        Int?
+  userId           Int?
   type             DocumentType
   number           String         @unique
   status           DocumentStatus @default(DRAFT)
   totalAmountPence Int
   vatAmountPence   Int
   pdfUrl           String
+  payload          Json?
+  version          Int            @default(1)
+  issuedAt         DateTime?
+  dueAt            DateTime?
+  paidAt           DateTime?
+  paymentMethod    String?
   validUntil       DateTime?
+  createdBy        String?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
@@ -278,4 +336,3 @@ model UserSession {
 
   @@index([userId])
 }
-

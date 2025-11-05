@@ -28,7 +28,14 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const data = text ? (JSON.parse(text) as T) : (undefined as T);
 
   if (!response.ok) {
-    const errorMessage = (data as Record<string, unknown>)?.message ?? response.statusText;
+    const payload = data as Record<string, unknown> | undefined;
+    const errorMessage = payload?.message ?? response.statusText;
+    if (Array.isArray(payload?.errors) && payload?.errors.length) {
+      const firstError = payload.errors[0] as { field?: string; errors?: string[] };
+      const detail = [firstError?.field, firstError?.errors?.[0]].filter(Boolean).join(': ');
+      const combined = detail ? `${String(errorMessage)} — ${detail}` : String(errorMessage);
+      throw new Error(combined);
+    }
     throw new Error(typeof errorMessage === 'string' ? errorMessage : 'Request failed');
   }
 
@@ -61,3 +68,19 @@ export const apiPut = <T>(path: string, body?: unknown, options?: RequestOptions
     body: body ? JSON.stringify(body) : undefined,
     ...options,
   });
+
+// Authenticated binary GET helper (for PDF downloads)
+export async function apiGetBlob(path: string, options: RequestOptions = {}): Promise<Blob> {
+  const url = path.startsWith('http') ? path : `${API_BASE_URL}${path}`;
+  const headers = new Headers(options.headers);
+  if (!options.skipAuth) {
+    const token = getAuthToken();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+  }
+  const response = await fetch(url, { method: 'GET', headers });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || response.statusText);
+  }
+  return await response.blob();
+}

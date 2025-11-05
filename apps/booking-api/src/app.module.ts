@@ -14,6 +14,7 @@ import { HoldsModule } from './holds/holds.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RateLimitModule } from './rate-limit/rate-limit.module';
 import { HealthController } from './routes/health.controller';
+import { FilesController } from './files/files.controller';
 import { SecurityModule } from './security/security.module';
 import { SettingsModule } from './settings/settings.module';
 import { VehiclesModule } from './vehicles/vehicles.module';
@@ -45,6 +46,6 @@ import { VehiclesModule } from './vehicles/vehicles.module';
     AuthModule,
     AccountModule,
   ],
-  controllers: [HealthController],
+  controllers: [HealthController, FilesController],
 })
 export class AppModule {}

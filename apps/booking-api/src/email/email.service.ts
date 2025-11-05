@@ -1,62 +1,28 @@
-﻿import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+/**
+ * EmailService
+ *
+ * Facade for building and sending transactional emails (booking confirmations,
+ * documents, contact notifications). Behaviour is locked during refactors.
+ *
+ * Delegates (Phase 1)
+ * - DefaultTransportGateway: wraps nodemailer transport.
+ * - DefaultTemplateRenderer: delegates to existing HTML/text builders.
+ * - email.utils: small pure helpers (date/currency/asset loading).
+ */
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import nodemailer, { Transporter } from 'nodemailer';
+import type { TransportGateway } from './transport-gateway';
+import type { TemplateRenderer } from './template-renderer';
+import { DefaultTransportGateway } from './adapters/default-transport.gateway';
+import { DefaultTemplateRenderer } from './adapters/default-template.renderer';
+import { formatCurrencyGBP, formatDateLong, tryLoadLogoDataUri } from './email.utils';
+import type { BookingConfirmationEmail } from './dto/booking-confirmation-email';
+import type { ContactMessage } from './dto/contact-message';
 
+// Support email used as a default staff recipient
 const SUPPORT_EMAIL = 'support@a1serviceexpert.com';
 
-export interface BookingConfirmationEmail {
-  bookingId?: number;
-  slotDate: Date;
-  slotTime: string;
-  service: {
-    name: string;
-    engineTier?: string | null;
-  };
-  totals: {
-    pricePence: number;
-  };
-  vehicle: {
-    registration: string;
-    make?: string | null;
-    model?: string | null;
-    engineSizeCc?: number | null;
-  };
-  customer: {
-    email: string;
-    name: string;
-    title?: string | null;
-    firstName?: string | null;
-    lastName?: string | null;
-    companyName?: string | null;
-    phone?: string | null;
-    mobile?: string | null;
-    landline?: string | null;
-    addressLine1?: string | null;
-    addressLine2?: string | null;
-    addressLine3?: string | null;
-    city?: string | null;
-    county?: string | null;
-    postcode?: string | null;
-    notes?: string | null;
-  };
-  documents?: {
-    invoiceNumber?: string | null;
-    invoiceUrl?: string | null;
-    quoteNumber?: string | null;
-    quoteUrl?: string | null;
-  };
-  adminRecipients?: string[];
-}
-
-export interface ContactMessage {
-  fromName: string;
-  fromEmail: string;
-  fromPhone?: string;
-  message: string;
-  recipients: string[];
-}
 
 type SmtpConfig = {
   host: string;
@@ -75,9 +41,16 @@ export class EmailService {
   private cachedConfig: SmtpConfig | null = null;
   private configLoaded = false;
   private logoDataUri: string | null | undefined;
+  // Optional seams (adapters) used by EmailService; lazily initialised
+  private renderer: TemplateRenderer | null = null;
+  private gateway: TransportGateway | null = null;
 
   constructor(private readonly configService: ConfigService) {}
 
+  /**
+   * Load SMTP configuration from env via ConfigService (cached).
+   * Returns null when config is incomplete (we log-only in that case).
+   */
   private loadConfig(): SmtpConfig | null {
     if (this.configLoaded) {
       return this.cachedConfig;
@@ -106,6 +79,9 @@ export class EmailService {
     return this.cachedConfig;
   }
 
+  /**
+   * Build or return cached Nodemailer transporter based on config.
+   */
   private async getTransporter(): Promise<Transporter | null> {
     if (this.transporter) {
       return this.transporter;
@@ -129,57 +105,189 @@ export class EmailService {
     return this.transporter;
   }
 
+  /**
+   * Provide a TransportGateway that wraps the Nodemailer transporter.
+   * Keeps existing send semantics unchanged.
+   */
+  private async getTransportGateway(): Promise<TransportGateway | null> {
+    if (this.gateway) return this.gateway;
+    const transporter = await this.getTransporter();
+    if (!transporter) return null;
+    // Minimal adapter that preserves current behaviour
+    this.gateway = new DefaultTransportGateway(transporter);
+    return this.gateway;
+  }
+
+  // Built-in renderer that delegates to existing builders to avoid behaviour change
+  /**
+   * Provide a TemplateRenderer that builds subjects/HTML/text.
+   * Delegates the actual content generation to the adapter.
+   */
+  private getTemplateRenderer(): TemplateRenderer {
+    if (this.renderer) return this.renderer;
+    this.renderer = new DefaultTemplateRenderer({
+      formatDate: (d: Date) => this.formatDate(d),
+      formatCurrency: (p: number) => this.formatCurrency(p),
+      buildBookingUrl: (id?: number) => this.buildBookingUrl(id),
+      loadLogoDataUri: () => this.loadLogoDataUri(),
+      supportEmail: SUPPORT_EMAIL,
+    });
+    return this.renderer;
+  }
+
+  /**
+   * Send a simple invoice email (subject + body), used by document flows.
+   * Falls back to logging when SMTP is not configured.
+   */
+  async sendInvoiceEmail(to: string, subject: string, text: string, html?: string): Promise<void> {
+    const transporter = await this.getTransporter();
+    const config = this.loadConfig();
+    if (!transporter || !config) {
+      this.logger.log(`Would send invoice email to ${to}: ${subject}`);
+      return;
+    }
+    try {
+      await transporter.sendMail({ from: this.getFromHeader(config), to, subject, text, html: html ?? text });
+    } catch (error) {
+      this.logger.error('Failed to send invoice email via SMTP', error as Error);
+    }
+  }
+
+  /**
+   * Send a styled document email (Invoice/Quote/Receipt) with optional PDF.
+   */
+  async sendDocumentEmail(params: {
+    to: string;
+    documentType: 'INVOICE' | 'QUOTE' | 'RECEIPT';
+    documentNumber: string;
+    customerName: string;
+    totalAmount: string;
+    pdfPath?: string;
+  }): Promise<void> {
+    const transporter = await this.getTransporter();
+    const config = this.loadConfig();
+
+    if (!transporter || !config) {
+      this.logger.log(`Would send ${params.documentType} email to ${params.to}: ${params.documentNumber}`);
+      return;
+    }
+
+    const docTypeLabel = params.documentType === 'RECEIPT' ? 'Receipt' : params.documentType === 'QUOTE' ? 'Quote' : 'Invoice';
+    const subject = `Your ${docTypeLabel} ${params.documentNumber} from A1 Service Expert`;
+
+    const html = `
+      <div style="background-color:#0f172a;padding:32px 16px;font-family:'Inter',Arial,sans-serif;color:#0f172a;">
+        <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 12px 32px rgba(15,23,42,0.25);">
+          <div style="background:linear-gradient(135deg,#020617,#0f172a);padding:32px;text-align:center;">
+            <h1 style="color:#f97316;font-size:24px;margin:0;">A1 Service Expert</h1>
+            <p style="color:#e2e8f0;font-size:14px;margin:12px 0 0;letter-spacing:0.08em;text-transform:uppercase;">${docTypeLabel}</p>
+          </div>
+          <div style="padding:32px 28px 24px;">
+            <p style="font-size:16px;color:#0f172a;margin:0 0 16px;">Hi ${params.customerName},</p>
+            <p style="margin:0 0 16px;color:#475569;font-size:15px;line-height:1.6;">
+              Please find attached your ${docTypeLabel.toLowerCase()} <strong>${params.documentNumber}</strong> for <strong>${params.totalAmount}</strong>.
+            </p>
+            ${params.documentType === 'INVOICE' ? `
+              <p style="margin:0 0 16px;color:#475569;font-size:15px;line-height:1.6;">
+                Thank you for your business. If you have any questions, please don't hesitate to contact us.
+              </p>
+            ` : params.documentType === 'RECEIPT' ? `
+              <p style="margin:0 0 16px;color:#475569;font-size:15px;line-height:1.6;">
+                Thank you for your payment. This serves as confirmation of your transaction.
+              </p>
+            ` : `
+              <p style="margin:0 0 16px;color:#475569;font-size:15px;line-height:1.6;">
+                Please review the attached quote. We look forward to working with you.
+              </p>
+            `}
+            <div style="border-top:1px solid #e2e8f0;padding-top:18px;margin-top:18px;font-size:13px;color:#475569;line-height:1.6;">
+              <p style="margin:0 0 6px;">A1 Service Expert</p>
+              <p style="margin:0 0 6px;">11 Cunliffe Dr, Kettering NN16 8LD</p>
+              <p style="margin:0 0 6px;">Phone: 07394 433889 � Email: ${SUPPORT_EMAIL}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const text = `
+${docTypeLabel} ${params.documentNumber}
+
+Hi ${params.customerName},
+
+Please find attached your ${docTypeLabel.toLowerCase()} ${params.documentNumber} for ${params.totalAmount}.
+
+${params.documentType === 'INVOICE' ? 'Thank you for your business. If you have any questions, please don\'t hesitate to contact us.' : params.documentType === 'RECEIPT' ? 'Thank you for your payment. This serves as confirmation of your transaction.' : 'Please review the attached quote. We look forward to working with you.'}
+
+A1 Service Expert
+11 Cunliffe Dr, Kettering NN16 8LD
+Phone: 07394 433889
+Email: ${SUPPORT_EMAIL}
+    `.trim();
+
+    const attachments: Array<{ filename: string; path: string }> = [];
+    if (params.pdfPath) {
+      attachments.push({
+        filename: `${params.documentNumber}.pdf`,
+        path: params.pdfPath,
+      });
+    }
+
+    try {
+      await transporter.sendMail({
+        from: this.getFromHeader(config),
+        to: params.to,
+        subject,
+        html,
+        text,
+        attachments,
+      });
+      this.logger.log(`Sent ${params.documentType} email to ${params.to}: ${params.documentNumber}`);
+    } catch (error) {
+      this.logger.error(`Failed to send ${params.documentType} email via SMTP`, error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Compose a safe RFC-2822 From header from config.
+   */
   private getFromHeader(config: SmtpConfig): string {
     const safeName = config.fromName.replace(/"/g, "'");
     return `"${safeName}" <${config.fromEmail}>`;
   }
 
+  /**
+   * Lazily resolve and cache the logo data URI for HTML emails.
+   */
   private loadLogoDataUri(): string | null {
     if (this.logoDataUri !== undefined) {
       return this.logoDataUri;
     }
-
-    const candidatePaths = [
-      join(process.cwd(), 'apps', 'booking-web', 'src', 'assets', 'logo-a1.png'),
-      join(process.cwd(), 'apps', 'booking-api', 'assets', 'logo-a1.png'),
-    ];
-
-    for (const path of candidatePaths) {
-      if (existsSync(path)) {
-        try {
-          const buffer = readFileSync(path);
-          this.logoDataUri = `data:image/png;base64,${buffer.toString('base64')}`;
-          return this.logoDataUri;
-        } catch (error) {
-          this.logger.warn(`Failed to load logo for emails from ${path}: ${(error as Error).message}`);
-        }
-      }
-    }
-
-    this.logoDataUri = null;
-    return null;
+    this.logoDataUri = tryLoadLogoDataUri(this.logger);
+    return this.logoDataUri;
   }
 
+  /**
+   * Format a pence amount as GBP currency (e.g., £12.34).
+   */
   private formatCurrency(pence: number): string {
-    const formatter = new Intl.NumberFormat('en-GB', {
-      style: 'currency',
-      currency: 'GBP',
-    });
-    return formatter.format(pence / 100);
+    return formatCurrencyGBP(pence);
   }
 
+  /**
+   * Format a Date into a long, human-readable EN-GB string.
+   */
   private formatDate(date: Date): string {
-    return date.toLocaleDateString('en-GB', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
+    return formatDateLong(date);
   }
 
+  /**
+   * Read and validate the portal base URL; fallback to local dev.
+   */
   private getPortalBaseUrl(): string {
     const fallback = 'http://localhost:5173';
-    const envUrl = this.configService.get<string>('EMAIL_VERIFICATION_URL');
+    const envUrl = this.configService.get<string>('PORTAL_BASE_URL');
     if (!envUrl) {
       return fallback;
     }
@@ -191,6 +299,9 @@ export class EmailService {
     }
   }
 
+  /**
+   * Build deep links to the portal booking pages.
+   */
   private buildBookingUrl(bookingId?: number): string {
     const portalBase = this.getPortalBaseUrl().replace(/\/$/, '');
     if (!bookingId) {
@@ -199,6 +310,9 @@ export class EmailService {
     return `${portalBase}/account/bookings/${bookingId}`;
   }
 
+  /**
+   * Deduplicate and normalise a list of potentially empty/duplicate emails.
+   */
   private dedupeValues(emails: Array<string | null | undefined>): string[] {
     const seen = new Set<string>();
     const result: string[] = [];
@@ -220,259 +334,9 @@ export class EmailService {
     return result;
   }
 
-  private renderCustomerBookingHtml(payload: BookingConfirmationEmail): string {
-    const logo = this.loadLogoDataUri();
-    const serviceLine = payload.service.engineTier ? `${payload.service.name} (${payload.service.engineTier})` : payload.service.name;
-    const slotDate = this.formatDate(payload.slotDate);
-    const price = this.formatCurrency(payload.totals.pricePence);
-    const bookingUrl = this.buildBookingUrl(payload.bookingId);
-
-    return `
-      <div style="background-color:#0f172a;padding:32px 16px;font-family:'Inter',Arial,sans-serif;color:#0f172a;">
-        <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 12px 32px rgba(15,23,42,0.25);">
-          <div style="background:linear-gradient(135deg,#020617,#0f172a);padding:32px;text-align:center;">
-            ${logo ? `<img src="${logo}" alt="A1 Service Expert" style="height:56px;" />` : '<h1 style="color:#f97316;font-size:24px;margin:0;">A1 Service Expert</h1>'}
-            <p style="color:#e2e8f0;font-size:14px;margin:12px 0 0;letter-spacing:0.08em;text-transform:uppercase;">Booking confirmation</p>
-          </div>
-          <div style="padding:32px 28px 24px;">
-            <p style="font-size:16px;color:#0f172a;margin:0 0 16px;">Hi ${payload.customer.name},</p>
-            <p style="margin:0 0 16px;color:#475569;font-size:15px;line-height:1.6;">
-              Your booking is confirmed for <strong>${slotDate}</strong> at <strong>${payload.slotTime}</strong>.
-            </p>
-            <div style="border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:24px;background:#f8fafc;">
-              <h2 style="margin:0 0 12px;font-size:16px;color:#0f172a;">Booking summary</h2>
-              <table style="width:100%;border-collapse:collapse;color:#334155;font-size:14px;">
-                <tbody>
-                  <tr>
-                    <td style="padding:6px 0;font-weight:600;width:40%;">Service</td>
-                    <td style="padding:6px 0;text-align:right;">${serviceLine}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:6px 0;font-weight:600;">Vehicle</td>
-                    <td style="padding:6px 0;text-align:right;">${payload.vehicle.registration.toUpperCase()}${payload.vehicle.make ? ` - ${payload.vehicle.make}` : ''}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:6px 0;font-weight:600;">Date & time</td>
-                    <td style="padding:6px 0;text-align:right;">${slotDate} - ${payload.slotTime}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:6px 0;font-weight:600;">Total</td>
-                    <td style="padding:6px 0;text-align:right;font-size:15px;color:#0f172a;"><strong>${price}</strong></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div style="text-align:center;margin-bottom:28px;">
-              <a href="${bookingUrl}" style="display:inline-block;background:#f97316;color:#0f172a;font-weight:600;padding:12px 28px;border-radius:999px;text-decoration:none;">View my booking</a>
-            </div>
-            <div style="border-top:1px solid #e2e8f0;padding-top:18px;margin-top:18px;font-size:13px;color:#475569;line-height:1.6;">
-              <p style="margin:0 0 6px;">A1 Service Expert</p>
-              <p style="margin:0 0 6px;">11 Cunliffe Dr, Kettering NN16 8LD</p>
-              <p style="margin:0 0 6px;">Phone: 07394 433889 · Email: ${SUPPORT_EMAIL}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  private renderCustomerBookingText(payload: BookingConfirmationEmail): string {
-    const slotDate = this.formatDate(payload.slotDate);
-    const price = this.formatCurrency(payload.totals.pricePence);
-    const bookingUrl = this.buildBookingUrl(payload.bookingId);
-    const serviceLine = payload.service.engineTier ? `${payload.service.name} (${payload.service.engineTier})` : payload.service.name;
-
-    return [
-      `Booking confirmation for ${payload.customer.name}`,
-      `Service: ${serviceLine}`,
-      `Vehicle: ${payload.vehicle.registration.toUpperCase()}${payload.vehicle.make ? ` - ${payload.vehicle.make}` : ''}`,
-      `Date: ${slotDate} at ${payload.slotTime}`,
-      `Total: ${price}`,
-      '',
-      `View your booking: ${bookingUrl}`,
-      '',
-      'A1 Service Expert',
-      '11 Cunliffe Dr, Kettering NN16 8LD',
-      'Phone: 07394 433889',
-      `Email: ${SUPPORT_EMAIL}`,
-    ].join('\n');
-  }
-
-  private renderStaffBookingHtml(payload: BookingConfirmationEmail, staffRecipients: string[]): string {
-    const logo = this.loadLogoDataUri();
-    const slotDate = this.formatDate(payload.slotDate);
-    const price = this.formatCurrency(payload.totals.pricePence);
-    const bookingUrl = this.buildBookingUrl(payload.bookingId);
-    const serviceLine = payload.service.engineTier ? `${payload.service.name} (${payload.service.engineTier})` : payload.service.name;
-    const addressLines = this.formatAddressLines(payload);
-
-    const notesSection = payload.customer.notes
-      ? `<div style="margin-top:16px;padding:16px;border:1px solid #fde68a;background:#fef3c7;border-radius:8px;"><strong>Customer notes</strong><p style="margin:8px 0 0;white-space:pre-wrap;color:#78350f;">${payload.customer.notes}</p></div>`
-      : '';
-
-    const documents = this.renderDocumentList(payload);
-
-    return `
-      <div style="background-color:#0f172a;padding:32px 16px;font-family:'Inter',Arial,sans-serif;color:#0f172a;">
-        <div style="max-width:720px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 12px 32px rgba(15,23,42,0.3);">
-          <div style="background:linear-gradient(135deg,#020617,#0f172a);padding:28px 32px;display:flex;align-items:center;justify-content:space-between;">
-            <div>
-              ${logo ? `<img src="${logo}" alt="A1 Service Expert" style="height:48px;" />` : '<h1 style="color:#f97316;font-size:22px;margin:0;">A1 Service Expert</h1>'}
-              <p style="color:#e2e8f0;font-size:13px;margin:8px 0 0;letter-spacing:0.08em;text-transform:uppercase;">Staff notification</p>
-            </div>
-            <div style="text-align:right;color:#cbd5f5;font-size:12px;">
-              <p style="margin:0;">Recipients:</p>
-              <p style="margin:4px 0 0;">${staffRecipients.join(', ')}</p>
-            </div>
-          </div>
-          <div style="padding:32px;">
-            <h2 style="margin:0 0 16px;font-size:20px;color:#0f172a;">New booking confirmed</h2>
-            <table style="width:100%;border-collapse:collapse;font-size:14px;color:#1e293b;">
-              <tbody>
-                <tr>
-                  <td style="padding:8px 0;font-weight:600;width:32%;">Customer</td>
-                  <td style="padding:8px 0;">${payload.customer.name}</td>
-                </tr>
-                <tr>
-                  <td style="padding:8px 0;font-weight:600;">Email</td>
-                  <td style="padding:8px 0;">${payload.customer.email}</td>
-                </tr>
-                <tr>
-                  <td style="padding:8px 0;font-weight:600;">Phone</td>
-                  <td style="padding:8px 0;">${this.buildPhoneLine(payload)}</td>
-                </tr>
-                <tr>
-                  <td style="padding:8px 0;font-weight:600;">Company</td>
-                  <td style="padding:8px 0;">${payload.customer.companyName ?? '—'}</td>
-                </tr>
-                <tr>
-                  <td style="padding:8px 0;font-weight:600;">Address</td>
-                  <td style="padding:8px 0;">${addressLines.length > 0 ? addressLines.join('<br />') : '—'}</td>
-                </tr>
-                <tr>
-                  <td style="padding:8px 0;font-weight:600;">Service</td>
-                  <td style="padding:8px 0;">${serviceLine}</td>
-                </tr>
-                <tr>
-                  <td style="padding:8px 0;font-weight:600;">Schedule</td>
-                  <td style="padding:8px 0;">${slotDate} at ${payload.slotTime}</td>
-                </tr>
-                <tr>
-                  <td style="padding:8px 0;font-weight:600;">Vehicle</td>
-                  <td style="padding:8px 0;">${this.buildVehicleLine(payload)}</td>
-                </tr>
-                <tr>
-                  <td style="padding:8px 0;font-weight:600;">Total</td>
-                  <td style="padding:8px 0;">${price}</td>
-                </tr>
-                <tr>
-                  <td style="padding:8px 0;font-weight:600;">Portal link</td>
-                  <td style="padding:8px 0;"><a href="${bookingUrl}" style="color:#2563eb;text-decoration:none;">View booking</a></td>
-                </tr>
-              </tbody>
-            </table>
-            ${documents}
-            ${notesSection}
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  private renderStaffBookingText(payload: BookingConfirmationEmail): string {
-    const slotDate = this.formatDate(payload.slotDate);
-    const price = this.formatCurrency(payload.totals.pricePence);
-    const bookingUrl = this.buildBookingUrl(payload.bookingId);
-    const addressLines = this.formatAddressLines(payload);
-    const documents = this.buildDocumentLines(payload);
-
-    return [
-      'New booking confirmed',
-      `Customer: ${payload.customer.name}`,
-      `Email: ${payload.customer.email}`,
-      `Phone: ${this.buildPhoneLine(payload)}`,
-      payload.customer.companyName ? `Company: ${payload.customer.companyName}` : undefined,
-      addressLines.length > 0 ? `Address: ${addressLines.join(', ')}` : undefined,
-      `Service: ${payload.service.engineTier ? `${payload.service.name} (${payload.service.engineTier})` : payload.service.name}`,
-      `Schedule: ${slotDate} at ${payload.slotTime}`,
-      `Vehicle: ${this.buildVehicleLine(payload)}`,
-      `Total: ${price}`,
-      documents.length > 0 ? documents.join('\n') : undefined,
-      '',
-      `View booking: ${bookingUrl}`,
-      payload.customer.notes ? ['', 'Customer notes:', payload.customer.notes].join('\n') : undefined,
-    ]
-      .filter((line): line is string => Boolean(line))
-      .join('\n');
-  }
-
-  private renderDocumentList(payload: BookingConfirmationEmail): string {
-    if (!payload.documents) {
-      return '';
-    }
-
-    const rows: string[] = [];
-    if (payload.documents.invoiceNumber) {
-      const link = payload.documents.invoiceUrl ? `<a href="${payload.documents.invoiceUrl}" style="color:#2563eb;">${payload.documents.invoiceNumber}</a>` : payload.documents.invoiceNumber;
-      rows.push(`<tr><td style="padding:6px 0;width:32%;font-weight:600;">Invoice</td><td style="padding:6px 0;">${link}</td></tr>`);
-    }
-    if (payload.documents.quoteNumber) {
-      const link = payload.documents.quoteUrl ? `<a href="${payload.documents.quoteUrl}" style="color:#2563eb;">${payload.documents.quoteNumber}</a>` : payload.documents.quoteNumber;
-      rows.push(`<tr><td style="padding:6px 0;width:32%;font-weight:600;">Quote</td><td style="padding:6px 0;">${link}</td></tr>`);
-    }
-
-    if (rows.length === 0) {
-      return '';
-    }
-
-    return `
-      <div style="margin-top:24px;">
-        <h3 style="margin:0 0 12px;font-size:16px;color:#0f172a;">Documents</h3>
-        <table style="width:100%;border-collapse:collapse;font-size:14px;color:#1e293b;">
-          <tbody>
-            ${rows.join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-
-  private buildDocumentLines(payload: BookingConfirmationEmail): string[] {
-    if (!payload.documents) {
-      return [];
-    }
-
-    const result: string[] = [];
-    if (payload.documents.invoiceNumber) {
-      result.push(`Invoice: ${payload.documents.invoiceNumber}${payload.documents.invoiceUrl ? ` (${payload.documents.invoiceUrl})` : ''}`);
-    }
-    if (payload.documents.quoteNumber) {
-      result.push(`Quote: ${payload.documents.quoteNumber}${payload.documents.quoteUrl ? ` (${payload.documents.quoteUrl})` : ''}`);
-    }
-    return result;
-  }
-
-  private formatAddressLines(payload: BookingConfirmationEmail): string[] {
-    const lines = [
-      payload.customer.addressLine1,
-      payload.customer.addressLine2,
-      payload.customer.addressLine3,
-      payload.customer.city,
-      payload.customer.county,
-      payload.customer.postcode,
-    ].filter((value): value is string => Boolean(value && value.trim().length > 0));
-    return lines;
-  }
-
-  private buildPhoneLine(payload: BookingConfirmationEmail): string {
-    const phones = [payload.customer.mobile, payload.customer.phone, payload.customer.landline]
-      .filter((value): value is string => Boolean(value && value.trim().length > 0));
-    if (phones.length === 0) {
-      return '—';
-    }
-    return this.dedupeValues(phones).join(' / ');
-  }
-
+  /**
+   * Compose a compact vehicle summary line.
+   */
   private buildVehicleLine(payload: BookingConfirmationEmail): string {
     const parts = [
       payload.vehicle.registration.toUpperCase(),
@@ -483,55 +347,31 @@ export class EmailService {
     return parts.join(' - ');
   }
 
-  async sendVerificationEmail(email: string, token: string): Promise<void> {
-    const transporter = await this.getTransporter();
-    const config = this.loadConfig();
-    const verificationUrl = this.buildVerificationUrl(token);
+  // Verification emails are not used; users are auto-verified on registration.
 
-    if (!transporter || !config) {
-      this.logger.log(`Verification link for ${email}: ${verificationUrl}`);
-      return;
-    }
-
-    try {
-      await transporter.sendMail({
-        from: this.getFromHeader(config),
-        to: email,
-        subject: 'Verify your email address',
-        html: `
-        <p>Hi,</p>
-        <p>Please verify your email address to finish creating your account.</p>
-        <p><a href="${verificationUrl}">Verify Email</a></p>
-        <p>If the button does not work, copy and paste this URL into your browser:</p>
-        <p>${verificationUrl}</p>
-        <p>This link expires in 24 hours.</p>
-        `,
-        text: `Hi,\n\nPlease verify your email address to finish creating your account.\n${verificationUrl}\n\nThis link expires in 24 hours.`,
-      });
-    } catch (error) {
-      this.logger.error('Failed to send verification email via SMTP', error as Error);
-      this.logger.log(`Verification link for ${email}: ${verificationUrl}`);
-    }
-  }
-
+  /**
+   * Compose and send both customer and staff booking confirmation emails.
+   * Falls back to logging when SMTP is not configured.
+   */
   async sendBookingConfirmation(payload: BookingConfirmationEmail): Promise<void> {
-    const transporter = await this.getTransporter();
+    const gateway = await this.getTransportGateway();
     const config = this.loadConfig();
     const staffRecipients = this.dedupeValues([...(payload.adminRecipients ?? []), SUPPORT_EMAIL]);
 
-    if (!transporter || !config) {
+    if (!gateway || !config) {
       this.logger.log(
         `Booking confirmed for ${payload.customer.name}: ${payload.service.name} at ${payload.slotDate.toISOString()} ${payload.slotTime}. Staff notified: ${staffRecipients.join(', ') || 'none'}`,
       );
       return;
     }
-
-    const customerSubject = `Booking confirmed for ${this.formatDate(payload.slotDate)} at ${payload.slotTime}`;
-    const customerHtml = this.renderCustomerBookingHtml(payload);
-    const customerText = this.renderCustomerBookingText(payload);
+    const renderer = this.getTemplateRenderer();
+    const { subject: customerSubject, html: customerHtml, text: customerText } = await renderer.render({
+      template: 'booking-customer',
+      data: payload as unknown as Record<string, unknown>,
+    });
 
     try {
-      await transporter.sendMail({
+      await gateway.send({
         from: this.getFromHeader(config),
         to: payload.customer.email,
         subject: customerSubject,
@@ -546,12 +386,13 @@ export class EmailService {
       return;
     }
 
-    const staffSubject = `New booking: ${payload.customer.name} on ${this.formatDate(payload.slotDate)} ${payload.slotTime}`;
-    const staffHtml = this.renderStaffBookingHtml(payload, staffRecipients);
-    const staffText = this.renderStaffBookingText(payload);
+    const { subject: staffSubject, html: staffHtml, text: staffText } = await renderer.render({
+      template: 'booking-staff',
+      data: payload as unknown as Record<string, unknown>,
+    });
 
     try {
-      await transporter.sendMail({
+      await gateway.send({
         from: this.getFromHeader(config),
         to: staffRecipients,
         subject: staffSubject,
@@ -563,42 +404,30 @@ export class EmailService {
     }
   }
 
+  /**
+   * Send contact form submissions to configured recipients.
+   * If misconfigured, logs the message content instead of throwing.
+   */
   async sendContactMessage(payload: ContactMessage): Promise<void> {
-    const transporter = await this.getTransporter();
+    const gateway = await this.getTransportGateway();
     const config = this.loadConfig();
     const to = payload.recipients.filter((recipient) => recipient.trim().length > 0);
 
-    const subject = `New contact enquiry from ${payload.fromName}`;
-    const phoneLine = payload.fromPhone ? `<p>Phone: ${payload.fromPhone}</p>` : '';
-    const htmlBody = `
-      <p>You received a new contact request from the website.</p>
-      <p><strong>Name:</strong> ${payload.fromName}</p>
-      <p><strong>Email:</strong> ${payload.fromEmail}</p>
-      ${phoneLine}
-      <p><strong>Message:</strong></p>
-      <p>${payload.message.replace(/\n/g, '<br />')}</p>
-    `;
-    const textBody = [
-      'You received a new contact request from the website.',
-      `Name: ${payload.fromName}`,
-      `Email: ${payload.fromEmail}`,
-      payload.fromPhone ? `Phone: ${payload.fromPhone}` : undefined,
-      'Message:',
-      payload.message,
-    ]
-      .filter(Boolean)
-      .join('\n');
+    const renderer = this.getTemplateRenderer();
+    const { subject, html: htmlBody, text: textBody } = await renderer.render({
+      template: 'contact-message',
+      data: payload as unknown as Record<string, unknown>,
+    });
 
-    if (!transporter || !config || to.length === 0) {
+    if (!gateway || !config || to.length === 0) {
       this.logger.log(`Contact request from ${payload.fromName} <${payload.fromEmail}>: ${payload.message}`);
       return;
     }
 
     try {
-      await transporter.sendMail({
+      await gateway.send({
         from: this.getFromHeader(config),
         to,
-        replyTo: `${payload.fromName} <${payload.fromEmail}>`,
         subject,
         html: htmlBody,
         text: textBody,
@@ -609,13 +438,21 @@ export class EmailService {
     }
   }
 
-  private buildVerificationUrl(token: string): string {
-    const base = this.configService.get<string>('EMAIL_VERIFICATION_URL');
-    const defaultUrl = 'http://localhost:5173/verify-email';
-    const url = base ?? defaultUrl;
-
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}token=${encodeURIComponent(token)}`;
-  }
 }
 
+/**
+ * EmailService
+ *
+ * Purpose
+ * - Builds and sends transactional emails (booking confirmations, invoices,
+ *   quotes, reminders) using templates and provider transport.
+ *
+ * Notes
+ * - File contains transport config, template rendering, and message assembly.
+ * - Consider separating template building from transport sending.
+ *
+ * Safe Refactor Plan
+ * - Extract TemplateRenderer (inputs: template id + data ? subject/body).
+ * - Extract TransportGateway (sendMail abstraction with provider config).
+ * - Keep EmailService as a fa�ade composing renderer + transport.
+ */

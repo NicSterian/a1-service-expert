@@ -28,3 +28,10 @@ yarn-error.log*
 tmp/
 
 !**/.env.example
+
+# Temp scratch files
+temp_*.txt
+
+# Local AI assistant settings (do not commit)
+.claude/
+

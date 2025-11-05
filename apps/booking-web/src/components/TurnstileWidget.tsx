@@ -57,6 +57,12 @@ export function TurnstileWidget({ onChange, className, fallbackLabel = 'I confir
   const containerRef = useRef<HTMLDivElement | null>(null);
   const checkboxRef = useRef<HTMLInputElement | null>(null);
   const [widgetId, setWidgetId] = useState<string | null>(null);
+  const onChangeRef = useRef(onChange);
+
+  // Keep latest onChange without retriggering mount lifecycle
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   useEffect(() => {
     if (!siteKey) {
@@ -65,7 +71,7 @@ export function TurnstileWidget({ onChange, className, fallbackLabel = 'I confir
         return () => undefined;
       }
 
-      const handler = () => onChange(checkbox.checked ? 'dev-captcha-token' : null);
+      const handler = () => onChangeRef.current(checkbox.checked ? 'dev-captcha-token' : null);
       checkbox.addEventListener('change', handler);
       return () => checkbox.removeEventListener('change', handler);
     }
@@ -81,14 +87,14 @@ export function TurnstileWidget({ onChange, className, fallbackLabel = 'I confir
 
         currentWidgetId = window.turnstile.render(containerRef.current, {
           sitekey: siteKey,
-          callback: (token: string) => onChange(token),
-          'error-callback': () => onChange(null),
-          'expired-callback': () => onChange(null),
+          callback: (token: string) => onChangeRef.current(token),
+          'error-callback': () => onChangeRef.current(null),
+          'expired-callback': () => onChangeRef.current(null),
         });
         setWidgetId(currentWidgetId);
       })
       .catch(() => {
-        onChange(null);
+        onChangeRef.current(null);
       });
 
     return () => {
@@ -97,7 +103,7 @@ export function TurnstileWidget({ onChange, className, fallbackLabel = 'I confir
         window.turnstile.remove(currentWidgetId);
       }
     };
-  }, [onChange]);
+  }, []);
 
   useEffect(() => {
     return () => {

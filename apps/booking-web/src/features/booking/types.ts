@@ -11,6 +11,9 @@ export type CatalogServiceSummary = {
   fixedPricePence?: number | null;
   footnotes?: string | null;
   lowestTierPricePence?: number | null;
+  showInWizard?: boolean;
+  showInPricingTable?: boolean;
+  sortOrder?: number;
 };
 
 export type CatalogEngineTierSummary = {
@@ -97,6 +100,7 @@ export type BookingWizardContextValue = {
   updateDraft: (patch: Partial<BookingDraft>) => void;
   setCurrentStep: (step: BookingStep) => void;
   markStepComplete: (step: BookingStep) => void;
+  clearCompletedStepsAfter: (step: BookingStep) => void;
   setCatalog: (catalog: CatalogSummary | null) => void;
   reset: () => void;
   loginPanelOpen: boolean;
@@ -142,6 +146,5 @@ export type ConfirmBookingResponse = {
     quote: BookingDocumentSummary;
   };
 };
-
 
 

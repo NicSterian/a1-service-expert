@@ -1,0 +1,110 @@
+<div class="header" style="--brand: {{branding.primary}}">
+  <div class="brand">
+    {{#if company.logoUrl}}
+      <img src="{{company.logoUrl}}" alt="Logo" />
+    {{/if}}
+    <div>
+      <div class="name">{{company.name}}</div>
+      <div class="company">
+        {{company.address1}}{{#if company.address2}}, {{company.address2}}{{/if}}{{#if company.city}}, {{company.city}}{{/if}}{{#if company.postcode}}, {{company.postcode}}{{/if}}<br/>
+        {{#if company.email}}{{company.email}} • {{/if}}{{#if company.phone}}{{company.phone}}{{/if}}
+      </div>
+    </div>
+  </div>
+  <div class="company" style="text-align:right">
+    {{#if company.vatNumber}}VAT: {{company.vatNumber}}<br/>{{/if}}
+    {{#if company.companyNo}}Company No: {{company.companyNo}}{{/if}}
+  </div>
+</div>
+
+<div class="meta">
+  <h1>
+    {{#if (eq invoice.status "PAID")}}INVOICE / RECEIPT{{else}}INVOICE{{/if}}
+    {{#if (eq invoice.status "PAID")}} <span class="badge">PAID</span>{{/if}}
+  </h1>
+  <div class="grid">
+    <div><strong>Invoice No:</strong></div><div>{{invoice.number}}</div>
+    <div><strong>Issue Date:</strong></div><div>{{date invoice.issueDate}}</div>
+    {{#if invoice.dueDate}}<div><strong>Due Date:</strong></div><div>{{date invoice.dueDate}}</div>{{/if}}
+  </div>
+</div>
+
+{{#if (eq invoice.status "PAID")}}
+  <div class="paid-stamp">PAID RECEIPT</div>
+{{/if}}
+
+<div class="two-col">
+  <div class="box">
+    <h3>Billed To</h3>
+    <div><strong>{{customer.name}}</strong></div>
+    {{#if customer.address1}}{{customer.address1}}<br/>{{/if}}
+    {{#if customer.address2}}{{customer.address2}}<br/>{{/if}}
+    {{#if customer.city}}{{customer.city}} {{/if}}{{#if customer.postcode}}{{customer.postcode}}{{/if}}<br/>
+    {{#if customer.email}}{{customer.email}}{{/if}}
+  </div>
+  <div class="box">
+    <h3>Summary</h3>
+    <div><strong>Currency:</strong> {{invoice.currency}}</div>
+    {{#if (eq invoice.status "PAID")}}
+      {{#if invoice.paymentMethod}}<div><strong>Payment Method:</strong> {{invoice.paymentMethod}}</div>{{/if}}
+      {{#if invoice.paidAt}}<div><strong>Payment Date:</strong> {{date invoice.paidAt}}</div>{{/if}}
+    {{/if}}
+  </div>
+</div>
+
+<table class="items" style="table-layout: fixed; width: 100%;">
+  <thead>
+    <tr>
+      <th style="width:55%">Description</th>
+      <th class="right" style="width:10%">Qty</th>
+      <th class="right" style="width:15%">Unit</th>
+      {{#if vat.enabled}}<th class="right" style="width:10%">VAT %</th>{{/if}}
+      <th class="right" style="width:10%">Line Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each lines}}
+      <tr>
+        <td>{{this.description}}</td>
+        <td class="right">{{this.qty}}</td>
+        <td class="right">{{money this.unitPricePence}}</td>
+        {{#if ../vat.enabled}}<td class="right">{{this.vatPercent}}%</td>{{/if}}
+        <td class="right">{{money this.totalPence}}</td>
+      </tr>
+    {{/each}}
+  </tbody>
+</table>
+
+<div class="totals">
+  <table>
+    <tr>
+      <td class="label">Subtotal</td>
+      <td class="right">{{money totals.subtotalPence}}</td>
+    </tr>
+    {{#if vat.enabled}}
+    <tr>
+      <td class="label">VAT</td>
+      <td class="right">{{money totals.vatPence}}</td>
+    </tr>
+    {{/if}}
+    <tr class="grand">
+      <td class="label">Grand Total</td>
+      <td class="right">{{money totals.totalPence}}</td>
+    </tr>
+  </table>
+  {{#if (eq invoice.status "PAID")}}
+    <div class="notes">
+      <div><strong>Payment Date:</strong> {{date invoice.paidAt}}</div>
+      <div><strong>Payment Method:</strong> {{invoice.paymentMethod}}</div>
+      <div><strong>Amount Received:</strong> {{money totals.totalPence}}</div>
+    </div>
+  {{/if}}
+  {{#if notes}}
+    <div class="notes">{{notes}}</div>
+  {{/if}}
+</div>
+
+<div class="footer">
+  <div>Issued by: A1 Service Expert{{#if company.companyNo}} • Company No {{company.companyNo}}{{/if}}</div>
+  <div class="page-num">Page </div>
+</div>

@@ -1,5 +1,8 @@
-import { FormEvent, useEffect, useState } from 'react';
-import { apiDelete, apiGet, apiPatch, apiPost } from '../../lib/api';
+﻿import { FormEvent, useEffect, useState } from 'react';
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from '../../lib/api';
+import { ServiceForm } from './components/ServiceForm';
+import { TierForm } from './components/TierForm';
+import toast from 'react-hot-toast';
 
 interface Service {
   id: number;
@@ -7,6 +10,11 @@ interface Service {
   name: string;
   description?: string | null;
   isActive: boolean;
+  pricingMode?: 'TIERED' | 'FIXED';
+  fixedPricePence?: number | null;
+  showInWizard?: boolean;
+  showInPricingTable?: boolean;
+  sortOrder?: number;
 }
 
 interface EngineTier {
@@ -25,6 +33,14 @@ interface ServicePrice {
   engineTier?: { name: string };
 }
 
+type NewServicePayload = {
+  code: string;
+  name: string;
+  description?: string;
+  pricingMode: 'TIERED' | 'FIXED';
+  fixedPricePence?: number;
+};
+
 const currencyFormatter = new Intl.NumberFormat('en-GB', {
   style: 'currency',
   currency: 'GBP',
@@ -39,7 +55,13 @@ export function CatalogManager() {
   const [tiers, setTiers] = useState<EngineTier[]>([]);
   const [prices, setPrices] = useState<ServicePrice[]>([]);
 
-  const [serviceForm, setServiceForm] = useState({ code: '', name: '', description: '' });
+  const [serviceForm, setServiceForm] = useState({
+    code: '',
+    name: '',
+    description: '',
+    pricingMode: 'TIERED' as 'TIERED' | 'FIXED',
+    fixedPrice: '',
+  });
   const [tierForm, setTierForm] = useState({ name: '', maxCc: '', sortOrder: '' });
 
   useEffect(() => {
@@ -87,18 +109,28 @@ export function CatalogManager() {
     setPrices(pr);
   };
 
+  // Helper kept for reference but unused
+  
+
   const handleCreateService = async (event: FormEvent) => {
     event.preventDefault();
     if (!serviceForm.code || !serviceForm.name) {
       setError('Service code and name are required.');
       return;
     }
-    await apiPost('/admin/catalog/services', {
+    const payload: NewServicePayload = {
       code: serviceForm.code.trim(),
       name: serviceForm.name.trim(),
       description: serviceForm.description.trim() || undefined,
-    });
-    setServiceForm({ code: '', name: '', description: '' });
+      pricingMode: serviceForm.pricingMode,
+    };
+    if (serviceForm.pricingMode === 'FIXED') {
+      const cleaned = serviceForm.fixedPrice.replace(/[^0-9.]/g, '');
+      const amount = cleaned ? Math.round(Number(cleaned) * 100) : 0;
+      payload.fixedPricePence = amount;
+    }
+    await apiPost('/admin/catalog/services', payload);
+    setServiceForm({ code: '', name: '', description: '', pricingMode: 'TIERED', fixedPrice: '' });
     await refresh();
   };
 
@@ -116,11 +148,125 @@ export function CatalogManager() {
     await refresh();
   };
 
+  const editServiceDescription = async (service: Service) => {
+    const current = service.description ?? '';
+    const desc = window.prompt('Edit service description', current);
+    if (desc === null) return;
+    await apiPatch(`/admin/catalog/services/${service.id}`, { description: desc.trim() || null });
+    await refresh();
+  };
+
+  const toggleShowInWizard = async (service: Service) => {
+    await apiPatch(`/admin/catalog/services/${service.id}`, { showInWizard: !service.showInWizard });
+    await refresh();
+  };
+
+  const toggleShowInTable = async (service: Service) => {
+    await apiPatch(`/admin/catalog/services/${service.id}`, { showInPricingTable: !service.showInPricingTable });
+    await refresh();
+  };
+
+  const moveService = async (service: Service, dir: -1 | 1) => {
+    // Sort services by sortOrder to find adjacent service
+    const sorted = [...services].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    const currentIndex = sorted.findIndex((s) => s.id === service.id);
+
+    if (currentIndex === -1) return;
+
+    const targetIndex = currentIndex + dir;
+    if (targetIndex < 0 || targetIndex >= sorted.length) return;
+
+    const targetService = sorted[targetIndex];
+    const currentOrder = service.sortOrder ?? 0;
+    const targetOrder = targetService.sortOrder ?? 0;
+
+    // Swap the sortOrder values
+    await Promise.all([
+      apiPatch(`/admin/catalog/services/${service.id}`, { sortOrder: targetOrder }),
+      apiPatch(`/admin/catalog/services/${targetService.id}`, { sortOrder: currentOrder }),
+    ]);
+    await refresh();
+  };
+
   const deleteService = async (service: Service) => {
     if (!window.confirm(`Delete service "${service.name}"?`)) {
       return;
     }
     await apiDelete(`/admin/catalog/services/${service.id}`);
+    await refresh();
+  };
+
+  const removeDuplicates = async () => {
+    // Find duplicates by exact name match
+    const nameMap = new Map<string, Service[]>();
+    services.forEach((service) => {
+      const existing = nameMap.get(service.name) || [];
+      existing.push(service);
+      nameMap.set(service.name, existing);
+    });
+
+    const duplicates: Service[] = [];
+    nameMap.forEach((items) => {
+      if (items.length > 1) {
+        // Keep the first one (lowest ID), mark rest as duplicates
+        const sorted = items.sort((a, b) => a.id - b.id);
+        duplicates.push(...sorted.slice(1));
+      }
+    });
+
+    if (duplicates.length === 0) {
+      toast.success('No duplicate services found');
+      return;
+    }
+
+    const names = duplicates.map((s) => s.name).join(', ');
+    if (!window.confirm(`Found ${duplicates.length} duplicate service(s): ${names}\n\nDelete duplicates?`)) {
+      return;
+    }
+
+    await Promise.all(duplicates.map((s) => apiDelete(`/admin/catalog/services/${s.id}`)));
+    await refresh();
+    toast.success(`Removed ${duplicates.length} duplicate service(s)`);
+  };
+
+  const setServicePricingMode = async (service: Service) => {
+    const next = window.prompt('Set pricing mode: TIERED or FIXED', service.pricingMode ?? 'TIERED');
+    if (!next) return;
+    const mode = next.toUpperCase() === 'FIXED' ? 'FIXED' : 'TIERED';
+    await apiPatch(`/admin/catalog/services/${service.id}`, { pricingMode: mode });
+    await refresh();
+  };
+
+  const setServiceFixedPrice = async (service: Service) => {
+    const initial = typeof service.fixedPricePence === 'number' ? String(service.fixedPricePence / 100) : '';
+    const value = window.prompt(`Set fixed price (GBP) for ${service.name}`, initial);
+    if (value === null) return;
+    const cleaned = value.replace(/[^0-9.]/g, '');
+    if (!cleaned) return;
+    const pounds = Number(cleaned);
+    if (!Number.isFinite(pounds) || pounds < 0) {
+      toast.error('Invalid price');
+      return;
+    }
+    await apiPatch(`/admin/catalog/services/${service.id}`, { fixedPricePence: Math.round(pounds * 100) });
+    await refresh();
+  };
+
+  const priceFor = (serviceId: number, engineTierId: number) => {
+    const p = prices.find((x) => x.serviceId === serviceId && x.engineTierId === engineTierId);
+    return p?.amountPence ?? null;
+  };
+
+  const setTierPrice = async (service: Service, tier: EngineTier) => {
+    const current = priceFor(service.id, tier.id);
+    const value = window.prompt(`Set price for ${service.name} / ${tier.name} (pence)`, String(current ?? 0));
+    if (value === null) return;
+    const amount = Number(value);
+    if (!Number.isFinite(amount) || amount < 0) {
+      toast.error('Invalid price');
+      return;
+    }
+    await apiPut('/admin/catalog/prices', { serviceId: service.id, engineTierId: tier.id, amountPence: amount });
     await refresh();
   };
 
@@ -161,32 +307,14 @@ export function CatalogManager() {
     await refresh();
   };
 
-  const updatePrice = async (price: ServicePrice) => {
-    const value = window.prompt(
-      `Set price for ${price.service?.name ?? price.serviceId} / ${price.engineTier?.name ?? price.engineTierId}`,
-      String(price.amountPence),
-    );
-    if (!value) {
-      return;
-    }
-    const amount = Number(value);
-    if (!Number.isFinite(amount) || amount < 0) {
-      window.alert('Invalid price.');
-      return;
-    }
-    await apiPost('/admin/catalog/prices', {
-      serviceId: price.serviceId,
-      engineTierId: price.engineTierId,
-      amountPence: amount,
-    });
-    await refresh();
-  };
+  // Helper kept for reference but unused
+  
 
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-2xl font-semibold text-brand-black">Catalog</h2>
-        <p className="text-sm text-slate-600">Manage services, tiers, and pricing.</p>
+        <h2 className="text-2xl font-semibold text-white">Catalog</h2>
+        <p className="text-sm text-slate-400">Manage services, tiers, and pricing.</p>
       </div>
 
       {loading ? (
@@ -195,159 +323,156 @@ export function CatalogManager() {
         <p className="text-sm text-red-600">{error}</p>
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
-          <div className="space-y-3 rounded border border-slate-200 bg-white p-4">
-            <h3 className="text-lg font-medium text-brand-black">Services</h3>
-            <form onSubmit={handleCreateService} className="grid gap-2 sm:grid-cols-2">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600">Code</label>
-                <input
-                  value={serviceForm.code}
-                  onChange={(event) => setServiceForm((prev) => ({ ...prev, code: event.target.value }))}
-                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600">Name</label>
-                <input
-                  value={serviceForm.name}
-                  onChange={(event) => setServiceForm((prev) => ({ ...prev, name: event.target.value }))}
-                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
-                  required
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-slate-600">Description</label>
-                <textarea
-                  value={serviceForm.description}
-                  onChange={(event) => setServiceForm((prev) => ({ ...prev, description: event.target.value }))}
-                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
-                  rows={2}
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <button
-                  type="submit"
-                  className="rounded bg-brand-orange px-3 py-2 text-sm text-white hover:bg-orange-500"
-                >
-                  Add service
-                </button>
-              </div>
-            </form>
+          <div className="space-y-3 rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-inner">
+            <h3 className="text-lg font-medium text-white">Services</h3>
+            <ServiceForm value={serviceForm} onChange={(patch) => setServiceForm((prev) => ({ ...prev, ...patch }))} onSubmit={handleCreateService} />
+            <div>
+              <button
+                type="button"
+                onClick={removeDuplicates}
+                className="rounded-full border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:-translate-y-0.5 hover:border-orange-500"
+              >
+                Remove duplicates
+              </button>
+            </div>
 
             <ul className="space-y-2 text-sm">
               {services.map((service) => (
-                <li key={service.id} className="flex items-start justify-between gap-3 rounded border border-slate-200 p-3">
-                  <div>
-                    <p className="font-semibold text-brand-black">
-                      {service.name}{' '}
-                      <span className="text-xs text-slate-500">({service.code})</span>
-                    </p>
-                    {service.description ? <p className="text-xs text-slate-600">{service.description}</p> : null}
-                    <p className="text-xs text-slate-500">Status: {service.isActive ? 'Active' : 'Inactive'}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2 text-xs">
+                <li key={service.id} className="space-y-3 rounded border border-slate-700 bg-slate-800 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-white">{service.name}</p>
+                      {service.description ? (
+                        <p className="mt-1 text-xs leading-relaxed text-slate-300">{service.description}</p>
+                      ) : null}
+                      <p className="mt-1 text-[11px] text-slate-500">Code: <span className="font-mono">{service.code}</span></p>
+                      <p className="text-xs text-slate-400">Status: {service.isActive ? 'Active' : 'Inactive'}</p>
+                      <p className="text-xs text-slate-400">Pricing: {service.pricingMode ?? 'TIERED'}{service.pricingMode === 'FIXED' ? ` @ ${formatPrice(service.fixedPricePence ?? 0)}` : ''}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                        <button type="button" onClick={() => toggleShowInWizard(service)} className={`rounded border px-2 py-1 ${service.showInWizard ? 'border-emerald-500 text-emerald-300' : 'border-slate-700 text-slate-300'} hover:border-orange-500`}>
+                          {service.showInWizard ? 'In Wizard' : 'Add to Wizard'}
+                        </button>
+                        <button type="button" onClick={() => toggleShowInTable(service)} className={`rounded border px-2 py-1 ${service.showInPricingTable ? 'border-emerald-500 text-emerald-300' : 'border-slate-700 text-slate-300'} hover:border-orange-500`}>
+                          {service.showInPricingTable ? 'In Pricing Table' : 'Add to Pricing Table'}
+                        </button>
+                        <span className="text-slate-500">Order: {service.sortOrder ?? 0}</span>
+                        <button type="button" onClick={() => moveService(service, -1)} className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:border-orange-500">Up</button>
+                        <button type="button" onClick={() => moveService(service, 1)} className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:border-orange-500">Down</button>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2 text-xs">
                     <button
                       type="button"
                       onClick={() => renameService(service)}
-                      className="rounded border border-slate-300 px-2 py-1 hover:border-brand-orange"
+                      className="rounded border border-slate-700 px-2 py-1 text-white hover:border-orange-500"
                     >
                       Rename
                     </button>
                     <button
                       type="button"
+                      onClick={() => editServiceDescription(service)}
+                      className="rounded border border-slate-700 px-2 py-1 text-white hover:border-orange-500"
+                    >
+                      Edit description
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => toggleService(service)}
-                      className="rounded border border-slate-300 px-2 py-1 hover:border-brand-orange"
+                      className="rounded border border-slate-700 px-2 py-1 text-white hover:border-orange-500"
                     >
                       {service.isActive ? 'Deactivate' : 'Activate'}
                     </button>
                     <button
                       type="button"
+                      onClick={() => setServicePricingMode(service)}
+                      className="rounded border border-slate-700 px-2 py-1 text-white hover:border-orange-500"
+                    >
+                      Set pricing mode
+                    </button>
+                    {service.pricingMode === 'FIXED' && (
+                      <button
+                        type="button"
+                        onClick={() => setServiceFixedPrice(service)}
+                        className="rounded border border-slate-700 px-2 py-1 text-white hover:border-orange-500"
+                      >
+                        Set fixed price
+                      </button>
+                    )}
+                    <button
+                      type="button"
                       onClick={() => deleteService(service)}
-                      className="rounded border border-red-200 px-2 py-1 text-red-600 hover:border-red-400"
+                      className="rounded border border-red-500/30 px-2 py-1 text-red-300 hover:border-red-400"
                     >
                       Delete
                     </button>
+                    </div>
                   </div>
+
+                  {service.pricingMode !== 'FIXED' && (
+                    <div className="rounded-lg border border-slate-700 bg-slate-900 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Tier prices</p>
+                      <div className="flex flex-wrap gap-2">
+                        {tiers.map((tier) => {
+                          const p = priceFor(service.id, tier.id);
+                          return (
+                            <button
+                              key={tier.id}
+                              type="button"
+                              onClick={() => setTierPrice(service, tier)}
+                              className="inline-flex max-w-full items-center gap-1 truncate rounded border border-slate-700 bg-slate-800 px-2 py-1 text-left text-[11px] text-slate-200 hover:border-orange-500"
+                              title={`${tier.name} ${typeof p === 'number' ? formatPrice(p) : '-'}`}
+                            >
+                              <span className="text-slate-400 truncate">{tier.name}</span>
+                              <span className="font-semibold text-white truncate">{typeof p === 'number' ? formatPrice(p) : '-'}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
           </div>
 
           <div className="space-y-6">
-            <div className="space-y-3 rounded border border-slate-200 bg-white p-4">
-              <h3 className="text-lg font-medium text-brand-black">Engine tiers</h3>
-              <form onSubmit={handleCreateTier} className="grid gap-2 sm:grid-cols-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600">Name</label>
-                  <input
-                    value={tierForm.name}
-                    onChange={(event) => setTierForm((prev) => ({ ...prev, name: event.target.value }))}
-                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600">Max CC</label>
-                  <input
-                    value={tierForm.maxCc}
-                    onChange={(event) => setTierForm((prev) => ({ ...prev, maxCc: event.target.value }))}
-                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
-                    placeholder="leave blank"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600">Sort order</label>
-                  <input
-                    value={tierForm.sortOrder}
-                    onChange={(event) => setTierForm((prev) => ({ ...prev, sortOrder: event.target.value }))}
-                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
-                    required
-                  />
-                </div>
-                <div className="sm:col-span-3">
-                  <button
-                    type="submit"
-                    className="rounded bg-brand-orange px-3 py-2 text-sm text-white hover:bg-orange-500"
-                  >
-                    Add tier
-                  </button>
-                </div>
-              </form>
+            <div className="space-y-3 rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-inner">
+              <h3 className="text-lg font-medium text-white">Engine tiers</h3>
+              <TierForm value={tierForm} onChange={(patch)=> setTierForm((prev)=> ({...prev, ...patch}))} onSubmit={handleCreateTier} />
 
               <ul className="space-y-2 text-sm">
                 {tiers.map((tier) => (
-                  <li key={tier.id} className="flex items-center justify-between rounded border border-slate-200 p-3">
+                  <li key={tier.id} className="flex items-center justify-between rounded border border-slate-700 bg-slate-800 p-3">
                     <div>
-                      <p className="font-semibold text-brand-black">{tier.name}</p>
-                      <p className="text-xs text-slate-500">Sort order {tier.sortOrder} • Max CC {tier.maxCc ?? '—'}</p>
+                      <p className="font-semibold text-white">{tier.name}</p>
+                      <p className="text-xs text-slate-400">Sort order {tier.sortOrder} · Max CC {tier.maxCc ?? '—'}</p>
                     </div>
                     <div className="flex gap-2">
                       <button
                         type="button"
                         onClick={() => updateTierField(tier, 'name')}
-                        className="rounded border border-slate-300 px-2 py-1 text-xs hover:border-brand-orange"
+                        className="rounded border border-slate-700 px-2 py-1 text-xs text-white hover:border-orange-500"
                       >
                         Rename
                       </button>
                       <button
                         type="button"
                         onClick={() => updateTierField(tier, 'maxCc')}
-                        className="rounded border border-slate-300 px-2 py-1 text-xs hover:border-brand-orange"
+                        className="rounded border border-slate-700 px-2 py-1 text-xs text-white hover:border-orange-500"
                       >
                         Max CC
                       </button>
                       <button
                         type="button"
                         onClick={() => updateTierField(tier, 'sortOrder')}
-                        className="rounded border border-slate-300 px-2 py-1 text-xs hover:border-brand-orange"
+                        className="rounded border border-slate-700 px-2 py-1 text-xs text-white hover:border-orange-500"
                       >
                         Order
                       </button>
                       <button
                         type="button"
                         onClick={() => deleteTier(tier)}
-                        className="rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:border-red-400"
+                        className="rounded border border-red-500/30 px-2 py-1 text-xs text-red-300 hover:border-red-400"
                       >
                         Delete
                       </button>
@@ -357,33 +482,21 @@ export function CatalogManager() {
               </ul>
             </div>
 
-            <div className="space-y-3 rounded border border-slate-200 bg-white p-4">
-              <h3 className="text-lg font-medium text-brand-black">Service prices</h3>
-              <p className="text-xs text-slate-500">Click a price to update it (stored in pence).</p>
-              <ul className="space-y-2 text-sm">
-                {prices.map((price) => (
-                  <li key={`${price.serviceId}-${price.engineTierId}`} className="flex items-center justify-between rounded border border-slate-200 p-3">
-                    <div>
-                      <p className="font-semibold text-brand-black">
-                        {price.service?.name ?? `Service ${price.serviceId}`}{' '}
-                        / {price.engineTier?.name ?? `Tier ${price.engineTierId}`}
-                      </p>
-                      <p className="text-xs text-slate-500">{formatPrice(price.amountPence)}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => updatePrice(price)}
-                      className="rounded border border-slate-300 px-2 py-1 text-xs hover:border-brand-orange"
-                    >
-                      Update price
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {/* Service prices list removed in favour of per-service tier editors above */}
           </div>
         </div>
       )}
     </section>
   );
 }
+
+/**
+ * CatalogManager (Admin)
+ *
+ * Purpose
+ * - Manage services, engine tiers, and tiered prices.
+ *
+ * Refactor Plan
+ * - Split forms into ServiceForm, TierForm, PriceGrid components.
+ * - Encapsulate API calls behind a small catalog client module.
+ */

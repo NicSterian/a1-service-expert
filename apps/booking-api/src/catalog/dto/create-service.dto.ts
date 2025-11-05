@@ -32,5 +32,16 @@ export class CreateServiceDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
-}
 
+  @IsOptional()
+  @IsBoolean()
+  showInWizard?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  showInPricingTable?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  sortOrder?: number;
+}

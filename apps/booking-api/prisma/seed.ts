@@ -133,7 +133,7 @@ async function main() {
     timezone: 'Europe/London',
     defaultSlotsJson: ['09:00', '10:00', '11:00'] as Prisma.JsonArray,
     bankHolidayRegion: 'England & Wales',
-    logoUrl: null as string | null,
+    logoUrl: '/admin/settings/logo/logo.webp',
     holdMinutes: 10,
     captchaEnabled: true,
     captchaRequireInDev: false,

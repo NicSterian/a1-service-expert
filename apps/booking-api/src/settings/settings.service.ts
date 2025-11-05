@@ -81,11 +81,20 @@ export class SettingsService {
     if (dto.companyPhone !== undefined) {
       data.companyPhone = this.normalizeNullableString(dto.companyPhone);
     }
+    if (dto.companyRegNumber !== undefined) {
+      (data as any).companyRegNumber = this.normalizeNullableString(dto.companyRegNumber);
+    }
+    if (dto.companyWebsite !== undefined) {
+      (data as any).companyWebsite = this.normalizeNullableString(dto.companyWebsite);
+    }
     if (dto.vatNumber !== undefined) {
       data.vatNumber = this.normalizeNullableString(dto.vatNumber);
     }
     if (dto.vatRatePercent !== undefined) {
       data.vatRatePercent = new Prisma.Decimal(dto.vatRatePercent);
+    }
+    if (dto.vatRegistered !== undefined) {
+      (data as any).vatRegistered = dto.vatRegistered;
     }
     if (dto.timezone !== undefined) {
       const tz = dto.timezone.trim();
@@ -97,6 +106,12 @@ export class SettingsService {
     if (dto.defaultSlots !== undefined) {
       data.defaultSlotsJson = dto.defaultSlots as Prisma.JsonArray;
     }
+    if (dto.saturdaySlots !== undefined) {
+      (data as any).saturdaySlotsJson = dto.saturdaySlots as Prisma.JsonArray;
+    }
+    if (dto.sundaySlots !== undefined) {
+      (data as any).sundaySlotsJson = dto.sundaySlots as Prisma.JsonArray;
+    }
     if (dto.bankHolidayRegion !== undefined) {
       const region = dto.bankHolidayRegion.trim();
       if (region.length === 0) {
@@ -106,6 +121,33 @@ export class SettingsService {
     }
     if (dto.logoUrl !== undefined) {
       data.logoUrl = this.normalizeNullableString(dto.logoUrl);
+    }
+    if ((dto as any).invoiceNumberFormat !== undefined) {
+      (data as any).invoiceNumberFormat = this.normalizeNullableString((dto as any).invoiceNumberFormat);
+    }
+    if ((dto as any).brandPrimaryColor !== undefined) {
+      (data as any).brandPrimaryColor = this.normalizeNullableString((dto as any).brandPrimaryColor);
+    }
+    if (dto.invoicePaymentNotes !== undefined) {
+      (data as any).invoicePaymentNotes = this.normalizeNullableString(dto.invoicePaymentNotes);
+    }
+    if ((dto as any).invoiceItems !== undefined) {
+      (data as any).invoiceItemsJson = (dto as any).invoiceItems as Prisma.JsonArray;
+    }
+    if (dto.bankName !== undefined) {
+      (data as any).bankName = this.normalizeNullableString(dto.bankName);
+    }
+    if (dto.bankSortCode !== undefined) {
+      (data as any).bankSortCode = this.normalizeNullableString(dto.bankSortCode);
+    }
+    if (dto.bankAccountNumber !== undefined) {
+      (data as any).bankAccountNumber = this.normalizeNullableString(dto.bankAccountNumber);
+    }
+    if (dto.bankIban !== undefined) {
+      (data as any).bankIban = this.normalizeNullableString(dto.bankIban);
+    }
+    if (dto.bankSwift !== undefined) {
+      (data as any).bankSwift = this.normalizeNullableString(dto.bankSwift);
     }
     if (dto.holdMinutes !== undefined) {
       data.holdMinutes = dto.holdMinutes;
@@ -215,6 +257,7 @@ export class SettingsService {
 
   private updateCache(settings: Settings) {
     this.cache = { value: settings, expiresAt: Date.now() + SETTINGS_CACHE_MS };
+    try { (global as any).__a1SettingsCache = settings; } catch {}
   }
 
   private normalizeNullableString(value: string | null | undefined): string | null {

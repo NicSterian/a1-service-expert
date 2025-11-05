@@ -1,19 +1,19 @@
 import { Link } from 'react-router-dom';
-import logo from '../assets/logo-a1.png';
+import logo from '../assets/logo-new.webp';
 
 export default function Footer() {
   const whatsappHref = 'https://wa.me/447394433889';
   return (
-    <footer className="bg-white py-10 text-slate-600">
+    <footer className="border-t border-slate-800 bg-slate-900 py-10 text-slate-300">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Link to="/" className="inline-flex items-center" aria-label="A1 Service Expert home">
-            <img src={logo} alt="A1 Service Expert" className="h-12 w-auto sm:h-14 lg:h-16" />
+            <img src={logo} alt="A1 Service Expert" className="h-32 w-auto sm:h-36 lg:h-40" />
           </Link>
           <p className="mt-3 text-sm">Independent specialists for servicing, diagnostics, and repairs.</p>
         </div>
         <nav aria-label="Quick links">
-          <p className="text-sm font-semibold text-slate-900">Quick Links</p>
+          <p className="text-sm font-semibold text-white">Quick Links</p>
           <ul className="mt-3 space-y-2 text-sm">
             <li><Link to="/" className="hover:text-brand-orange">Home</Link></li>
             <li><Link to="/services" className="hover:text-brand-orange">Services</Link></li>
@@ -21,10 +21,11 @@ export default function Footer() {
             <li><Link to="/contact" className="hover:text-brand-orange">Contact</Link></li>
             <li><Link to="/terms" className="hover:text-brand-orange">Terms</Link></li>
             <li><Link to="/privacy" className="hover:text-brand-orange">Privacy</Link></li>
+            <li><Link to="/cookie-policy" className="hover:text-brand-orange">Cookie Policy</Link></li>
           </ul>
         </nav>
         <div>
-          <p className="text-sm font-semibold text-slate-900">Contact</p>
+          <p className="text-sm font-semibold text-white">Contact</p>
           <div className="mt-3 flex flex-col gap-2">
             <a
               href="tel:07394433889"
@@ -56,7 +57,7 @@ export default function Footer() {
           </div>
         </div>
         <div>
-          <p className="text-sm font-semibold text-slate-900">Socials</p>
+          <p className="text-sm font-semibold text-white">Socials</p>
           <div className="mt-3 flex items-center gap-3">
             <a
               href="https://www.facebook.com/p/A1-Service-Expert-61559306016998/"
@@ -83,8 +84,8 @@ export default function Footer() {
           </div>
         </div>
       </div>
-      <div className="mt-8 border-t border-slate-200 pt-4">
-        <p className="mx-auto max-w-6xl px-4 text-center text-xs text-slate-500">
+      <div className="mt-8 border-t border-slate-800 pt-4">
+        <p className="mx-auto max-w-6xl px-4 text-center text-xs text-slate-400">
           © 2025 A1 Service Expert. All rights reserved | Website Design & Development by
           {' '}<a href="https://www.linkedin.com/in/nicolae-sterian/" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-orange underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-orange">Nicolae Sterian</a>
         </p>

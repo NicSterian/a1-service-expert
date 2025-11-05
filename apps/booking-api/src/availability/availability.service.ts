@@ -33,14 +33,25 @@ export class AvailabilityService {
     }
 
     const settings = await this.settingsService.getSettings();
-    const defaultSlots = Array.isArray(settings.defaultSlotsJson)
-      ? (settings.defaultSlotsJson as string[])
+    const weekdayDefaults = Array.isArray(settings.defaultSlotsJson)
+      ? (settings.defaultSlotsJson as unknown as string[])
+      : [];
+    const saturdayDefaults = Array.isArray((settings as any).saturdaySlotsJson)
+      ? ((settings as any).saturdaySlotsJson as string[])
+      : [];
+    const sundayDefaults = Array.isArray((settings as any).sundaySlotsJson)
+      ? ((settings as any).sundaySlotsJson as string[])
       : [];
 
     const allSlots = new Set<string>();
 
-    if (!isWeekend(date)) {
-      defaultSlots.forEach((slot) => allSlots.add(slot));
+    const day = date.getUTCDay(); // 0=Sun,6=Sat
+    if (day === 6) {
+      saturdayDefaults.forEach((slot) => allSlots.add(slot));
+    } else if (day === 0) {
+      sundayDefaults.forEach((slot) => allSlots.add(slot));
+    } else {
+      weekdayDefaults.forEach((slot) => allSlots.add(slot));
     }
 
     const extraSlots = await this.prisma.extraSlot.findMany({

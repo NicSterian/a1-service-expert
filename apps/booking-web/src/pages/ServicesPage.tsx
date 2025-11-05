@@ -274,45 +274,45 @@ export function ServicesPage() {
         </div>
       </section>
 
-      <section className="grid gap-8 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="space-y-8">
+      <section className="grid gap-8 rounded-3xl border border-slate-700 bg-slate-900 p-8 shadow-inner lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="space-y-6">
           {primaryServices.map((service) => (
             <article
               key={service.id}
               id={service.id}
-              className="group rounded-3xl border border-slate-200 p-6 shadow-sm transition-transform duration-200 hover:-translate-y-1.5 hover:shadow-xl"
+              className="group rounded-3xl border border-slate-700 bg-slate-800 p-6 shadow-lg transition-all duration-200 hover:-translate-y-1 hover:border-orange-500 hover:shadow-xl"
             >
               <header className="flex items-start gap-4">
-                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-orange/10 text-brand-orange transition group-hover:bg-white group-hover:text-brand-orange">
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-orange-500/10 text-orange-500 transition-all duration-200 group-hover:bg-orange-500/20 group-hover:text-orange-400 group-hover:shadow-lg group-hover:ring-2 group-hover:ring-orange-500">
                   {service.icon}
                 </span>
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold uppercase tracking-[0.4em] text-brand-orange">{service.title}</p>
-                  <h2 className="text-2xl font-semibold text-brand-black">{service.highlight}</h2>
-                  <p className="text-sm text-slate-600">{service.summary}</p>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.4em] text-orange-400">{service.title}</p>
+                  <h2 className="text-2xl font-semibold text-white">{service.highlight}</h2>
+                  <p className="text-sm leading-relaxed text-slate-300">{service.summary}</p>
                 </div>
               </header>
-              <ul className="mt-4 space-y-2 text-sm text-slate-600">
+              <ul className="mt-5 space-y-2.5 text-sm text-slate-400">
                 {service.details.map((detail) => (
-                  <li key={detail} className="flex items-start gap-2">
-                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-brand-orange" />
-                    <span>{detail}</span>
+                  <li key={detail} className="flex items-start gap-3">
+                    <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-orange-500" />
+                    <span className="leading-relaxed">{detail}</span>
                   </li>
                 ))}
               </ul>
             </article>
           ))}
-          <div className="rounded-3xl border border-dashed border-brand-orange/40 bg-brand-orange/5 p-6 text-sm text-slate-700">
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-brand-orange">Servicing notes</p>
-            <ul className="mt-3 space-y-2">
+          <div className="rounded-3xl border border-orange-500/30 bg-orange-500/5 p-6 shadow-lg backdrop-blur-sm">
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-orange-400">Servicing notes</p>
+            <ul className="mt-4 space-y-2.5 text-sm text-slate-300">
               {servicingNotes.map((note) => (
-                <li key={note} className="flex items-start gap-2">
-                  <span className="mt-1 inline-block h-1.5 w-1.5 rounded-full bg-brand-orange" />
+                <li key={note} className="flex items-start gap-3">
+                  <span className="mt-1.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-orange-500" />
                   <span>{note}</span>
                 </li>
               ))}
             </ul>
-            <p className="mt-3 text-xs text-slate-500">
+            <p className="mt-4 text-xs leading-relaxed text-slate-400">
               Up to 5 litres of standard oil is included. Certain oil types may incur an additional charge. Additional parts are supplied at cost only; no extra labour fees applied.
             </p>
           </div>
@@ -390,25 +390,25 @@ export function ServicesPage() {
         </ul>
       </section>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-12">
+      <section className="rounded-3xl border border-slate-700 bg-slate-900 p-8 shadow-inner sm:p-12">
         <div className="mx-auto max-w-3xl space-y-4 text-center">
-          <h2 className="text-3xl font-semibold text-brand-black">More ways we keep you moving</h2>
-          <p className="text-sm text-slate-600">
+          <h2 className="text-3xl font-semibold text-white">More ways we keep you moving</h2>
+          <p className="text-sm text-slate-300">
             Pair any of these services with the online booking journey or discuss a bespoke maintenance plan with our service advisors.
           </p>
         </div>
-        <div className="mt-8 grid gap-4 sm:gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-10 grid gap-4 sm:gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {supportingServices.map((service) => (
             <div
               key={service.title}
-              className="group flex h-full flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 text-left transition duration-200 hover:-translate-y-1.5 hover:border-transparent hover:bg-brand-orange hover:shadow-xl"
+              className="group flex h-full flex-col gap-4 rounded-2xl border border-slate-700 bg-slate-800 p-6 text-left shadow-lg transition duration-200 hover:-translate-y-1 hover:border-orange-500 hover:bg-slate-750 hover:shadow-xl"
             >
-              <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-orange/10 text-brand-orange transition-colors duration-200 group-hover:bg-white/15 group-hover:text-white">
+              <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-orange-500/10 text-orange-500 transition-all duration-200 group-hover:bg-orange-500 group-hover:text-black group-hover:shadow-lg">
                 {service.icon}
               </span>
               <div className="space-y-2">
-                <h3 className="text-lg font-semibold text-brand-black transition-colors duration-200 group-hover:text-white">{service.title}</h3>
-                <p className="text-sm text-slate-600 transition-colors duration-200 group-hover:text-white/90">{service.copy}</p>
+                <h3 className="text-lg font-semibold text-white transition-colors duration-200 group-hover:text-orange-400">{service.title}</h3>
+                <p className="text-sm leading-relaxed text-slate-400 transition-colors duration-200 group-hover:text-slate-300">{service.copy}</p>
               </div>
             </div>
           ))}

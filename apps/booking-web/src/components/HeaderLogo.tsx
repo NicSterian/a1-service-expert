@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import logo from '../assets/logo-a1.png';
+import logo from '../assets/logo-new.webp';
 
 type HeaderLogoProps = {
   variant?: 'desktop' | 'mobile';

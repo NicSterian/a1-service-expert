@@ -211,8 +211,11 @@ if (!res.ok) {
         where: { serviceId },
         select: { engineTierId: true, amountPence: true },
       });
+      // Filter out null engineTierIds (fixed pricing) and build map
       const priceMap = new Map(
-        prices.map((p) => [p.engineTierId, p.amountPence]),
+        prices
+          .filter((p) => p.engineTierId !== null)
+          .map((p) => [p.engineTierId as number, p.amountPence]),
       );
 
       if (priceMap.size) {
@@ -349,3 +352,13 @@ if (!res.ok) {
     };
   }
 }
+/**
+ * VehiclesService
+ *
+ * Purpose
+ * - Vehicle data lookup and normalisation (VRM, make/model/engine size).
+ * - Provides engine-tier recommendation used by pricing.
+ *
+ * Safe Refactor Idea
+ * - Extract external lookup adapter(s) behind an interface for testing.
+ */

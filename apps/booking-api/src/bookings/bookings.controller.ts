@@ -18,6 +18,12 @@ export class BookingsController {
     return this.bookingsService.listBookingsForUser(user);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get(':id')
+  getOne(@AuthUser() user: User, @Param('id', ParseIntPipe) bookingId: number) {
+    return this.bookingsService.getBookingForUser(user, bookingId);
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard)
   createBooking(@AuthUser() user: User, @Body() dto: CreateBookingDto) {

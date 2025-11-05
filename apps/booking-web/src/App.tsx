@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AUTH_EVENT_NAME, clearAuthToken, getAuthToken } from './lib/auth';
@@ -7,9 +7,29 @@ import HeaderLogo from './components/HeaderLogo';
 import Footer from './components/Footer';
 import BackToTop from './components/BackToTop';
 
-interface CurrentUser {
+interface PublicUser {
+  id: number;
   email: string;
   role: string;
+  emailVerified: boolean;
+  title: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  companyName: string | null;
+  mobileNumber: string | null;
+  landlineNumber: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  addressLine3: string | null;
+  city: string | null;
+  county: string | null;
+  postcode: string | null;
+  marketingOptIn: boolean;
+  notes: string | null;
+  profileUpdatedAt: string | null;
+  lastLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 type NavLinkItem = {
@@ -32,8 +52,10 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isLoggedIn, setIsLoggedIn] = useState(Boolean(getAuthToken()));
-  const [user, setUser] = useState<CurrentUser | null>(null);
+  const [user, setUser] = useState<PublicUser | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const handleAuthChange = () => setIsLoggedIn(Boolean(getAuthToken()));
@@ -55,13 +77,19 @@ function App() {
       }
 
       try {
-        const response = await apiGet<{ user: CurrentUser }>('/auth/me');
+        const response = await apiGet<{ user: PublicUser }>('/auth/me');
         if (!cancelled) {
           setUser(response.user);
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
           setUser(null);
+          // If token is invalid or expired, clear it
+          const errorMsg = String((error as Error)?.message ?? '');
+          if (errorMsg.toLowerCase().includes('unauthorized') || errorMsg.toLowerCase().includes('invalid token')) {
+            clearAuthToken();
+            setIsLoggedIn(false);
+          }
         }
       }
     };
@@ -74,6 +102,7 @@ function App() {
 
   useEffect(() => {
     setMobileMenuOpen(false);
+    setProfileMenuOpen(false);
   }, [location.pathname]);
 
   const navLinks = useMemo<NavLinkItem[]>(() => {
@@ -86,21 +115,12 @@ function App() {
       { to: '/contact', label: 'Contact Us' },
     ];
 
-    if (isLoggedIn) {
-      links.push({ to: '/account', label: 'My Account' });
-      if (user?.role === 'ADMIN' || user?.role === 'STAFF') {
-        links.push({ to: '/admin', label: 'Admin' });
-      }
-      links.push({ to: '/dev', label: 'Dev Tools' });
-    } else {
-      links.push({ to: '/login', label: 'Login' });
-      links.push({ to: '/register', label: 'Register' });
-    }
-
     return links;
-  }, [isLoggedIn, user?.role]);
+  }, []);
 
-  const handleLogout = () => {
+  const isStaff = user?.role === 'ADMIN' || user?.role === 'STAFF';
+
+  const handleLogout = useCallback(() => {
     clearAuthToken();
     setIsLoggedIn(false);
     setUser(null);
@@ -109,7 +129,39 @@ function App() {
       navigate('/login', { replace: true });
     }
     toast.success('You have been logged out.');
-  };
+    setProfileMenuOpen(false);
+  }, [location.pathname, navigate]);
+
+  useEffect(() => {
+    if (!profileMenuOpen) {
+      return;
+    }
+
+    const handleClickAway = (event: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickAway);
+    document.addEventListener('keydown', handleKey);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickAway);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [profileMenuOpen]);
+
+  const userInitial = user?.firstName?.[0]?.toUpperCase() ?? user?.lastName?.[0]?.toUpperCase() ?? user?.email?.[0]?.toUpperCase() ?? '?';
+  const userDisplayName = user?.firstName && user?.lastName
+    ? `${user.firstName} ${user.lastName}`.trim()
+    : user?.email ?? 'User';
 
   const renderNavLink = (link: NavLinkItem, variant: 'desktop' | 'mobile') => {
     const isActive = location.pathname === link.to;
@@ -215,14 +267,77 @@ function App() {
                 WhatsApp
               </a>
               {isLoggedIn ? (
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="inline-flex items-center justify-center rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white transition hover:border-brand-orange hover:text-brand-orange"
-                >
-                  Logout
-                </button>
-              ) : null}
+                <div className="relative" ref={profileMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setProfileMenuOpen((prev) => !prev)}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:border-brand-orange hover:text-brand-orange"
+                    aria-expanded={profileMenuOpen}
+                    aria-haspopup="menu"
+                  >
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-orange/90 text-xs font-bold text-slate-900">
+                      {userInitial}
+                    </span>
+                    <span className="hidden md:inline">{userDisplayName}</span>
+                    <span aria-hidden className={`transition ${profileMenuOpen ? 'rotate-180' : ''}`}>
+                      <svg viewBox="0 0 24 24" className="h-3 w-3" fill="currentColor">
+                        <path d="M12 15.5a1 1 0 0 1-.64-.23l-6-5a1 1 0 1 1 1.28-1.54L12 13.27l5.36-4.54a1 1 0 0 1 1.28 1.54l-6 5a1 1 0 0 1-.64.23Z" />
+                      </svg>
+                    </span>
+                  </button>
+                  {profileMenuOpen ? (
+                    <div
+                      role="menu"
+                      className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-2 text-sm text-slate-700 shadow-xl"
+                    >
+                      <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                        Signed in as
+                      </p>
+                      <p className="px-3 pb-2 text-sm font-medium text-slate-600">{user?.email}</p>
+                      <div className="my-1 h-px bg-slate-100" />
+                      <Link
+                        to="/account"
+                        onClick={() => setProfileMenuOpen(false)}
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 transition hover:bg-slate-100 hover:text-brand-black"
+                      >
+                        Account overview
+                      </Link>
+                      {isStaff ? (
+                        <Link
+                          to="/admin"
+                          onClick={() => setProfileMenuOpen(false)}
+                          className="flex items-center gap-2 rounded-lg px-3 py-2 transition hover:bg-slate-100 hover:text-brand-black"
+                        >
+                          Admin dashboard
+                        </Link>
+                      ) : null}
+                      <div className="my-1 h-px bg-slate-100" />
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left font-semibold text-brand-orange transition hover:bg-orange-50"
+                      >
+                        Sign out
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Link
+                    to="/login"
+                    className="inline-flex items-center justify-center rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white transition hover:border-brand-orange hover:text-brand-orange"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    to="/register"
+                    className="inline-flex items-center justify-center rounded-full border border-brand-orange px-4 py-2 text-xs font-semibold text-brand-orange transition hover:bg-brand-orange hover:text-white"
+                  >
+                    Register
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
           {mobileMenuOpen ? (
@@ -230,15 +345,48 @@ function App() {
               <nav className="flex w-full flex-col items-center gap-2 text-sm font-medium">
                 {navLinks.map((link) => renderNavLink(link, 'mobile'))}
               </nav>
-              {isLoggedIn ? (
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="mt-2 inline-flex items-center justify-center rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white transition hover:border-brand-orange hover:text-brand-orange"
-                >
-                  Logout
-                </button>
-              ) : null}
+              <div className="mt-4 flex w-full flex-col items-center gap-2 px-2 text-sm">
+                {isLoggedIn ? (
+                  <>
+                    <Link
+                      to="/account"
+                      className="w-full rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-center font-semibold text-white transition hover:border-brand-orange hover:text-brand-orange"
+                    >
+                      Account overview
+                    </Link>
+                    {isStaff ? (
+                      <Link
+                        to="/admin"
+                        className="w-full rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-center font-semibold text-white transition hover:border-brand-orange hover:text-brand-orange"
+                      >
+                        Admin dashboard
+                      </Link>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="w-full rounded-lg border border-white/20 px-4 py-2 text-center font-semibold text-white transition hover:border-brand-orange hover:text-brand-orange"
+                    >
+                      Sign out
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      to="/login"
+                      className="w-full rounded-lg border border-white/20 px-4 py-2 text-center font-semibold text-white transition hover:border-brand-orange hover:text-brand-orange"
+                    >
+                      Login
+                    </Link>
+                    <Link
+                      to="/register"
+                      className="w-full rounded-lg border border-brand-orange px-4 py-2 text-center font-semibold text-brand-orange transition hover:bg-brand-orange hover:text-white"
+                    >
+                      Register
+                    </Link>
+                  </>
+                )}
+              </div>
             </div>
           ) : null}
         </div>

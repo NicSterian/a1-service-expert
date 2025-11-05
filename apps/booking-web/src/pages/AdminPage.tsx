@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { apiGet } from '../lib/api';
@@ -31,9 +31,7 @@ export function AdminPage() {
         setStatus('loading');
         setError(null);
         const response = await apiGet<{ user: CurrentUser }>('/auth/me');
-        if (cancelled) {
-          return;
-        }
+        if (cancelled) return;
         setUser(response.user);
         if (response.user.role === 'ADMIN' || response.user.role === 'STAFF') {
           setStatus('ready');
@@ -41,9 +39,7 @@ export function AdminPage() {
           setStatus('forbidden');
         }
       } catch (err) {
-        if (cancelled) {
-          return;
-        }
+        if (cancelled) return;
         setError((err as Error).message ?? 'Unable to load admin area.');
         setStatus('forbidden');
       }
@@ -56,9 +52,7 @@ export function AdminPage() {
   }, [navigate]);
 
   const navTarget = useMemo(() => {
-    if (!user) {
-      return 'login';
-    }
+    if (!user) return 'login';
     return user.role === 'ADMIN' || user.role === 'STAFF' ? 'ready' : 'forbidden';
   }, [user]);
 
@@ -69,41 +63,47 @@ export function AdminPage() {
   };
 
   if (status === 'loading') {
-    return <p className="px-4 py-8 text-sm text-slate-500">Checking admin access…</p>;
+    return (
+      <div className="space-y-6 px-4 py-8">
+        <div className="rounded-3xl border border-slate-700 bg-slate-900 p-6 text-sm text-slate-300">Checking admin access.</div>
+      </div>
+    );
   }
 
   if (status === 'forbidden' || navTarget === 'forbidden') {
     return (
       <div className="space-y-4 px-4 py-8">
-        <p className="text-sm text-red-600">
-          {error ?? 'You need an administrator account to access this page.'}
-        </p>
-        <button
-          type="button"
-          onClick={() => navigate('/login', { state: { from: '/admin' } })}
-          className="rounded bg-brand-orange px-4 py-2 text-white hover:bg-orange-500"
-        >
-          Go to login
-        </button>
+        <div className="rounded-3xl border border-red-500/30 bg-red-500/10 p-6 text-sm text-red-200">
+          <p>{error ?? 'You need an administrator account to access this page.'}</p>
+          <button
+            type="button"
+            onClick={() => navigate('/login', { state: { from: '/admin' } })}
+            className="mt-3 inline-flex items-center justify-center rounded-full bg-brand-orange px-4 py-2 text-xs font-semibold text-slate-950 transition hover:-translate-y-0.5 hover:bg-orange-400"
+          >
+            Go to login
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-10 px-4 py-8">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold text-brand-black">Admin Dashboard</h1>
-          {user ? <p className="text-xs text-slate-500">Signed in as {user.email} ({user.role})</p> : null}
+      <section className="rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 text-white shadow-lg">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold">Admin Dashboard</h1>
+            {user ? <p className="text-xs text-slate-300">Signed in as {user.email} ({user.role})</p> : null}
+          </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="inline-flex items-center justify-center rounded-full border border-white/30 px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:border-brand-orange hover:text-brand-orange"
+          >
+            Logout
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="self-start rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:border-brand-orange hover:text-brand-orange"
-        >
-          Logout
-        </button>
-      </header>
+      </section>
 
       <CatalogManager />
       <CalendarManager />

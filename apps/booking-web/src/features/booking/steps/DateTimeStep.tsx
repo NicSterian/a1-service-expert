@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
-import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import {
   addMonths,
   eachDayOfInterval,
@@ -49,7 +49,7 @@ const isWeekend = (date: Date) => {
 
 export function DateTimeStep() {
   const navigate = useNavigate();
-  const { draft, updateDraft, markStepComplete } = useBookingWizard();
+  const { draft, updateDraft } = useBookingWizard();
 
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState<Date | null>(draft.date ? new Date(draft.date) : null);
@@ -203,28 +203,24 @@ export function DateTimeStep() {
     }
   };
 
-  // We allow continuing as soon as a valid date & time are chosen.
-  // We *do not* require a hold in the draft.
-  const canContinue = Boolean(hasPricingSelection && draft.date && draft.time);
-
   if (!hasPricingSelection) {
     return (
       <div className="space-y-6">
         <header className="space-y-2">
-          <h2 className="text-2xl font-semibold text-brand-black">4. Date &amp; Time</h2>
+          <h2 className="text-2xl font-semibold text-brand-black">3. Date &amp; Time</h2>
           <p className="text-slate-600">Confirm your pricing before choosing a date and time.</p>
         </header>
 
-        <div className="space-y-3">
-          <p className="text-sm text-red-600">Please confirm your engine tier and price before selecting a slot.</p>
+        <section className="space-y-4 rounded-3xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-inner">
+          <p className="text-sm text-red-300">Please confirm your engine tier and price before selecting a slot.</p>
           <button
             type="button"
             onClick={() => navigate('../pricing')}
-            className="rounded bg-brand-orange px-4 py-2 text-white hover:bg-orange-500"
+            className="rounded bg-orange-500 px-4 py-2 text-sm font-semibold text-black hover:bg-orange-400"
           >
             Back to pricing
           </button>
-        </div>
+        </section>
       </div>
     );
   }
@@ -234,151 +230,134 @@ export function DateTimeStep() {
     navigate('../pricing');
   };
 
-  const handleNext = () => {
-    if (!canContinue) {
-      setHoldError('Choose an available slot to continue.');
-      return;
-    }
-    markStepComplete('date-time');
-    navigate('../details-confirm');
-  };
-
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <h2 className="text-2xl font-semibold text-brand-black">4. Date &amp; Time</h2>
+        <h2 className="text-2xl font-semibold text-brand-black">3. Date &amp; Time</h2>
         <p className="text-slate-600">Pick a weekday slot.</p>
-        <div className="mt-2 rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span>
-              <strong>Service:</strong> {draft.serviceName ?? '—'}
-            </span>
-            <span>
-              <strong>Vehicle:</strong> {(draft.vehicle?.vrm ?? '').toUpperCase() || '—'}
-            </span>
-            <span>
-              <strong>Price:</strong>{' '}
-              {draft.pricePence
-                ? new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(
-                    draft.pricePence / 100,
-                  )
-                : '—'}
-            </span>
-          </div>
-        </div>
-        {draft.pricePence ? (
-          <p className="text-xs text-slate-500">Selected service price: {formatPrice(draft.pricePence)}</p>
-        ) : null}
       </header>
 
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setCurrentMonth(addMonths(currentMonth, -1))}
-            className="rounded border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:border-slate-400"
-          >
-            Previous
-          </button>
-          <h3 className="text-lg font-medium text-brand-black">{format(currentMonth, 'MMMM yyyy')}</h3>
-          <button
-            type="button"
-            onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-            className="rounded border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:border-slate-400"
-          >
-            Next
-          </button>
+      <section className="space-y-6 rounded-3xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-inner">
+        <div className="rounded-2xl bg-slate-800/60 p-4 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase text-slate-400">Service</p>
+              <p className="font-semibold text-white">{draft.serviceName ?? '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase text-slate-400">Vehicle</p>
+              <p className="font-semibold uppercase tracking-wide text-white">
+                {(draft.vehicle?.vrm ?? '').toUpperCase() || '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs uppercase text-slate-400">Price</p>
+              <p className="font-semibold text-orange-400">{formatPrice(draft.pricePence)}</p>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-7 gap-2 text-center text-sm">
-          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
-            <div key={day} className="font-medium text-slate-600">
-              {day}
-            </div>
-          ))}
-          {calendarDays.map((day) => {
-            const outsideMonth = !isSameMonth(day, currentMonth);
-            const disabled = isDisabledDate(day);
-            const selected = selectedDate ? isSameDay(selectedDate, day) : false;
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setCurrentMonth(addMonths(currentMonth, -1))}
+              className="rounded border border-slate-600 px-3 py-1 text-sm text-slate-200 hover:border-orange-500 hover:text-orange-400"
+            >
+              Previous
+            </button>
+            <h3 className="text-lg font-medium text-white">{format(currentMonth, 'MMMM yyyy')}</h3>
+            <button
+              type="button"
+              onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+              className="rounded border border-slate-600 px-3 py-1 text-sm text-slate-200 hover:border-orange-500 hover:text-orange-400"
+            >
+              Next
+            </button>
+          </div>
 
-            return (
-              <button
-                key={day.toISOString()}
-                type="button"
-                disabled={disabled}
-                onClick={() => void handleSelectDate(day)}
-                className={`rounded border px-2 py-3 transition focus:outline-none focus:ring-2 focus:ring-brand-orange ${
-                  selected
-                    ? 'border-brand-orange bg-orange-50 text-brand-orange'
-                    : disabled
-                    ? 'border-slate-200 text-slate-300'
-                    : 'border-slate-200 hover:border-brand-orange hover:text-brand-orange'
-                } ${outsideMonth ? 'opacity-60' : ''}`}
-                aria-pressed={selected}
-              >
-                {format(day, 'd')}
-              </button>
-            );
-          })}
+          <div className="grid grid-cols-7 gap-2 text-center text-sm">
+            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+              <div key={day} className="font-medium text-slate-300">
+                {day}
+              </div>
+            ))}
+            {calendarDays.map((day) => {
+              const outsideMonth = !isSameMonth(day, currentMonth);
+              const disabled = isDisabledDate(day);
+              const selected = selectedDate ? isSameDay(selectedDate, day) : false;
+
+              return (
+                <button
+                  key={day.toISOString()}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => void handleSelectDate(day)}
+                  className={`rounded border px-2 py-3 transition focus:outline-none focus:ring-2 focus:ring-orange-500 ${
+                    selected
+                      ? 'border-orange-500 bg-orange-500 text-black font-semibold'
+                      : disabled
+                      ? 'border-slate-700 bg-slate-800 text-slate-500 cursor-not-allowed'
+                      : 'border-slate-600 bg-slate-800 text-slate-100 hover:border-orange-400 hover:bg-slate-700'
+                  } ${outsideMonth ? 'opacity-40' : ''}`}
+                  aria-pressed={selected}
+                >
+                  {format(day, 'd')}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
 
-      <div className="space-y-3">
-        <h4 className="text-lg font-medium text-brand-black">
-          {selectedDate ? format(selectedDate, 'd MMMM yyyy') : 'Select a date to view times'}
-        </h4>
+        <div className="space-y-3">
+          <h4 className="text-lg font-medium text-white">
+            {selectedDate ? format(selectedDate, 'd MMMM yyyy') : 'Select a date to view times'}
+          </h4>
 
-        {loadingSlots ? (
-          <LoadingIndicator label="Checking available times…" />
-        ) : availabilityError ? (
-          <p className="text-sm text-red-600">{availabilityError}</p>
-        ) : selectedDate ? (
-          slots.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {slots.map((slot) => {
-                const selected = slot.time === draft.time;
-                return (
-                  <button
-                    key={slot.time}
-                    type="button"
-                    onClick={() => void handleSelectTime(slot.time)}
-                    className={`rounded border px-3 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-brand-orange ${
-                      selected
-                        ? 'border-brand-orange bg-orange-50 text-brand-orange'
-                        : 'border-slate-200 hover:border-brand-orange hover:text-brand-orange'
-                    }`}
-                    aria-pressed={selected}
-                  >
-                    {slot.time}
-                  </button>
-                );
-              })}
-            </div>
+          {loadingSlots ? (
+            <LoadingIndicator label="Checking available times…" />
+          ) : availabilityError ? (
+            <p className="text-sm text-red-300">{availabilityError}</p>
+          ) : selectedDate ? (
+            slots.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {slots.map((slot) => {
+                  const selected = slot.time === draft.time;
+                  return (
+                    <button
+                      key={slot.time}
+                      type="button"
+                      onClick={() => void handleSelectTime(slot.time)}
+                      className={`rounded border px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-orange-500 ${
+                        selected
+                          ? 'border-orange-500 bg-orange-500 text-black'
+                          : 'border-slate-600 bg-slate-800 text-slate-100 hover:border-orange-400 hover:bg-slate-700'
+                      }`}
+                      aria-pressed={selected}
+                    >
+                      {slot.time}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400">No slots available for this date.</p>
+            )
           ) : (
-            <p className="text-sm text-slate-500">No slots available for this date.</p>
-          )
-        ) : (
-          <p className="text-sm text-slate-500">Select a date above to see available times.</p>
-        )}
+            <p className="text-sm text-slate-400">Select a date above to see available times.</p>
+          )}
 
-        {holdError ? <p className="text-sm text-red-600">{holdError}</p> : null}
-      </div>
+          {holdError ? <p className="text-sm text-red-300">{holdError}</p> : null}
+        </div>
+      </section>
 
-      <div className="flex justify-between">
+      <div className="flex justify-start">
         <button
           type="button"
           onClick={() => void handleBack()}
-          className="rounded border border-slate-300 px-4 py-2 text-slate-700 hover:border-slate-400"
+          className="rounded-full bg-slate-800 px-6 py-2 text-sm font-semibold text-slate-100 transition hover:bg-orange-500 hover:text-black"
         >
-          Back
-        </button>
-        <button
-          type="button"
-          disabled={!canContinue}
-          onClick={handleNext}
-          className="rounded bg-brand-orange px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Continue to Details
+          ← Back
         </button>
       </div>
     </div>
