@@ -1,6 +1,5 @@
 import { ENGINE_TIER_CODES, SERVICE_DETAILS, type EngineTierCode, type ServiceCode } from '@a1/shared/pricing';
 import { formatPrice } from '../utils/format';
-import type { CatalogSummary } from '../../types';
 import type { ServiceOption, ServicePriceMap } from '../hooks/useServiceOptions';
 
 /** Legacy list of selectable service buttons with inline tier pricing */
@@ -59,4 +58,3 @@ export function LegacyServiceList({
 }
 
 export default LegacyServiceList;
-

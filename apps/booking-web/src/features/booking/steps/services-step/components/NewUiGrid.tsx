@@ -1,8 +1,8 @@
 import { SERVICE_DETAILS, type ServiceCode } from '@a1/shared/pricing';
-import { ServiceCard } from '../../../../components/ServiceCard';
-import { PricingTable } from '../../../../components/PricingTable';
-import { VehicleModal } from '../../../../components/VehicleModal';
-import type { CatalogSummary, BookingDraft } from '../../types';
+import { ServiceCard } from '../../../../../components/ServiceCard';
+import { PricingTable } from '../../../../../components/PricingTable';
+import { VehicleModal } from '../../../../../components/VehicleModal';
+import type { CatalogSummary, BookingDraft } from '../../../types';
 import type { ServiceOption } from '../hooks/useServiceOptions';
 
 /** New UI grid of service cards, with vehicle modal + pricing table */
@@ -60,4 +60,3 @@ export function NewUiGrid({
 }
 
 export default NewUiGrid;
-
