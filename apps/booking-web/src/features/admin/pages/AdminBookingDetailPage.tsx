@@ -4,6 +4,8 @@ import toast from 'react-hot-toast';
 import { apiGet, apiPatch, apiPost } from '../../../lib/api';
 import { BookingSourceBadge } from '../bookings/BookingSourceBadge';
 import { CustomerPanel } from './CustomerPanel';
+import { ServicePricingPanel } from './ServicePricingPanel';
+import { DocumentsPanel } from './DocumentsPanel';
 
 export type BookingSource = 'ONLINE' | 'MANUAL';
 
@@ -763,56 +765,7 @@ export function AdminBookingDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="rounded-3xl border border-slate-700 bg-slate-900 p-6 lg:col-span-2">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Services</h3>
-          <div className="mt-4 space-y-3">
-            {booking.services.length === 0 ? (
-              <div className="rounded-lg border border-slate-700 bg-slate-800 p-3 text-sm text-slate-300">
-                No services recorded.
-              </div>
-            ) : (
-              booking.services.map((service) => (
-                <div
-                  key={service.id}
-                  className="rounded-xl border border-slate-700 bg-slate-800 p-4 text-sm text-slate-200"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-white">{service.serviceName ?? 'Service'}</span>
-                    {service.engineTierName && (
-                      <span className="rounded-full border border-slate-600 px-2 py-0.5 text-[11px] uppercase tracking-wide text-slate-300">
-                        {service.engineTierName}
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-slate-400 sm:grid-cols-3">
-                    <div>Code: {service.serviceCode ?? '—'}</div>
-                    <div>Pricing: {service.pricingMode ?? '—'}</div>
-                    <div className="flex items-center gap-2">
-                      <span>Price:</span>
-                      <input
-                        value={servicePriceDrafts[service.id] ?? ''}
-                        onChange={(e) =>
-                          setServicePriceDrafts((prev) => ({ ...prev, [service.id]: e.target.value }))
-                        }
-                        className="w-24 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-white"
-                        placeholder="0.00"
-                        inputMode="decimal"
-                      />
-                      <button
-                        onClick={() => handleSaveServicePrice(service.id)}
-                        className="rounded-full border border-slate-600 px-2 py-1 text-[11px] font-semibold text-slate-200 hover:border-orange-500 hover:text-orange-300"
-                        type="button"
-                        disabled={loadingAction}
-                      >
-                        Save
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+        <ServicePricingPanel booking={booking} drafts={servicePriceDrafts} setDraft={setServicePriceDrafts} onSavePrice={handleSaveServicePrice} loading={loadingAction} />
 
         <div className="rounded-3xl border border-slate-700 bg-slate-900 p-6">
           <div className="flex items-center justify-between">
@@ -850,49 +803,7 @@ export function AdminBookingDetailPage() {
       </div>
 
       <div className="rounded-3xl border border-slate-700 bg-slate-900 p-6">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Documents</h3>
-        <div className="mt-4 space-y-3">
-          {booking.documents.length === 0 ? (
-            <div className="rounded-lg border border-slate-700 bg-slate-800 p-3 text-sm text-slate-300">
-              No documents issued.
-            </div>
-          ) : (
-            booking.documents.map((document) => (
-              <div
-                key={document.id}
-                className="flex flex-col gap-2 rounded-xl border border-slate-700 bg-slate-800 p-4 text-sm text-slate-200 md:flex-row md:items-center md:justify-between"
-              >
-                <div>
-                  <div className="font-semibold text-white">{document.number}</div>
-                  <div className="text-xs text-slate-400">
-                    {document.type} • {document.status} • {formatDateTime(document.createdAt)}
-                  </div>
-                  <div className="text-xs text-slate-400">
-                    Total {currencyFormatter.format(document.totalAmountPence / 100)} (VAT{' '}
-                    {currencyFormatter.format(document.vatAmountPence / 100)})
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-orange-300">
-                  {document.pdfUrl ? (
-                    <a
-                      href={document.pdfUrl}
-                      className="underline underline-offset-4"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Download PDF
-                    </a>
-                  ) : (
-                    <span className="text-slate-500">PDF pending</span>
-                  )}
-                  {document.dueAt && <span className="text-slate-400">Due {formatDate(document.dueAt)}</span>}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
+      <DocumentsPanel booking={booking} />
       <div className="rounded-3xl border border-red-900 bg-red-950/40 p-6">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-red-300">Danger Zone</h3>
         {booking.paymentStatus === 'DELETED' ? (
@@ -926,6 +837,7 @@ export function AdminBookingDetailPage() {
         )}
       </div>
     </div>
+  </div>
   );
 }
 /**
