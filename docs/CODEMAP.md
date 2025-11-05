@@ -392,3 +392,47 @@ Step 2 – Finance/Sequence Utils (done)
   - API build/tests pass; module lint remains clean.
   - File size reduced: `bookings.service.ts` now ~747 LOC.
 
+
+Step 2.1 - BookingsService ESLint review (done)
+- Objective
+  - Ensure apps/booking-api/src/bookings/bookings.service.ts is clean under our current lint posture without altering behavior.
+- Findings
+  - No booking-api lint script is defined; relied on build/tests and manual static review.
+  - No unused imports or obvious rule violations in this file; Logger usage and async flows are correct.
+- Verification
+  - Built successfully: pnpm.cmd --filter booking-api build.
+  - Tests remain green: pnpm.cmd --filter booking-api test -- --config jest.config.ts.
+  - No code changes required for lint beyond existing comments/structure.
+
+---
+
+Window Context #3 - EmailService Refactor Plan
+
+File: apps/booking-api/src/email/email.service.ts (~700 LOC)
+
+Goal
+- Introduce DI-friendly adapters and small utils while preserving behaviour and the public API of EmailService.
+- Keep build/tests green; add concise comments and section headers as we touch files.
+
+Phases (per this file)
+- Phase 1 - Adapters + utils (no behaviour change)
+  - Add default adapters implementing existing seams: DefaultTransportGateway, DefaultTemplateRenderer.
+  - Extract small pure helpers to email.utils.ts (formatCurrencyGBP, formatDateLong, tryLoadLogoDataUri).
+  - Wire EmailService.getTransportGateway/getTemplateRenderer to use the adapters; keep call sites identical.
+- Phase 2 - Renderer consolidation (planned)
+  - Move full subject/body/html branching into DefaultTemplateRenderer and remove duplication from EmailService.
+  - Remove temporary hooks after migration; use utils for formatting and links.
+- Phase 3 - Cleanup (planned)
+  - Ensure comments remain high-signal; prune stale notes; consider extracting contact-message builder to renderer.
+
+Phase 1 - Adapters + utils (done)
+- Implemented
+  - apps/booking-api/src/email/adapters/default-transport.gateway.ts
+  - apps/booking-api/src/email/adapters/default-template.renderer.ts
+  - apps/booking-api/src/email/email.utils.ts (formatCurrencyGBP, formatDateLong, tryLoadLogoDataUri)
+- Service changes
+  - EmailService now instantiates adapters via lazy getters; behaviour preserved.
+  - formatCurrency/formatDate now delegate to utils; logo loader wraps tryLoadLogoDataUri with caching.
+- Verification
+  - Build: pnpm.cmd --filter booking-api build -> pass.
+  - Tests: pnpm.cmd --filter booking-api test -- --config jest.config.ts -> pass (2 suites, 7 tests).

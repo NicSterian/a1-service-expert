@@ -1,10 +1,22 @@
-﻿import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+/**
+ * EmailService
+ *
+ * Facade for building and sending transactional emails (booking confirmations,
+ * documents, contact notifications). Behaviour is locked during refactors.
+ *
+ * Delegates (Phase 1)
+ * - DefaultTransportGateway: wraps nodemailer transport.
+ * - DefaultTemplateRenderer: delegates to existing HTML/text builders.
+ * - email.utils: small pure helpers (date/currency/asset loading).
+ */
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import nodemailer, { Transporter } from 'nodemailer';
 import type { TransportGateway, SendRequest, SendResult } from './transport-gateway';
-import type { TemplateRenderer, TemplateRenderOutput } from './template-renderer';
+import type { TemplateRenderer } from './template-renderer';
+import { DefaultTransportGateway } from './adapters/default-transport.gateway';
+import { DefaultTemplateRenderer } from './adapters/default-template.renderer';
+import { formatCurrencyGBP, formatDateLong, tryLoadLogoDataUri } from './email.utils';
 
 const SUPPORT_EMAIL = 'support@a1serviceexpert.com';
 
@@ -140,68 +152,20 @@ export class EmailService {
     const transporter = await this.getTransporter();
     if (!transporter) return null;
     // Minimal adapter that preserves current behaviour
-    this.gateway = {
-      send: async (req: SendRequest): Promise<SendResult> => {
-        const info = await transporter.sendMail({
-          from: req.from,
-          to: req.to as any,
-          subject: req.subject,
-          text: req.text,
-          html: req.html,
-          attachments: req.attachments as any,
-        });
-        return { messageId: info?.messageId, provider: 'smtp' };
-      },
-    };
+    this.gateway = new DefaultTransportGateway(transporter);
     return this.gateway;
   }
 
-  // Built‑in renderer that delegates to existing builders to avoid behaviour change
+  // Built-in renderer that delegates to existing builders to avoid behaviour change
   private getTemplateRenderer(): TemplateRenderer {
     if (this.renderer) return this.renderer;
-    const self = this;
-    this.renderer = {
-      async render(input: { template: string; data: Record<string, unknown> }): Promise<TemplateRenderOutput> {
-        switch (input.template) {
-          case 'booking-customer': {
-            const p = input.data as any;
-            return {
-              subject: `Booking confirmed for ${self.formatDate(p.slotDate)} at ${p.slotTime}`,
-              html: self.renderCustomerBookingHtml(p),
-              text: self.renderCustomerBookingText(p),
-            };
-          }
-          case 'booking-staff': {
-            const p = input.data as any;
-            return {
-              subject: `New booking: ${p.customer.name} on ${self.formatDate(p.slotDate)} ${p.slotTime}`,
-              html: self.renderStaffBookingHtml(p, p.adminRecipients ?? []),
-              text: self.renderStaffBookingText(p),
-            };
-          }
-          case 'contact-message': {
-            const p = input.data as any;
-            const subject = `New contact enquiry from ${p.fromName}`;
-            const phoneLine = p.fromPhone ? `<p>Phone: ${p.fromPhone}</p>` : '';
-            const html = `\n      <p>You received a new contact request from the website.</p>\n      <p><strong>Name:</strong> ${p.fromName}</p>\n      <p><strong>Email:</strong> ${p.fromEmail}</p>\n      ${phoneLine}\n      <p><strong>Message:</strong></p>\n      <p>${String(p.message ?? '').replace(/\n/g, '<br />')}</p>\n    `;
-            const text = [
-              'You received a new contact request from the website.',
-              `Name: ${p.fromName}`,
-              `Email: ${p.fromEmail}`,
-              p.fromPhone ? `Phone: ${p.fromPhone}` : undefined,
-              'Message:',
-              p.message,
-            ]
-              .filter(Boolean)
-              .join('\n');
-            return { subject, html, text };
-          }
-          default:
-            // Fallback to simple subject only
-            return { subject: `[${input.template}]` };
-        }
-      },
-    };
+    this.renderer = new DefaultTemplateRenderer({
+      formatDate: (d: Date) => this.formatDate(d),
+      customerHtml: (p: any) => this.renderCustomerBookingHtml(p),
+      customerText: (p: any) => this.renderCustomerBookingText(p),
+      staffHtml: (p: any, r: string[]) => this.renderStaffBookingHtml(p, r),
+      staffText: (p: any) => this.renderStaffBookingText(p),
+    });
     return this.renderer;
   }
 
@@ -266,7 +230,7 @@ export class EmailService {
             <div style="border-top:1px solid #e2e8f0;padding-top:18px;margin-top:18px;font-size:13px;color:#475569;line-height:1.6;">
               <p style="margin:0 0 6px;">A1 Service Expert</p>
               <p style="margin:0 0 6px;">11 Cunliffe Dr, Kettering NN16 8LD</p>
-              <p style="margin:0 0 6px;">Phone: 07394 433889 · Email: ${SUPPORT_EMAIL}</p>
+              <p style="margin:0 0 6px;">Phone: 07394 433889 � Email: ${SUPPORT_EMAIL}</p>
             </div>
           </div>
         </div>
@@ -321,43 +285,16 @@ Email: ${SUPPORT_EMAIL}
     if (this.logoDataUri !== undefined) {
       return this.logoDataUri;
     }
-
-    const candidatePaths = [
-      join(process.cwd(), 'apps', 'booking-web', 'src', 'assets', 'logo-a1.png'),
-      join(process.cwd(), 'apps', 'booking-api', 'assets', 'logo-a1.png'),
-    ];
-
-    for (const path of candidatePaths) {
-      if (existsSync(path)) {
-        try {
-          const buffer = readFileSync(path);
-          this.logoDataUri = `data:image/png;base64,${buffer.toString('base64')}`;
-          return this.logoDataUri;
-        } catch (error) {
-          this.logger.warn(`Failed to load logo for emails from ${path}: ${(error as Error).message}`);
-        }
-      }
-    }
-
-    this.logoDataUri = null;
-    return null;
+    this.logoDataUri = tryLoadLogoDataUri(this.logger);
+    return this.logoDataUri;
   }
 
   private formatCurrency(pence: number): string {
-    const formatter = new Intl.NumberFormat('en-GB', {
-      style: 'currency',
-      currency: 'GBP',
-    });
-    return formatter.format(pence / 100);
+    return formatCurrencyGBP(pence);
   }
 
   private formatDate(date: Date): string {
-    return date.toLocaleDateString('en-GB', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
+    return formatDateLong(date);
   }
 
   private getPortalBaseUrl(): string {
@@ -451,7 +388,7 @@ Email: ${SUPPORT_EMAIL}
             <div style="border-top:1px solid #e2e8f0;padding-top:18px;margin-top:18px;font-size:13px;color:#475569;line-height:1.6;">
               <p style="margin:0 0 6px;">A1 Service Expert</p>
               <p style="margin:0 0 6px;">11 Cunliffe Dr, Kettering NN16 8LD</p>
-              <p style="margin:0 0 6px;">Phone: 07394 433889 · Email: ${SUPPORT_EMAIL}</p>
+              <p style="margin:0 0 6px;">Phone: 07394 433889 � Email: ${SUPPORT_EMAIL}</p>
             </div>
           </div>
         </div>
@@ -526,11 +463,11 @@ Email: ${SUPPORT_EMAIL}
                 </tr>
                 <tr>
                   <td style="padding:8px 0;font-weight:600;">Company</td>
-                  <td style="padding:8px 0;">${payload.customer.companyName ?? '—'}</td>
+                  <td style="padding:8px 0;">${payload.customer.companyName ?? '�'}</td>
                 </tr>
                 <tr>
                   <td style="padding:8px 0;font-weight:600;">Address</td>
-                  <td style="padding:8px 0;">${addressLines.length > 0 ? addressLines.join('<br />') : '—'}</td>
+                  <td style="padding:8px 0;">${addressLines.length > 0 ? addressLines.join('<br />') : '�'}</td>
                 </tr>
                 <tr>
                   <td style="padding:8px 0;font-weight:600;">Service</td>
@@ -651,7 +588,7 @@ Email: ${SUPPORT_EMAIL}
     const phones = [payload.customer.mobile, payload.customer.phone, payload.customer.landline]
       .filter((value): value is string => Boolean(value && value.trim().length > 0));
     if (phones.length === 0) {
-      return '—';
+      return '�';
     }
     return this.dedupeValues(phones).join(' / ');
   }
@@ -763,7 +700,7 @@ Email: ${SUPPORT_EMAIL}
  * - Consider separating template building from transport sending.
  *
  * Safe Refactor Plan
- * - Extract TemplateRenderer (inputs: template id + data → subject/body).
+ * - Extract TemplateRenderer (inputs: template id + data ? subject/body).
  * - Extract TransportGateway (sendMail abstraction with provider config).
- * - Keep EmailService as a façade composing renderer + transport.
+ * - Keep EmailService as a fa�ade composing renderer + transport.
  */
