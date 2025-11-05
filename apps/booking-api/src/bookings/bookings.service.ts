@@ -44,6 +44,8 @@ import {
 
 // Extracted pure helpers (Phase 1).
 import { normalizeEngineSize, presentDocument } from './bookings.helpers';
+// Pricing delegate (Phase 2).
+import { PricingPolicy } from './pricing.policy';
 
 type BookingWithServices = Prisma.BookingGetPayload<{
   include: {
@@ -79,6 +81,8 @@ type ConfirmTransactionResult = {
 @Injectable()
 export class BookingsService {
   private readonly logger = new Logger(BookingsService.name);
+  // Lazy delegates to avoid DI changes during refactor.
+  private pricingPolicy: PricingPolicy | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -88,6 +92,13 @@ export class BookingsService {
     private readonly vehiclesService: VehiclesService,
     private readonly settingsService: SettingsService,
   ) {}
+
+  private getPricingPolicy(): PricingPolicy {
+    if (!this.pricingPolicy) {
+      this.pricingPolicy = new PricingPolicy(this.prisma, this.vehiclesService, this.logger);
+    }
+    return this.pricingPolicy;
+  }
 
   async listBookingsForUser(user: User) {
     const bookings = await this.prisma.booking.findMany({
@@ -253,76 +264,11 @@ export class BookingsService {
 
     const normalizedEngineSize = normalizeEngineSize(dto.vehicle?.engineSizeCc);
     const requestedEngineTierId = dto.engineTierId ?? null;
-    let resolvedEngineTierId: number | null = requestedEngineTierId;
-    let engineTierCode: EngineTierCode | null = null;
-    let unitPricePence: number | null = null;
-
-    if (service.pricingMode === ServicePricingMode.FIXED) {
-      if (typeof service.fixedPricePence !== 'number' || service.fixedPricePence <= 0) {
-        throw new BadRequestException('Service pricing is not configured correctly.');
-      }
-      unitPricePence = service.fixedPricePence;
-      resolvedEngineTierId = null;
-    } else {
-      if (normalizedEngineSize) {
-        try {
-          const recommendation = await this.vehiclesService.getRecommendation(dto.serviceId, normalizedEngineSize);
-          if (recommendation.engineTierId) {
-            resolvedEngineTierId = recommendation.engineTierId;
-          }
-        } catch (error) {
-          this.logger.warn(`Unable to determine engine tier automatically: ${(error as Error).message}`);
-        }
-      }
-
-      let servicePrice: Prisma.ServicePriceGetPayload<{ include: { engineTier: true } }> | null = null;
-      if (resolvedEngineTierId) {
-        servicePrice = await this.prisma.servicePrice.findUnique({
-          where: {
-            serviceId_engineTierId: {
-              serviceId: dto.serviceId,
-              engineTierId: resolvedEngineTierId,
-            },
-          },
-          include: {
-            engineTier: true,
-          },
-        });
-      }
-
-      if (!servicePrice && requestedEngineTierId && requestedEngineTierId !== resolvedEngineTierId) {
-        servicePrice = await this.prisma.servicePrice.findUnique({
-          where: {
-            serviceId_engineTierId: {
-              serviceId: dto.serviceId,
-              engineTierId: requestedEngineTierId,
-            },
-          },
-          include: {
-            engineTier: true,
-          },
-        });
-      }
-
-      if (!servicePrice) {
-        servicePrice = await this.prisma.servicePrice.findFirst({
-          where: { serviceId: dto.serviceId },
-          orderBy: [{ amountPence: 'asc' }],
-          include: { engineTier: true },
-        });
-      }
-
-      if (!servicePrice) {
-        throw new BadRequestException('Service pricing is not configured correctly.');
-      }
-
-      unitPricePence = servicePrice.amountPence;
-      resolvedEngineTierId = servicePrice.engineTierId;
-
-      const tierName = servicePrice.engineTier?.name ?? null;
-      const tierSortOrder = servicePrice.engineTier?.sortOrder ?? null;
-      engineTierCode = mapEngineTierNameToCode(tierName) ?? mapEngineTierSortOrderToCode(tierSortOrder);
-    }
+    const { unitPricePence, resolvedEngineTierId, engineTierCode } = await this.getPricingPolicy().resolveForService({
+      service,
+      requestedEngineTierId,
+      engineSizeCc: normalizedEngineSize,
+    });
 
     if (unitPricePence === null || !Number.isFinite(unitPricePence)) {
       throw new BadRequestException('Service pricing is not configured correctly.');
