@@ -26,7 +26,7 @@ import {
   User,
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { DocumentSummary, DocumentsService } from '../documents/documents.service';
+import { DocumentsService } from '../documents/documents.service';
 import { EmailService } from '../email/email.service';
 import { HoldsService } from '../holds/holds.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -46,6 +46,8 @@ import {
 import { normalizeEngineSize, presentDocument } from './bookings.helpers';
 // Pricing delegate (Phase 2).
 import { PricingPolicy } from './pricing.policy';
+// Document orchestrator (Phase 3).
+import { DocumentOrchestrator } from './document.orchestrator';
 
 type BookingWithServices = Prisma.BookingGetPayload<{
   include: {
@@ -59,17 +61,6 @@ type BookingWithServices = Prisma.BookingGetPayload<{
   };
 }>;
 
-type BookingWithDocuments = Prisma.BookingGetPayload<{
-  include: {
-    services: {
-      include: {
-        service: true;
-        engineTier: true;
-      };
-    };
-    documents: true;
-  };
-}>;
 
 type ConfirmTransactionResult = {
   booking: BookingWithServices;
@@ -83,6 +74,7 @@ export class BookingsService {
   private readonly logger = new Logger(BookingsService.name);
   // Lazy delegates to avoid DI changes during refactor.
   private pricingPolicy: PricingPolicy | null = null;
+  private documentOrchestrator: DocumentOrchestrator | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -98,6 +90,19 @@ export class BookingsService {
       this.pricingPolicy = new PricingPolicy(this.prisma, this.vehiclesService, this.logger);
     }
     return this.pricingPolicy;
+  }
+
+  private getDocumentOrchestrator(): DocumentOrchestrator {
+    if (!this.documentOrchestrator) {
+      this.documentOrchestrator = new DocumentOrchestrator(
+        this.prisma,
+        this.documentsService,
+        this.settingsService,
+        this.emailService,
+        this.logger,
+      );
+    }
+    return this.documentOrchestrator;
   }
 
   async listBookingsForUser(user: User) {
@@ -534,20 +539,7 @@ export class BookingsService {
 
   // presentDocument moved to bookings.helpers.ts (Phase 1)
 
-  private buildDocumentSummary(booking: BookingWithDocuments): DocumentSummary {
-    const primaryService = booking.services[0];
-
-    return {
-      bookingId: booking.id,
-      slotDate: booking.slotDate,
-      slotTime: booking.slotTime,
-      customerName: booking.customerName,
-      customerEmail: booking.customerEmail,
-      customerPhone: booking.customerPhone,
-      serviceName: primaryService?.service.name ?? 'Service',
-      engineTierName: primaryService?.engineTier?.name ?? null,
-    };
-  }
+  // buildDocumentSummary moved to DocumentOrchestrator (Phase 3)
 
   private computeServicesTotal(booking: { services: { unitPricePence: number }[] }): number {
     return booking.services.reduce((sum, service) => sum + service.unitPricePence, 0);
@@ -815,164 +807,12 @@ export class BookingsService {
   }
 
   async adminIssueInvoice(bookingId: number) {
-    const booking = await this.prisma.booking.findUnique({
-      where: { id: bookingId },
-      include: {
-        services: {
-          include: {
-            service: true,
-            engineTier: true,
-          },
-        },
-        documents: true,
-      },
-    });
-
-    if (!booking) {
-      throw new NotFoundException('Booking not found');
-    }
-
-    if (!booking.services.length) {
-      throw new BadRequestException('Booking has no services configured.');
-    }
-
-    const typedBooking = booking as BookingWithDocuments;
-    const settings = await this.settingsService.getSettings();
-    const vatRatePercent = Number(settings.vatRatePercent);
-    const totalAmountPence = this.computeServicesTotal(typedBooking);
-    const vatAmountPence = this.calculateVatFromGross(totalAmountPence, vatRatePercent);
-
-    let invoice = await this.documentsService.issueInvoiceForBooking({
-      bookingId: booking.id,
-      totalAmountPence,
-      vatAmountPence,
-    });
-
-    invoice = await this.documentsService.finalizeDocument(
-      invoice,
-      this.buildDocumentSummary(typedBooking),
-      {
-        totalAmountPence,
-        vatAmountPence,
-      },
-      settings,
-    );
-
-    if (!invoice.issuedAt) {
-      invoice = await this.prisma.document.update({
-        where: { id: invoice.id },
-        data: { issuedAt: new Date() },
-      });
-    }
-
+    await this.getDocumentOrchestrator().issueInvoice(bookingId);
     return this.getBookingForAdmin(bookingId);
   }
 
   async adminEmailInvoice(bookingId: number) {
-    const booking = await this.prisma.booking.findUnique({
-      where: { id: bookingId },
-      include: {
-        services: {
-          include: {
-            service: true,
-            engineTier: true,
-          },
-        },
-        documents: true,
-      },
-    });
-
-    if (!booking) {
-      throw new NotFoundException('Booking not found');
-    }
-
-    if (!booking.services.length) {
-      throw new BadRequestException('Booking has no services configured.');
-    }
-
-    if (!booking.customerEmail) {
-      throw new BadRequestException('Booking does not have a customer email address.');
-    }
-
-    const typedBooking = booking as BookingWithDocuments;
-    const totalAmountPence = this.computeServicesTotal(typedBooking);
-
-    let invoice = typedBooking.documents
-      .filter((document) => document.type === DocumentType.INVOICE)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
-
-    if (!invoice) {
-      throw new BadRequestException('No invoice found. Issue an invoice before emailing.');
-    }
-
-    if (!invoice.pdfUrl || invoice.pdfUrl.startsWith('pending://')) {
-      const settings = await this.settingsService.getSettings();
-      const vatRatePercent = Number(settings.vatRatePercent);
-      const vatAmountPence = this.calculateVatFromGross(totalAmountPence, vatRatePercent);
-
-      invoice = await this.documentsService.finalizeDocument(
-        invoice,
-        this.buildDocumentSummary(typedBooking),
-        {
-          totalAmountPence,
-          vatAmountPence,
-        },
-        settings,
-      );
-
-      if (!invoice.issuedAt) {
-        invoice = await this.prisma.document.update({
-          where: { id: invoice.id },
-          data: { issuedAt: new Date() },
-        });
-      }
-    }
-
-    const recipients = await this.prisma.notificationRecipient.findMany();
-    const primaryService = typedBooking.services[0];
-
-    await this.emailService.sendBookingConfirmation({
-      bookingId: typedBooking.id,
-      slotDate: typedBooking.slotDate,
-      slotTime: typedBooking.slotTime,
-      service: {
-        name: primaryService?.service.name ?? 'Service',
-        engineTier: primaryService?.engineTier?.name ?? null,
-      },
-      totals: {
-        pricePence: totalAmountPence,
-      },
-      vehicle: {
-        registration: typedBooking.vehicleRegistration,
-        make: typedBooking.vehicleMake,
-        model: typedBooking.vehicleModel,
-        engineSizeCc: typedBooking.vehicleEngineSizeCc,
-      },
-      customer: {
-        email: typedBooking.customerEmail,
-        name: typedBooking.customerName,
-        title: typedBooking.customerTitle,
-        firstName: typedBooking.customerFirstName,
-        lastName: typedBooking.customerLastName,
-        companyName: typedBooking.customerCompany,
-        phone: typedBooking.customerPhone,
-        mobile: typedBooking.customerMobile,
-        landline: typedBooking.customerLandline,
-        addressLine1: typedBooking.customerAddressLine1,
-        addressLine2: typedBooking.customerAddressLine2,
-        addressLine3: typedBooking.customerAddressLine3,
-        city: typedBooking.customerCity,
-        county: typedBooking.customerCounty,
-        postcode: typedBooking.customerPostcode,
-        notes: typedBooking.notes ?? null,
-      },
-      documents: {
-        invoiceNumber: invoice.number,
-        invoiceUrl: invoice.pdfUrl,
-      },
-      adminRecipients: recipients.map((recipient) => recipient.email),
-    });
-
+    await this.getDocumentOrchestrator().emailInvoice(bookingId);
     return this.getBookingForAdmin(bookingId);
   }
 
@@ -980,189 +820,14 @@ export class BookingsService {
    * Create an invoice draft from a booking (manual flow)
    */
   async adminCreateInvoiceDraft(bookingId: number) {
-    const booking = await this.prisma.booking.findUnique({
-      where: { id: bookingId },
-      include: {
-        services: {
-          include: {
-            service: true,
-            engineTier: true,
-          },
-        },
-      },
-    });
-
-    if (!booking) {
-      throw new NotFoundException('Booking not found');
-    }
-
-    if (!booking.services.length) {
-      throw new BadRequestException('Booking has no services configured.');
-    }
-
-    const settings = await this.settingsService.getSettings();
-    const vatRatePercent = Number(settings.vatRatePercent);
-
-    // Build line items from booking services
-    const lines = booking.services.map((svc) => {
-      const description = svc.engineTier
-        ? `${svc.service.name} (${svc.engineTier.name})`
-        : svc.service.name;
-
-      return {
-        description,
-        quantity: 1,
-        unitPricePence: svc.unitPricePence,
-        vatRatePercent,
-      };
-    });
-
-    // Add extra editable placeholders for parts, labour, discount
-    lines.push(
-      { description: 'Parts', quantity: 0, unitPricePence: 0, vatRatePercent },
-      { description: 'Labour', quantity: 0, unitPricePence: 0, vatRatePercent },
-      { description: 'Discount', quantity: 0, unitPricePence: 0, vatRatePercent: 0 },
-    );
-
-    // Calculate totals
-    const totalAmountPence = lines.reduce(
-      (sum, line) => sum + line.quantity * line.unitPricePence,
-      0,
-    );
-    const vatAmountPence = this.calculateVatFromGross(totalAmountPence, vatRatePercent);
-
-    // Create draft document
-    const number = `DRF-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
-
-    const document = await this.prisma.document.create({
-      data: {
-        type: 'INVOICE',
-        status: 'DRAFT',
-        number,
-        bookingId: booking.id,
-        userId: booking.userId,
-        totalAmountPence,
-        vatAmountPence,
-        pdfUrl: 'pending://draft',
-        payload: {
-          customer: {
-            name: booking.customerName,
-            email: booking.customerEmail,
-            phone: booking.customerPhone,
-            addressLine1: booking.customerAddressLine1,
-            addressLine2: booking.customerAddressLine2,
-            city: booking.customerCity,
-            postcode: booking.customerPostcode,
-          },
-          vehicle: {
-            registration: booking.vehicleRegistration,
-            make: booking.vehicleMake,
-            model: booking.vehicleModel,
-            engineSizeCc: booking.vehicleEngineSizeCc,
-          },
-          lines,
-        },
-      },
-    });
-
-    return { documentId: document.id, number: document.number };
+    return this.getDocumentOrchestrator().createInvoiceDraft(bookingId);
   }
 
   /**
    * Create a quote draft from a booking (manual flow)
    */
   async adminCreateQuoteDraft(bookingId: number) {
-    const booking = await this.prisma.booking.findUnique({
-      where: { id: bookingId },
-      include: {
-        services: {
-          include: {
-            service: true,
-            engineTier: true,
-          },
-        },
-      },
-    });
-
-    if (!booking) {
-      throw new NotFoundException('Booking not found');
-    }
-
-    if (!booking.services.length) {
-      throw new BadRequestException('Booking has no services configured.');
-    }
-
-    const settings = await this.settingsService.getSettings();
-    const vatRatePercent = Number(settings.vatRatePercent);
-
-    // Build line items from booking services
-    const lines = booking.services.map((svc) => {
-      const description = svc.engineTier
-        ? `${svc.service.name} (${svc.engineTier.name})`
-        : svc.service.name;
-
-      return {
-        description,
-        quantity: 1,
-        unitPricePence: svc.unitPricePence,
-        vatRatePercent,
-      };
-    });
-
-    // Add extra editable placeholders
-    lines.push(
-      { description: 'Parts', quantity: 0, unitPricePence: 0, vatRatePercent },
-      { description: 'Labour', quantity: 0, unitPricePence: 0, vatRatePercent },
-      { description: 'Discount', quantity: 0, unitPricePence: 0, vatRatePercent: 0 },
-    );
-
-    // Calculate totals
-    const totalAmountPence = lines.reduce(
-      (sum, line) => sum + line.quantity * line.unitPricePence,
-      0,
-    );
-    const vatAmountPence = this.calculateVatFromGross(totalAmountPence, vatRatePercent);
-
-    // Calculate valid until (14 days from now)
-    const validUntil = new Date();
-    validUntil.setDate(validUntil.getDate() + 14);
-
-    // Create draft document
-    const number = `DRF-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
-
-    const document = await this.prisma.document.create({
-      data: {
-        type: 'QUOTE',
-        status: 'DRAFT',
-        number,
-        bookingId: booking.id,
-        userId: booking.userId,
-        totalAmountPence,
-        vatAmountPence,
-        validUntil,
-        pdfUrl: 'pending://draft',
-        payload: {
-          customer: {
-            name: booking.customerName,
-            email: booking.customerEmail,
-            phone: booking.customerPhone,
-            addressLine1: booking.customerAddressLine1,
-            addressLine2: booking.customerAddressLine2,
-            city: booking.customerCity,
-            postcode: booking.customerPostcode,
-          },
-          vehicle: {
-            registration: booking.vehicleRegistration,
-            make: booking.vehicleMake,
-            model: booking.vehicleModel,
-            engineSizeCc: booking.vehicleEngineSizeCc,
-          },
-          lines,
-        },
-      },
-    });
-
-    return { documentId: document.id, number: document.number };
+    return this.getDocumentOrchestrator().createQuoteDraft(bookingId);
   }
 
   /**

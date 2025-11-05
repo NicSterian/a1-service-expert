@@ -301,4 +301,11 @@ Commenting Approach (this file)
 - Short block comments before non-trivial business rules (no behavior change notes).
 
 Status
-- Approved to start Phase 1 (helpers + comments). Implementation will proceed with a small, focused change set and no behavior changes.
+- Phase 1 (Helpers + comments): completed.
+  - Extracted `bookings.helpers.ts` and added file header/comments in service.
+  - Rewired callers; preserved behavior. Tests/build green.
+- Phase 2 (PricingPolicy): completed.
+  - Added `pricing.policy.ts` and delegated `createBooking` pricing resolution.
+  - Preserved selection order and error messages. Tests/build green.
+  - Lint clean on changed files.
+- Next: Phase 3 (Document presenters + orchestrator).
