@@ -1,6 +1,7 @@
 ﻿import { FormEvent, useEffect, useState } from 'react';
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from '../../lib/api';
 import { ServiceForm } from './components/ServiceForm';
+import { TierForm } from './components/TierForm';
 import toast from 'react-hot-toast';
 
 interface Service {
@@ -437,43 +438,7 @@ export function CatalogManager() {
           <div className="space-y-6">
             <div className="space-y-3 rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-inner">
               <h3 className="text-lg font-medium text-white">Engine tiers</h3>
-              <form onSubmit={handleCreateTier} className="grid gap-2 sm:grid-cols-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400">Name</label>
-                  <input
-                    value={tierForm.name}
-                    onChange={(event) => setTierForm((prev) => ({ ...prev, name: event.target.value }))}
-                    className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400">Max CC</label>
-                  <input
-                    value={tierForm.maxCc}
-                    onChange={(event) => setTierForm((prev) => ({ ...prev, maxCc: event.target.value }))}
-                    className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
-                    placeholder="leave blank"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400">Sort order</label>
-                  <input
-                    value={tierForm.sortOrder}
-                    onChange={(event) => setTierForm((prev) => ({ ...prev, sortOrder: event.target.value }))}
-                    className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
-                    required
-                  />
-                </div>
-                <div className="sm:col-span-3">
-                  <button
-                    type="submit"
-                    className="rounded bg-brand-orange px-3 py-2 text-sm text-white hover:bg-orange-500"
-                  >
-                    Add tier
-                  </button>
-                </div>
-              </form>
+              <TierForm value={tierForm} onChange={(patch)=> setTierForm((prev)=> ({...prev, ...patch}))} onSubmit={handleCreateTier} />
 
               <ul className="space-y-2 text-sm">
                 {tiers.map((tier) => (
