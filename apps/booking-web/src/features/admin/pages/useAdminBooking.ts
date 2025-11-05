@@ -35,10 +35,40 @@ export function useAdminBooking(bookingId: string | undefined) {
     return data;
   };
 
+  const updateCustomer = async (payload: {
+    name: string;
+    email: string;
+    phone: string;
+    mobile: string;
+    landline: string;
+    company: string;
+    title: string;
+    firstName: string;
+    lastName: string;
+    addressLine1: string;
+    addressLine2: string;
+    addressLine3: string;
+    city: string;
+    county: string;
+    postcode: string;
+  }) => {
+    if (!bookingId) return null;
+    const data = await apiPatch<AdminBookingResponse>(`/admin/bookings/${bookingId}/customer`, payload);
+    setBooking(data);
+    return data;
+  };
+
+  const updateVehicle = async (payload: { registration: string; make: string; model: string; engineSizeCc?: number }) => {
+    if (!bookingId) return null;
+    const data = await apiPatch<AdminBookingResponse>(`/admin/bookings/${bookingId}/vehicle`, payload);
+    setBooking(data);
+    return data;
+  };
+
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
 
-  return { booking, setBooking, status, error, refreshBooking: load, updateStatus, updatePaymentStatus };
+  return { booking, setBooking, status, error, refreshBooking: load, updateStatus, updatePaymentStatus, updateCustomer, updateVehicle };
 }

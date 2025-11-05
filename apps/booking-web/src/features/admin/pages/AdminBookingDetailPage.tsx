@@ -10,6 +10,7 @@ import { VehiclePanel } from './VehiclePanel';
 import { PaymentPanel } from './PaymentPanel';
 import { StatusPanel } from './StatusPanel';
 import { useAdminBooking } from './useAdminBooking';
+import { InternalNotesPanel } from './InternalNotesPanel';
 
 export type BookingSource = 'ONLINE' | 'MANUAL';
 
@@ -164,7 +165,7 @@ function formatDateTime(value: string | null) {
 export function AdminBookingDetailPage() {
   const { bookingId } = useParams<{ bookingId: string }>();
   const navigate = useNavigate();
-  const { booking, setBooking, status, error, refreshBooking, updateStatus, updatePaymentStatus } = useAdminBooking(bookingId);
+  const { booking, setBooking, status, error, refreshBooking, updateStatus, updatePaymentStatus, updateCustomer, updateVehicle } = useAdminBooking(bookingId);
   const [loadingAction, setLoadingAction] = useState(false);
 
   const [statusToUpdate, setStatusToUpdate] = useState<BookingStatus | null>(null);
@@ -390,12 +391,13 @@ export function AdminBookingDetailPage() {
     if (!bookingId) return;
     try {
       setLoadingAction(true);
-      const data = await apiPatch<AdminBookingResponse>(`/admin/bookings/${bookingId}/customer`, {
+      const data = await updateCustomer({
         ...customerDraft,
       });
-      setBooking(data);
-      setEditingCustomer(false);
-      toast.success('Customer details updated');
+      if (data) {
+        setEditingCustomer(false);
+        toast.success('Customer details updated');
+      }
     } catch (err) {
       toast.error((err as Error).message ?? 'Failed to update customer');
     } finally {
@@ -415,10 +417,11 @@ export function AdminBookingDetailPage() {
       };
       const cc = Number(vehicleDraft.engineSizeCc);
       if (!Number.isNaN(cc)) payload.engineSizeCc = cc;
-      const data = await apiPatch<AdminBookingResponse>(`/admin/bookings/${bookingId}/vehicle`, payload);
-      setBooking(data);
-      setEditingVehicle(false);
-      toast.success('Vehicle details updated');
+      const data = await updateVehicle(payload);
+      if (data) {
+        setEditingVehicle(false);
+        toast.success('Vehicle details updated');
+      }
     } catch (err) {
       toast.error((err as Error).message ?? 'Failed to update vehicle');
     } finally {
@@ -591,37 +594,13 @@ export function AdminBookingDetailPage() {
           loading={loadingAction}
         />
 
-        {false && (
-        <div className="rounded-3xl border border-slate-700 bg-slate-900 p-6">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Internal Notes</h3>
-          <div className="mt-4 space-y-3">
-            <textarea
-              value={internalNotesDraft}
-              onChange={(event) => setInternalNotesDraft(event.target.value)}
-              rows={6}
-              className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
-              placeholder="Add notes for staff..."
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={handleSaveNotes}
-                className="rounded-full bg-orange-500 px-4 py-2 text-xs font-semibold text-black transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:bg-orange-700/40"
-                type="button"
-                disabled={savingNotes}
-              >
-                Save Notes
-              </button>
-              <button
-                onClick={() => setInternalNotesDraft(booking?.internalNotes ?? '')}
-                className="rounded-full border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:border-orange-500 hover:text-orange-300"
-                type="button"
-              >
-                Reset
-              </button>
-            </div>
-          </div>
-        </div>
-        )}
+        <InternalNotesPanel
+          draft={internalNotesDraft}
+          setDraft={(val) => setInternalNotesDraft(val)}
+          saving={savingNotes}
+          onSave={handleSaveNotes}
+          original={booking.internalNotes}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
