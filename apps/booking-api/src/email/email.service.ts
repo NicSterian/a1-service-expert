@@ -12,66 +12,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import nodemailer, { Transporter } from 'nodemailer';
-import type { TransportGateway, SendRequest, SendResult } from './transport-gateway';
+import type { TransportGateway } from './transport-gateway';
 import type { TemplateRenderer } from './template-renderer';
 import { DefaultTransportGateway } from './adapters/default-transport.gateway';
 import { DefaultTemplateRenderer } from './adapters/default-template.renderer';
 import { formatCurrencyGBP, formatDateLong, tryLoadLogoDataUri } from './email.utils';
+import type { BookingConfirmationEmail } from './dto/booking-confirmation-email';
+import type { ContactMessage } from './dto/contact-message';
 
+// Support email used as a default staff recipient
 const SUPPORT_EMAIL = 'support@a1serviceexpert.com';
 
-export interface BookingConfirmationEmail {
-  bookingId?: number;
-  reference?: string;
-  slotDate: Date;
-  slotTime: string;
-  service: {
-    name: string;
-    engineTier?: string | null;
-  };
-  totals: {
-    pricePence: number;
-  };
-  vehicle: {
-    registration: string;
-    make?: string | null;
-    model?: string | null;
-    engineSizeCc?: number | null;
-  };
-  customer: {
-    email: string;
-    name: string;
-    title?: string | null;
-    firstName?: string | null;
-    lastName?: string | null;
-    companyName?: string | null;
-    phone?: string | null;
-    mobile?: string | null;
-    landline?: string | null;
-    addressLine1?: string | null;
-    addressLine2?: string | null;
-    addressLine3?: string | null;
-    city?: string | null;
-    county?: string | null;
-    postcode?: string | null;
-    notes?: string | null;
-  };
-  documents?: {
-    invoiceNumber?: string | null;
-    invoiceUrl?: string | null;
-    quoteNumber?: string | null;
-    quoteUrl?: string | null;
-  };
-  adminRecipients?: string[];
-}
-
-export interface ContactMessage {
-  fromName: string;
-  fromEmail: string;
-  fromPhone?: string;
-  message: string;
-  recipients: string[];
-}
 
 type SmtpConfig = {
   host: string;
@@ -90,12 +41,16 @@ export class EmailService {
   private cachedConfig: SmtpConfig | null = null;
   private configLoaded = false;
   private logoDataUri: string | null | undefined;
-  // Optional seams for future refactor. Defaults keep current behaviour.
+  // Optional seams (adapters) used by EmailService; lazily initialised
   private renderer: TemplateRenderer | null = null;
   private gateway: TransportGateway | null = null;
 
   constructor(private readonly configService: ConfigService) {}
 
+  /**
+   * Load SMTP configuration from env via ConfigService (cached).
+   * Returns null when config is incomplete (we log-only in that case).
+   */
   private loadConfig(): SmtpConfig | null {
     if (this.configLoaded) {
       return this.cachedConfig;
@@ -124,6 +79,9 @@ export class EmailService {
     return this.cachedConfig;
   }
 
+  /**
+   * Build or return cached Nodemailer transporter based on config.
+   */
   private async getTransporter(): Promise<Transporter | null> {
     if (this.transporter) {
       return this.transporter;
@@ -147,6 +105,10 @@ export class EmailService {
     return this.transporter;
   }
 
+  /**
+   * Provide a TransportGateway that wraps the Nodemailer transporter.
+   * Keeps existing send semantics unchanged.
+   */
   private async getTransportGateway(): Promise<TransportGateway | null> {
     if (this.gateway) return this.gateway;
     const transporter = await this.getTransporter();
@@ -157,6 +119,10 @@ export class EmailService {
   }
 
   // Built-in renderer that delegates to existing builders to avoid behaviour change
+  /**
+   * Provide a TemplateRenderer that builds subjects/HTML/text.
+   * Delegates the actual content generation to the adapter.
+   */
   private getTemplateRenderer(): TemplateRenderer {
     if (this.renderer) return this.renderer;
     this.renderer = new DefaultTemplateRenderer({
@@ -169,6 +135,10 @@ export class EmailService {
     return this.renderer;
   }
 
+  /**
+   * Send a simple invoice email (subject + body), used by document flows.
+   * Falls back to logging when SMTP is not configured.
+   */
   async sendInvoiceEmail(to: string, subject: string, text: string, html?: string): Promise<void> {
     const transporter = await this.getTransporter();
     const config = this.loadConfig();
@@ -183,6 +153,9 @@ export class EmailService {
     }
   }
 
+  /**
+   * Send a styled document email (Invoice/Quote/Receipt) with optional PDF.
+   */
   async sendDocumentEmail(params: {
     to: string;
     documentType: 'INVOICE' | 'QUOTE' | 'RECEIPT';
@@ -276,11 +249,17 @@ Email: ${SUPPORT_EMAIL}
     }
   }
 
+  /**
+   * Compose a safe RFC-2822 From header from config.
+   */
   private getFromHeader(config: SmtpConfig): string {
     const safeName = config.fromName.replace(/"/g, "'");
     return `"${safeName}" <${config.fromEmail}>`;
   }
 
+  /**
+   * Lazily resolve and cache the logo data URI for HTML emails.
+   */
   private loadLogoDataUri(): string | null {
     if (this.logoDataUri !== undefined) {
       return this.logoDataUri;
@@ -289,14 +268,23 @@ Email: ${SUPPORT_EMAIL}
     return this.logoDataUri;
   }
 
+  /**
+   * Format a pence amount as GBP currency (e.g., £12.34).
+   */
   private formatCurrency(pence: number): string {
     return formatCurrencyGBP(pence);
   }
 
+  /**
+   * Format a Date into a long, human-readable EN-GB string.
+   */
   private formatDate(date: Date): string {
     return formatDateLong(date);
   }
 
+  /**
+   * Read and validate the portal base URL; fallback to local dev.
+   */
   private getPortalBaseUrl(): string {
     const fallback = 'http://localhost:5173';
     const envUrl = this.configService.get<string>('PORTAL_BASE_URL');
@@ -311,6 +299,9 @@ Email: ${SUPPORT_EMAIL}
     }
   }
 
+  /**
+   * Build deep links to the portal booking pages.
+   */
   private buildBookingUrl(bookingId?: number): string {
     const portalBase = this.getPortalBaseUrl().replace(/\/$/, '');
     if (!bookingId) {
@@ -319,6 +310,9 @@ Email: ${SUPPORT_EMAIL}
     return `${portalBase}/account/bookings/${bookingId}`;
   }
 
+  /**
+   * Deduplicate and normalise a list of potentially empty/duplicate emails.
+   */
   private dedupeValues(emails: Array<string | null | undefined>): string[] {
     const seen = new Set<string>();
     const result: string[] = [];
@@ -340,6 +334,9 @@ Email: ${SUPPORT_EMAIL}
     return result;
   }
 
+  /**
+   * Compose a compact vehicle summary line.
+   */
   private buildVehicleLine(payload: BookingConfirmationEmail): string {
     const parts = [
       payload.vehicle.registration.toUpperCase(),
@@ -352,6 +349,10 @@ Email: ${SUPPORT_EMAIL}
 
   // Verification emails are not used; users are auto-verified on registration.
 
+  /**
+   * Compose and send both customer and staff booking confirmation emails.
+   * Falls back to logging when SMTP is not configured.
+   */
   async sendBookingConfirmation(payload: BookingConfirmationEmail): Promise<void> {
     const gateway = await this.getTransportGateway();
     const config = this.loadConfig();
@@ -403,6 +404,10 @@ Email: ${SUPPORT_EMAIL}
     }
   }
 
+  /**
+   * Send contact form submissions to configured recipients.
+   * If misconfigured, logs the message content instead of throwing.
+   */
   async sendContactMessage(payload: ContactMessage): Promise<void> {
     const gateway = await this.getTransportGateway();
     const config = this.loadConfig();
