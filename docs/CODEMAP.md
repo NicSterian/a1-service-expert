@@ -308,4 +308,8 @@ Status
   - Added `pricing.policy.ts` and delegated `createBooking` pricing resolution.
   - Preserved selection order and error messages. Tests/build green.
   - Lint clean on changed files.
-- Next: Phase 3 (Document presenters + orchestrator).
+- Phase 3 (Document presenters + orchestrator): completed.
+  - Added `document.orchestrator.ts` and delegated `adminIssueInvoice`, `adminEmailInvoice`, `adminCreateInvoiceDraft`, `adminCreateQuoteDraft`.
+  - Moved document summary presenter; preserved messages and sequencing. Tests/build green.
+  - Lint clean on changed files.
+- Next: Phase 4 (AvailabilityCoordinator).

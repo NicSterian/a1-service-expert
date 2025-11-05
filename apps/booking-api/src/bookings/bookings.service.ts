@@ -9,13 +9,7 @@
  * Behavior lock: Do not change field mappings, error messages, or sequencing
  * of side effects during refactors unless explicitly approved.
  */
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   BookingSource,
   BookingStatus,
@@ -48,6 +42,8 @@ import { normalizeEngineSize, presentDocument } from './bookings.helpers';
 import { PricingPolicy } from './pricing.policy';
 // Document orchestrator (Phase 3).
 import { DocumentOrchestrator } from './document.orchestrator';
+// Availability coordinator (Phase 4).
+import { AvailabilityCoordinator } from './availability.coordinator';
 
 type BookingWithServices = Prisma.BookingGetPayload<{
   include: {
@@ -75,6 +71,7 @@ export class BookingsService {
   // Lazy delegates to avoid DI changes during refactor.
   private pricingPolicy: PricingPolicy | null = null;
   private documentOrchestrator: DocumentOrchestrator | null = null;
+  private availabilityCoordinator: AvailabilityCoordinator | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -103,6 +100,13 @@ export class BookingsService {
       );
     }
     return this.documentOrchestrator;
+  }
+
+  private getAvailabilityCoordinator(): AvailabilityCoordinator {
+    if (!this.availabilityCoordinator) {
+      this.availabilityCoordinator = new AvailabilityCoordinator(this.prisma, this.holdsService, this.logger);
+    }
+    return this.availabilityCoordinator;
   }
 
   async listBookingsForUser(user: User) {
@@ -248,12 +252,7 @@ export class BookingsService {
 
     const slotDate = toUtcDate(dto.date);
 
-    const existing = await this.prisma.booking.findUnique({
-      where: { slotDate_slotTime: { slotDate, slotTime: dto.time } },
-    });
-    if (existing) {
-      throw new ConflictException('Slot already booked');
-    }
+    await this.getAvailabilityCoordinator().assertSlotAvailable(slotDate, dto.time);
 
     const service = await this.prisma.service.findUnique({
       where: { id: dto.serviceId },
@@ -446,13 +445,7 @@ export class BookingsService {
       };
     });
 
-    if (result.holdId) {
-      try {
-        await this.holdsService.releaseHold(result.holdId);
-      } catch (error) {
-        this.logger.warn(`Failed to release hold ${result.holdId}: ${(error as Error).message}`);
-      }
-    }
+    await this.getAvailabilityCoordinator().releaseHoldIfPresent(result.holdId);
 
     try {
       await this.sendConfirmationEmails(result.booking, {
@@ -860,12 +853,7 @@ export class BookingsService {
 
     // Check slot availability (only if SLOT mode)
     if (dto.scheduling.mode === 'SLOT') {
-      const existing = await this.prisma.booking.findUnique({
-        where: { slotDate_slotTime: { slotDate, slotTime } },
-      });
-      if (existing) {
-        throw new ConflictException('Slot already booked');
-      }
+      await this.getAvailabilityCoordinator().assertSlotAvailable(slotDate, slotTime);
     }
 
     // Validate and resolve services
