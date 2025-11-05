@@ -8,6 +8,7 @@ import { ServicePricingPanel } from './ServicePricingPanel';
 import { DocumentsPanel } from './DocumentsPanel';
 import { VehiclePanel } from './VehiclePanel';
 import { PaymentPanel } from './PaymentPanel';
+import { StatusPanel } from './StatusPanel';
 import { useAdminBooking } from './useAdminBooking';
 
 export type BookingSource = 'ONLINE' | 'MANUAL';
@@ -163,7 +164,7 @@ function formatDateTime(value: string | null) {
 export function AdminBookingDetailPage() {
   const { bookingId } = useParams<{ bookingId: string }>();
   const navigate = useNavigate();
-  const { booking, setBooking, status, error, refreshBooking } = useAdminBooking(bookingId);
+  const { booking, setBooking, status, error, refreshBooking, updateStatus, updatePaymentStatus } = useAdminBooking(bookingId);
   const [loadingAction, setLoadingAction] = useState(false);
 
   const [statusToUpdate, setStatusToUpdate] = useState<BookingStatus | null>(null);
@@ -234,11 +235,8 @@ export function AdminBookingDetailPage() {
     if (!bookingId || !statusToUpdate) return;
     try {
       setLoadingAction(true);
-      const data = await apiPatch<AdminBookingResponse>(`/admin/bookings/${bookingId}/status`, {
-        status: statusToUpdate,
-      });
-      setBooking(data);
-      toast.success('Status updated');
+      const data = await updateStatus(statusToUpdate);
+      if (data) toast.success('Status updated');
     } catch (err) {
       toast.error((err as Error).message ?? 'Failed to update status');
     } finally {
@@ -250,11 +248,8 @@ export function AdminBookingDetailPage() {
     if (!bookingId) return;
     try {
       setLoadingAction(true);
-      const data = await apiPatch<AdminBookingResponse>(`/admin/bookings/${bookingId}/payment-status`, {
-        paymentStatus: paymentStatusToUpdate,
-      });
-      setBooking(data);
-      toast.success('Payment status updated');
+      const data = await updatePaymentStatus(paymentStatusToUpdate);
+      if (data) toast.success('Payment status updated');
     } catch (err) {
       toast.error((err as Error).message ?? 'Failed to update payment status');
     } finally {
@@ -588,47 +583,15 @@ export function AdminBookingDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-3xl border border-slate-700 bg-slate-900 p-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Status</h3>
-            <span className="text-xs text-slate-400">Updated {formatDateTime(booking.updatedAt)}</span>
-          </div>
-          <div className="mt-4 space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={statusToUpdate ?? booking.status}
-                onChange={(event) => setStatusToUpdate(event.target.value as BookingStatus)}
-                className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
-              >
-                {STATUS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={handleStatusUpdate}
-                className="rounded-full bg-orange-500 px-4 py-2 text-xs font-semibold text-black transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:bg-orange-700/40"
-                type="button"
-                disabled={loadingAction}
-              >
-                Update Status
-              </button>
-            </div>
-            <div className="rounded-lg border border-slate-700 bg-slate-800 p-4 text-xs text-slate-300">
-              <div className="font-semibold uppercase tracking-wide text-slate-400">History</div>
-              <ul className="mt-2 space-y-2">
-                {booking.statusHistory.map((entry) => (
-                  <li key={`${entry.status}-${entry.changedAt}`}>
-                    <span className="font-semibold text-white">{entry.status}</span>
-                    <span className="text-slate-400"> — {formatDateTime(entry.changedAt)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
+        <StatusPanel
+          booking={booking}
+          statusToUpdate={statusToUpdate}
+          setStatusToUpdate={(val) => setStatusToUpdate(val)}
+          onUpdateStatus={handleStatusUpdate}
+          loading={loadingAction}
+        />
 
+        {false && (
         <div className="rounded-3xl border border-slate-700 bg-slate-900 p-6">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Internal Notes</h3>
           <div className="mt-4 space-y-3">
@@ -649,7 +612,7 @@ export function AdminBookingDetailPage() {
                 Save Notes
               </button>
               <button
-                onClick={() => setInternalNotesDraft(booking.internalNotes ?? '')}
+                onClick={() => setInternalNotesDraft(booking?.internalNotes ?? '')}
                 className="rounded-full border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:border-orange-500 hover:text-orange-300"
                 type="button"
               >
@@ -658,6 +621,7 @@ export function AdminBookingDetailPage() {
             </div>
           </div>
         </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

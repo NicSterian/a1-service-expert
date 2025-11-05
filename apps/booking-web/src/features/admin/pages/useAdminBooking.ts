@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { apiGet } from '../../../lib/api';
-import type { AdminBookingResponse } from './AdminBookingDetailPage';
+import { apiGet, apiPatch } from '../../../lib/api';
+import type { AdminBookingResponse, BookingStatus, PaymentStatus } from './AdminBookingDetailPage';
 
 export function useAdminBooking(bookingId: string | undefined) {
   const [booking, setBooking] = useState<AdminBookingResponse | null>(null);
@@ -21,11 +21,24 @@ export function useAdminBooking(bookingId: string | undefined) {
     }
   };
 
+  const updateStatus = async (status: BookingStatus) => {
+    if (!bookingId) return null;
+    const data = await apiPatch<AdminBookingResponse>(`/admin/bookings/${bookingId}/status`, { status });
+    setBooking(data);
+    return data;
+  };
+
+  const updatePaymentStatus = async (paymentStatus: PaymentStatus) => {
+    if (!bookingId) return null;
+    const data = await apiPatch<AdminBookingResponse>(`/admin/bookings/${bookingId}/payment-status`, { paymentStatus });
+    setBooking(data);
+    return data;
+  };
+
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
 
-  return { booking, setBooking, status, error, refreshBooking: load };
+  return { booking, setBooking, status, error, refreshBooking: load, updateStatus, updatePaymentStatus };
 }
-
