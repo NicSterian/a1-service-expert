@@ -324,4 +324,8 @@ Status
   - Added `admin-booking.manager.ts`; delegated admin mutations (status, notes, payment status, customer, vehicle, service line, soft/hard delete, restore).
   - Preserved validation, messages, and hold-release behaviour.
   - Tests/build green; lint clean on changed files within bookings module.
-- Next: Phase 7 (BookingRepository).
+- Phase 7 (BookingRepository): completed.
+  - Added `booking.repository.ts`; delegated common queries used by user/admin views.
+  - Reduced include duplication; preserved return shapes and ordering.
+  - Tests/build green; lint clean on changed files.
+- Next: Phase 8 (Interfaces + cleanup).

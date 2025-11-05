@@ -7,13 +7,7 @@
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
-
-type BookingWithServices = Prisma.BookingGetPayload<{
-  include: {
-    services: { include: { service: true; engineTier: true } };
-    documents?: true;
-  };
-}>;
+import type { BookingWithServicesPort } from './bookings.ports';
 
 export class BookingNotifier {
   constructor(
@@ -22,9 +16,9 @@ export class BookingNotifier {
   ) {}
 
   async sendBookingConfirmation(
-    booking: BookingWithServices,
+    booking: BookingWithServicesPort,
     totals: { totalAmountPence: number; vatAmountPence: number },
-    resolveReference: (b: BookingWithServices) => string,
+    resolveReference: (b: BookingWithServicesPort) => string,
   ): Promise<void> {
     const bookingService = booking.services[0];
     const recipients = await this.prisma.notificationRecipient.findMany();
@@ -69,4 +63,3 @@ export class BookingNotifier {
     });
   }
 }
-

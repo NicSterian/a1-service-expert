@@ -50,6 +50,14 @@ import { BookingNotifier } from './booking.notifier';
 import { AdminBookingManager } from './admin-booking.manager';
 // Booking repository (Phase 7).
 import { BookingRepository } from './booking.repository';
+// Ports (Phase 8).
+import type {
+  IPricingPolicy,
+  IDocumentOrchestrator,
+  IAvailabilityCoordinator,
+  IBookingNotifier,
+  IAdminBookingManager,
+} from './bookings.ports';
 
 type BookingWithServices = Prisma.BookingGetPayload<{
   include: {
@@ -75,11 +83,11 @@ type ConfirmTransactionResult = {
 export class BookingsService {
   private readonly logger = new Logger(BookingsService.name);
   // Lazy delegates to avoid DI changes during refactor.
-  private pricingPolicy: PricingPolicy | null = null;
-  private documentOrchestrator: DocumentOrchestrator | null = null;
-  private availabilityCoordinator: AvailabilityCoordinator | null = null;
-  private bookingNotifier: BookingNotifier | null = null;
-  private adminManager: AdminBookingManager | null = null;
+  private pricingPolicy: IPricingPolicy | null = null;
+  private documentOrchestrator: IDocumentOrchestrator | null = null;
+  private availabilityCoordinator: IAvailabilityCoordinator | null = null;
+  private bookingNotifier: IBookingNotifier | null = null;
+  private adminManager: IAdminBookingManager | null = null;
   private bookingRepository: BookingRepository | null = null;
 
   constructor(
@@ -91,14 +99,14 @@ export class BookingsService {
     private readonly settingsService: SettingsService,
   ) {}
 
-  private getPricingPolicy(): PricingPolicy {
+  private getPricingPolicy(): IPricingPolicy {
     if (!this.pricingPolicy) {
       this.pricingPolicy = new PricingPolicy(this.prisma, this.vehiclesService, this.logger);
     }
     return this.pricingPolicy;
   }
 
-  private getDocumentOrchestrator(): DocumentOrchestrator {
+  private getDocumentOrchestrator(): IDocumentOrchestrator {
     if (!this.documentOrchestrator) {
       this.documentOrchestrator = new DocumentOrchestrator(
         this.prisma,
@@ -111,21 +119,21 @@ export class BookingsService {
     return this.documentOrchestrator;
   }
 
-  private getAvailabilityCoordinator(): AvailabilityCoordinator {
+  private getAvailabilityCoordinator(): IAvailabilityCoordinator {
     if (!this.availabilityCoordinator) {
       this.availabilityCoordinator = new AvailabilityCoordinator(this.prisma, this.holdsService, this.logger);
     }
     return this.availabilityCoordinator;
   }
 
-  private getBookingNotifier(): BookingNotifier {
+  private getBookingNotifier(): IBookingNotifier {
     if (!this.bookingNotifier) {
       this.bookingNotifier = new BookingNotifier(this.prisma, this.emailService);
     }
     return this.bookingNotifier;
   }
 
-  private getAdminManager(): AdminBookingManager {
+  private getAdminManager(): IAdminBookingManager {
     if (!this.adminManager) {
       this.adminManager = new AdminBookingManager(this.prisma, this.holdsService, this.logger);
     }
