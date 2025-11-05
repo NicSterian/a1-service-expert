@@ -38,6 +38,7 @@ import {
 // Extracted pure helpers (Phase 1).
 import { normalizeEngineSize } from './bookings.helpers';
 import { presentListItem, presentUserBooking, presentAdminBooking, presentConfirmation } from './bookings.presenter';
+import { calculateVatFromGross, nextSequence, formatBookingReference, resolveBookingReference } from './bookings.utils';
 // Pricing delegate (Phase 2).
 import { PricingPolicy } from './pricing.policy';
 // Document orchestrator (Phase 3).
@@ -323,12 +324,12 @@ export class BookingsService {
       }
 
       const totalAmountPence = services.reduce((sum, service) => sum + service.unitPricePence, 0);
-      const vatAmountPence = this.calculateVatFromGross(totalAmountPence, vatRatePercent);
+      const vatAmountPence = calculateVatFromGross(totalAmountPence, vatRatePercent);
 
       let reference = booking.reference ?? null;
       if (!reference) {
-        const sequence = await this.nextSequence(tx, SequenceKey.BOOKING_REFERENCE);
-        reference = this.formatBookingReference(sequence.year, sequence.counter);
+        const sequence = await nextSequence(tx, SequenceKey.BOOKING_REFERENCE);
+        reference = formatBookingReference(sequence.year, sequence.counter);
       }
 
       const updatedBooking = await tx.booking.update({
@@ -368,7 +369,7 @@ export class BookingsService {
       await this.getBookingNotifier().sendBookingConfirmation(result.booking, {
         totalAmountPence: result.totalAmountPence,
         vatAmountPence: result.vatAmountPence,
-      }, (b) => this.resolveBookingReference(b));
+      }, (b) => resolveBookingReference(b));
     } catch (error) {
       this.logger.error(
         `Failed to send booking confirmation emails for booking ${result.booking.id}`,
@@ -384,39 +385,8 @@ export class BookingsService {
 
   // normalizeEngineSize moved to bookings.helpers.ts (Phase 1)
 
-  private calculateVatFromGross(totalAmountPence: number, vatRatePercent: number): number {
-    if (!Number.isFinite(vatRatePercent) || vatRatePercent <= 0) {
-      return 0;
-    }
-
-    const vatRate = vatRatePercent / 100;
-    return Math.round(totalAmountPence * (vatRate / (1 + vatRate)));
-  }
-
-  private async nextSequence(
-    client: PrismaService | Prisma.TransactionClient,
-    key: SequenceKey,
-  ): Promise<{ year: number; counter: number }> {
-    const year = new Date().getFullYear();
-    const sequence = await client.sequence.upsert({
-      where: { key_year: { key, year } },
-      update: { counter: { increment: 1 } },
-      create: { key, year, counter: 1 },
-    });
-
-    return { year, counter: sequence.counter };
-  }
-
-  private formatBookingReference(year: number, counter: number): string {
-    return `BK-A1-${year}-${counter.toString().padStart(4, '0')}`;
-  }
-
-  private resolveBookingReference(booking: BookingWithServices): string {
-    if (booking.reference) {
-      return booking.reference;
-    }
-    return this.formatBookingReference(new Date().getFullYear(), booking.id);
-  }
+  // calculateVatFromGross, nextSequence, formatBookingReference, and
+  // resolveBookingReference moved to bookings.utils.ts (Step 2)
 
   // presentConfirmation moved to bookings.presenter.ts (Step 1)
 
@@ -607,8 +577,8 @@ export class BookingsService {
 
     // Create booking and related entities in transaction
     const result = await this.prisma.$transaction(async (tx) => {
-      const sequence = await this.nextSequence(tx, SequenceKey.BOOKING_REFERENCE);
-      const reference = this.formatBookingReference(sequence.year, sequence.counter);
+      const sequence = await nextSequence(tx, SequenceKey.BOOKING_REFERENCE);
+      const reference = formatBookingReference(sequence.year, sequence.counter);
 
       const booking = await tx.booking.create({
         data: {
@@ -649,7 +619,7 @@ export class BookingsService {
 
       // Calculate totals
       const totalAmountPence = unitPricePence;
-      const vatAmountPence = this.calculateVatFromGross(totalAmountPence, vatRatePercent);
+      const vatAmountPence = calculateVatFromGross(totalAmountPence, vatRatePercent);
 
       return {
         booking: await tx.booking.findUnique({
@@ -681,7 +651,7 @@ export class BookingsService {
           totalAmountPence: result.totalAmountPence,
           vatAmountPence: result.vatAmountPence,
         },
-        (b) => this.resolveBookingReference(b),
+        (b) => resolveBookingReference(b),
       );
     } catch (error) {
       this.logger.warn(
@@ -692,7 +662,7 @@ export class BookingsService {
 
     return {
       bookingId: result.booking.id,
-      reference: result.booking.reference ?? this.resolveBookingReference(result.booking),
+      reference: result.booking.reference ?? resolveBookingReference(result.booking),
       status: result.booking.status,
       slotDate: result.booking.slotDate.toISOString(),
       slotTime: result.booking.slotTime,
@@ -773,3 +743,4 @@ export class BookingsService {
  * 4) Extract document issuance to DocumentOrchestrator (issue/send).
  * 5) Leave repository calls and high-level flows in BookingsService.
  */
+

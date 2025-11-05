@@ -367,4 +367,27 @@ Step 1 – Presenters Extraction (done)
   - Response shapes, field names, and values preserved. Fallback reference formatting mirrors existing logic.
 - Verification
   - API build/tests pass; module lint is clean (existing controller lint untouched).
-  - File size reduced: `bookings.service.ts` now ~776 LOC (from ~984). Further reductions planned in next steps.
+- File size reduced: `bookings.service.ts` now ~776 LOC (from ~984). Further reductions planned in next steps.
+
+Step 2 – Finance/Sequence Utils (planned)
+- Objective
+  - Move VAT calculation and booking reference/sequence helpers out of the service.
+- Targets to extract
+  - `calculateVatFromGross`, `nextSequence`, `formatBookingReference`, `resolveBookingReference`.
+- New module
+  - `apps/booking-api/src/bookings/bookings.utils.ts` exporting the four helpers.
+- Changes in service
+  - Replace method calls with imports; remove the private methods.
+- Verification
+  - API build/tests pass; bookings module lint clean.
+
+Step 2 – Finance/Sequence Utils (done)
+- Implemented
+  - Added `bookings.utils.ts` with the four helpers mirroring prior logic.
+  - Rewired `confirmBooking`, manual booking flow, and reference usage to call imported helpers.
+  - Removed private helpers from `bookings.service.ts`.
+- Behaviour
+  - Identical VAT calculation, sequence upsert, and reference formatting.
+- Verification
+  - API build/tests pass; module lint remains clean.
+  - File size reduced: `bookings.service.ts` now ~747 LOC.
